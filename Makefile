@@ -1,78 +1,69 @@
 CXX = g++
 ifeq ($(__PERF), 1)
-	CXXFLAGS = -O0 -g -pg -pipe -fPIC -D__XDEBUG__ -W -Wwrite-strings -Wpointer-arith -Wreorder -Wswitch -Wsign-promo -Wredundant-decls -Wformat -Wall -D_GNU_SOURCE -std=c++11 -D__STDC_FORMAT_MACROS -std=c++11 -gdwarf-2 -Wno-redundant-decls
+	CXXFLAGS = -O0 -g -pg -pipe -fPIC -D__XDEBUG__ -W -Wwrite-strings -Wpointer-arith -Wreorder -Wswitch -Wsign-promo -Wredundant-decls -Wformat -D_GNU_SOURCE -D__STDC_FORMAT_MACROS -std=c++11 -Wno-unused-variable
 else
-	CXXFLAGS = -O2 -g -pipe -fPIC -W -Wwrite-strings -Wpointer-arith -Wreorder -Wswitch -Wsign-promo -Wredundant-decls -Wformat -Wall -D_GNU_SOURCE -D__STDC_FORMAT_MACROS -std=c++11 -gdwarf-2 -Wno-redundant-decls -Wno-sign-compare
-	# CXXFLAGS = -Wall -W -DDEBUG -g -O0 -D__XDEBUG__ -D__STDC_FORMAT_MACROS -fPIC -std=c++11 -gdwarf-2
+	CXXFLAGS = -O2 -pipe -fPIC -W -Wwrite-strings -Wpointer-arith -Wreorder -Wswitch -Wsign-promo -Wredundant-decls -Wformat -Wall -D_GNU_SOURCE -D__STDC_FORMAT_MACROS -std=c++11 -Wno-unused-variable -Wno-maybe-uninitialized -Wno-unused-parameter
+	# CXXFLAGS = -Wall -W -DDEBUG -g -O0 -D__XDEBUG__ 
 endif
+OBJECT = zgw_server
 
-SRC_DIR = ./src/
-OUTPUT = ./output/
-TESTS_DIR = ./tests/
+SRC_DIR = ./src
+THIRD_DIR = ./third
 
-INCLUDE_PATH = -I./ \
-							 -I./include/
+OUTPUT = ./output
 
-LIB_PATH = -L./ \
+LIB_PATH = -L$(THIRD_DIR)/slash/output/lib/ \
+					 -L$(THIRD_DIR)/pink/output/lib/
 
+LIBS = -lpink \
+			 -lslash \
+			 -lpthread
 
-LIBS = -lpthread
+INCLUDE_PATH = -I$(THIRD_DIR)/slash \
+							 -I$(THIRD_DIR)/slash/include \
+							 -I$(THIRD_DIR)/pink \
+							 -I$(THIRD_DIR)/pink/include
 
-LIBRARY = libslash.a
-OUTPUT_LIB = $(OUTPUT)/lib/$(LIBRARY)
-
-TESTS = \
-  $(TESTS_DIR)/slash_string_test \
-  $(TESTS_DIR)/slash_binlog_test \
-  $(TESTS_DIR)/base_conf_test
-
-.PHONY: all clean check
+.PHONY: all clean
 
 
-BASE_OBJS := $(wildcard $(SRC_DIR)/*.cc)
-BASE_OBJS += $(wildcard $(SRC_DIR)/*.c)
-BASE_OBJS += $(wildcard $(SRC_DIR)/*.cpp)
-OBJS = $(patsubst %.cc,%.o,$(BASE_OBJS))
+BASE_BOJS := $(wildcard $(SRC_DIR)/*.cc)
+BASE_BOJS += $(wildcard $(SRC_DIR)/*.c)
+BASE_BOJS += $(wildcard $(SRC_DIR)/*.cpp)
+OBJS = $(patsubst %.cc,%.o,$(BASE_BOJS))
 
+PINK = $(THIRD_DIR)/pink/output/lib/libpink.a
+SLASH = $(THIRD_DIR)/slash/output/lib/libslash.a
 
-all: $(OUTPUT_LIB)
+all: $(OBJECT)
+	rm -rf $(OUTPUT)
+	mkdir -p $(OUTPUT)
+	mkdir -p $(OUTPUT)/bin
+	mkdir -p $(OUTPUT)/log
+	cp $(OBJECT) $(OUTPUT)/bin/
+	rm -rf $(OBJECT)
 	@echo "Success, go, go, go..."
 
-$(OUTPUT_LIB): $(LIBRARY)
-	rm -rf $(OUTPUT)
-	mkdir -p $(OUTPUT)/include
-	mkdir -p $(OUTPUT)/lib
-	cp -r ./include $(OUTPUT)/
-	mv $< $(OUTPUT)/lib/
 
-$(LIBRARY): $(OBJS)
-	rm -rf $@
-	ar -rcs $@ $(OBJS)
-
-$(OBJECT): $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(INCLUDE_PATH) $(LIB_PATH) -Wl,-Bdynamic $(LIBS)
+$(OBJECT): $(SLASH) $(PINK) $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(INCLUDE_PATH) $(LIB_PATH) $(LIBS)
 
 $(OBJS): %.o : %.cc
 	$(CXX) $(CXXFLAGS) -c $< -o $@ $(INCLUDE_PATH) 
 
+$(SLASH):
+	make -C $(THIRD_DIR)/slash/
+
+$(PINK):
+	make -C $(THIRD_DIR)/pink/
+
 clean: 
-	make -C example clean
-	rm -rf $(SRC_DIR)/*.o
-	rm -rf $(OUTPUT)/*
 	rm -rf $(OUTPUT)
-	rm -rf $(TESTS_DIR)
+	rm -f $(SRC_DIR)/*.o
+	rm -rf $(OBJECT)
 
-check: $(OUTPUT_LIB) $(TESTS_DIR) $(TESTS)
-	for t in $(notdir $(TESTS)); do echo "***** Running $$t"; $(TESTS_DIR)/$$t || exit 1; done
+distclean: clean
+	make -C $(THIRD_DIR)/slash/ clean
+	make -C $(THIRD_DIR)/pink/ clean
 
-$(TESTS_DIR):
-	mkdir $@
 
-$(TESTS_DIR)/slash_string_test: $(SRC_DIR)/slash_string_test.o $(OUTPUT_LIB) $(TESTHARNESS) $(LIBS)
-	$(CXX) $(CXXFLAGS) $^ -o $@
-
-$(TESTS_DIR)/slash_binlog_test: $(SRC_DIR)/slash_binlog_test.o $(OUTPUT_LIB) $(TESTHARNESS) $(LIBS)
-	$(CXX) $(CXXFLAGS) $^ -o $@
-
-$(TESTS_DIR)/base_conf_test: $(SRC_DIR)/base_conf_test.o $(OUTPUT_LIB) $(TESTHARNESS) $(LIBS)
-	$(CXX) $(CXXFLAGS) $^ -o $@
