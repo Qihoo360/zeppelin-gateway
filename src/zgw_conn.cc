@@ -1,5 +1,6 @@
 #include "zgw_conn.h"
 
+extern ZgwServer* g_zgw_server;
 
 ZgwConn::ZgwConn(const int fd, const std::string &ip_port,
       pink::WorkerThread<ZgwConn>* worker) :
@@ -37,3 +38,4 @@ virtual bool ZgwConn::HandlePost(pink::HttpRequest* req,
   res->content.append("this page does not exist");
   return true;
 }
+
