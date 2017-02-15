@@ -8,7 +8,9 @@ class ZgwConn : public pink::HttpConn {
  public:
   ZgwConn(const int fd, const std::string &ip_port,
       pink::WorkerThread<ZgwConn>* worker);
-  virtual void DealMessage(pink::HttpRequest* req,
+
+ private:
+  virtual void DealMessage(const pink::HttpRequest* req,
       pink::HttpResponse* res) override;
 };
 
