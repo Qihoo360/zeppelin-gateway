@@ -10,6 +10,7 @@
 
 #include "zgw_const.h"
 #include "zgw_conn.h"
+#include "libzgw/zgw_store.h"
 
 class ZgwServer {
  public:
@@ -35,6 +36,7 @@ class ZgwServer {
   int worker_num_;
   pink::WorkerThread<ZgwConn>* zgw_worker_thread_[kMaxWorkerThread];
   pink::DispatchThread<ZgwConn> *zgw_dispatch_thread_;
+  libzgw::ZgwStore store_;
 
   void DoTimingTask();
 };
