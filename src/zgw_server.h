@@ -2,41 +2,39 @@
 #define ZGW_SERVER_H
 
 #include <string>
-j
 #include "include/worker_thread.h"
 #include "include/dispatch_thread.h"
 #include "include/slash_status.h"
 #include "include/slash_mutex.h"
+#include <glog/logging.h>
 
-#include "zgw_conf.h"
-
-
-extern ZgwConf* g_zgw_conf;
+#include "zgw_const.h"
+#include "zgw_conn.h"
 
 class ZgwServer {
  public:
-  explicit ZgwServer();
+  explicit ZgwServer(const std::string& ip, int port);
   virtual ~ZgwServer();
-  Status Start();
+  slash::Status Start();
 
   std::string local_ip() {
-    return g_zgw_conf->local_ip();
+    return ip_;
   }
   int local_port() {
-    return g_zgw_conf->local_port();
+    return port_;
   }
-
   void Exit() {
     should_exit_ = true;
   }
 
  private:
   // Server related
-  int worker_num_;
-  pink::WorkerThread<ZgwHttpConn>* zgw_worker_thread_[kMaxWorkerThread];
-  pink::DispatchThread<ZgwHttpConn> *zgw_dispatch_thread_;
-
+  std::string ip_;
+  int port_;
   std::atomic<bool> should_exit_;
+  int worker_num_;
+  pink::WorkerThread<ZgwConn>* zgw_worker_thread_[kMaxWorkerThread];
+  pink::DispatchThread<ZgwConn> *zgw_dispatch_thread_;
 
   void DoTimingTask();
 };

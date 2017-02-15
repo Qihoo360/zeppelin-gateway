@@ -1,20 +1,20 @@
 #include "zgw_server.h"
 
 #include <glog/logging.h>
-#include <google/protobuf/text_format.h>
-#include "zgw_worker_thread.h"
-#include "zgw_dispatch_thread.h"
 
-
-ZgwServer::ZgwServer()
-  : should_exit_(false) {
+ZgwServer::ZgwServer(const std::string& ip, int port)
+  : ip_(ip),
+  port_(port),
+  should_exit_(false) {
     worker_num_ = 4;
     for (int i = 0; i < worker_num_; i++) {
-      zgw_worker_thread_[i] = new pink::WorkerThread<ZgwHttpConn>();
+      zgw_worker_thread_[i] = new pink::WorkerThread<ZgwConn>();
     }
-    zgw_dispatch_thread_ = new pink::DispatchThread<ZgwHttpConn>(
-        zgw_conf->local_ip(),
-        zgw_conf->local_port(),
+    std::set<std::string> ips;
+    ips.insert(ip_);
+    zgw_dispatch_thread_ = new pink::DispatchThread<ZgwConn>(
+        ips,
+        port_,
         worker_num_,
         zgw_worker_thread_,
         kDispatchCronInterval);
@@ -29,18 +29,17 @@ ZgwServer::~ZgwServer() {
   LOG(INFO) << "ZgwServerThread " << pthread_self() << " exit!!!";
 }
 
-Status ZgwServer::Start() {
+slash::Status ZgwServer::Start() {
   zgw_dispatch_thread_->StartThread();
   
   while (!should_exit_) {
     DoTimingTask();
-    int sleep_count = kNodeCronWaitCount;
+    int sleep_count = kZgwCronCount;
     while (!should_exit_ && sleep_count-- > 0){
-      usleep(kNodeCronInterval * 1000);
+      usleep(kZgwCronInterval * 1000);
     }
   }
-  return Status::OK();
+  return slash::Status::OK();
 }
 
-void ZgwServer::DoTimingTask() {
-}
+void ZgwServer::DoTimingTask() {}

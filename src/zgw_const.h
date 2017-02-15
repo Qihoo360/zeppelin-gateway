@@ -10,7 +10,7 @@ const std::string kZgwPidFile = "zgw.pid";
 const std::string kZgwLockFile = "zgw.lock";
 
 ////// Server State /////
+const int kZgwCronCount = 30;
+const int kZgwCronInterval = 5000;
 const int kDispatchCronInterval = 5000;
-const int kWorkerCronInterval = 5000;
-
 #endif

@@ -7,9 +7,10 @@ else
 endif
 OBJECT = zgw_server
 
+
+SO_PATH = /usr/local/lib
 SRC_DIR = ./src
 THIRD_DIR = ./third
-
 OUTPUT = ./output
 
 LIB_PATH = -L$(THIRD_DIR)/slash/output/lib/ \
@@ -17,6 +18,7 @@ LIB_PATH = -L$(THIRD_DIR)/slash/output/lib/ \
 
 LIBS = -lpink \
 			 -lslash \
+			 -lglog \
 			 -lpthread
 
 INCLUDE_PATH = -I$(THIRD_DIR)/slash \
@@ -34,6 +36,7 @@ OBJS = $(patsubst %.cc,%.o,$(BASE_BOJS))
 
 PINK = $(THIRD_DIR)/pink/output/lib/libpink.a
 SLASH = $(THIRD_DIR)/slash/output/lib/libslash.a
+GLOG = $(SO_PATH)/libglog.so.0
 
 all: $(OBJECT)
 	rm -rf $(OUTPUT)
@@ -45,7 +48,7 @@ all: $(OBJECT)
 	@echo "Success, go, go, go..."
 
 
-$(OBJECT): $(SLASH) $(PINK) $(OBJS)
+$(OBJECT): $(SLASH) $(PINK) $(GLOG) $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(INCLUDE_PATH) $(LIB_PATH) $(LIBS)
 
 $(OBJS): %.o : %.cc
@@ -56,6 +59,12 @@ $(SLASH):
 
 $(PINK):
 	make -C $(THIRD_DIR)/pink/
+
+$(GLOG):
+	if [ ! -f $(GLOG) ]; then \
+		cd $(THIRD_DIR)/glog; \
+		autoreconf -ivf; ./configure; make; echo '*' > $(THIRD_DIR)/glog/.gitignore; cp $(THRID_DIR)/glog/.libs/libglog.so.0 $(SO_PATH); \
+	fi; 
 
 clean: 
 	rm -rf $(OUTPUT)
