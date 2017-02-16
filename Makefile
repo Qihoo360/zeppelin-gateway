@@ -8,7 +8,7 @@ endif
 OBJECT = zgw_server
 
 
-SO_PATH = /usr/local/lib
+SO_PATH = ./lib
 SRC_DIR = ./src
 THIRD_DIR = ./third
 OUTPUT = ./output
@@ -24,7 +24,8 @@ LIBS = -lpink \
 INCLUDE_PATH = -I$(THIRD_DIR)/slash \
 							 -I$(THIRD_DIR)/slash/include \
 							 -I$(THIRD_DIR)/pink \
-							 -I$(THIRD_DIR)/pink/include
+							 -I$(THIRD_DIR)/pink/include \
+							 -I$(THIRD_DIR)/glog/src \
 
 .PHONY: all clean
 
@@ -36,13 +37,14 @@ OBJS = $(patsubst %.cc,%.o,$(BASE_BOJS))
 
 PINK = $(THIRD_DIR)/pink/output/lib/libpink.a
 SLASH = $(THIRD_DIR)/slash/output/lib/libslash.a
-GLOG = $(SO_PATH)/libglog.so.0
+GLOG = $(THIRD_DIR)/glog/.libs/libglog.so.0
 
 all: $(OBJECT)
 	rm -rf $(OUTPUT)
 	mkdir -p $(OUTPUT)
 	mkdir -p $(OUTPUT)/bin
 	mkdir -p $(OUTPUT)/log
+	cp -r $(SO_PATH) $(OUTPUT)/
 	cp $(OBJECT) $(OUTPUT)/bin/
 	rm -rf $(OBJECT)
 	@echo "Success, go, go, go..."
@@ -55,15 +57,15 @@ $(OBJS): %.o : %.cc
 	$(CXX) $(CXXFLAGS) -c $< -o $@ $(INCLUDE_PATH) 
 
 $(SLASH):
-	make -C $(THIRD_DIR)/slash/
+	make -C $(THIRD_DIR)/slash/ __PERF=$(__PERF)
 
 $(PINK):
-	make -C $(THIRD_DIR)/pink/
+	make -C $(THIRD_DIR)/pink/ __PERF=$(__PERF)
 
 $(GLOG):
 	if [ ! -f $(GLOG) ]; then \
 		cd $(THIRD_DIR)/glog; \
-		autoreconf -ivf; ./configure; make; echo '*' > $(THIRD_DIR)/glog/.gitignore; cp $(THRID_DIR)/glog/.libs/libglog.so.0 $(SO_PATH); \
+		autoreconf -ivf; ./configure; make; echo '*' > .gitignore; cp .libs/libglog.so.0 $(SO_PATH); \
 	fi; 
 
 clean: 
@@ -74,5 +76,3 @@ clean:
 distclean: clean
 	make -C $(THIRD_DIR)/slash/ clean
 	make -C $(THIRD_DIR)/pink/ clean
-
-

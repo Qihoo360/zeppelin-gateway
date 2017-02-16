@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "slash"
+#include "slash_status.h"
 #include "zp_cluster.h"
 #include "zgw_bucket.h"
 

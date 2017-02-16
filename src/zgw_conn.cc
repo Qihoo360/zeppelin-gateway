@@ -31,8 +31,7 @@ ZgwConn::ZgwConn(const int fd, const std::string &ip_port,
 void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* res) {
   DumpHttpRequest(req);
 
-  // Package Op
-  // g_zgw_server->Do(Op);
+
   
   // Build Response
   res->content.append("HTTP/1.1 200 OK\r\n");
