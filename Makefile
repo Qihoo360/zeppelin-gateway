@@ -18,9 +18,11 @@ LIB_PATH = -L$(THIRD_DIR)/slash/output/lib/ \
 					 -L$(THIRD_DIR)/pink/output/lib/ \
 					 -L$(THIRD_DIR)/libzp/output/lib/
 
-LIBS = -lpink \
+LIBS = -lzp \
 			 -lslash \
+			 -lpink \
 			 -lglog \
+			 -lprotobuf \
 			 -lpthread
 
 INCLUDE_PATH = -I$(LIBZGW_DIR)/\

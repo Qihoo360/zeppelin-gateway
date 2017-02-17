@@ -36,7 +36,7 @@ class ZgwServer {
   int worker_num_;
   pink::WorkerThread<ZgwConn>* zgw_worker_thread_[kMaxWorkerThread];
   pink::DispatchThread<ZgwConn> *zgw_dispatch_thread_;
-  libzgw::ZgwStore store_;
+  libzgw::ZgwStore* store_;
 
   void DoTimingTask();
 };

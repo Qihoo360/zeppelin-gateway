@@ -2,22 +2,31 @@
 #define ZGW_BUCKET_H
 #include <string>
 #include <map>
+#include <time.h>
 
-#include "zgw_object.h"
+#include "include/slash_string.h"
+#include "include/slash_status.h"
 
 namespace libzgw {
 
+using slash::Status;
+
 class ZgwBucket {
 public:
-  ZgwBucket(const std::string name);
+  ZgwBucket(const std::string& name);
   ~ZgwBucket();
- 
-  ZgwObject* GetObject(uint64_t id);
   
+  std::string name() const {
+    return name_;
+  }
 
+  std::string MetaKey() const;
+  std::string MetaValue() const;
+  Status ParseMetaValue(const std::string& value);
+ 
 private:
   std::string name_;
-  //std::map<uint64_t, ZgwObject*> objects_;
+  time_t ctime_;
 };
 
 

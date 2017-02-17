@@ -13,14 +13,19 @@ namespace libzgw {
 
 class ZgwStore {
 public:
-  ZgwStore();
+  Status Open(const std::string& name,
+    const std::vector<std::string>& ips, ZgwStore** ptr);
+
   ~ZgwStore();
   
-  Status AddBucket(const std::string name, const ZgwBucket& bucket);
-  Status ListBucket(std::vector<std::string>* buckets);
+  Status AddBucket(const ZgwBucket& bucket, int partition_num = 1024);
+  Status ListBucket(std::vector<ZgwBucket*>* buckets);
 
 
 private:
+  ZgwStore(const std::string& name);
+  Status Init(const std::vector<std::string>& ips);
+  std::string name_;
   libzp::Cluster* zp_;
 
 };
