@@ -82,6 +82,7 @@ $(GLOG):
 clean: 
 	rm -rf $(OUTPUT)
 	rm -f $(SRC_DIR)/*.o
+	rm -f $(LIBZGW_DIR)/*.o
 	rm -rf $(OBJECT)
 
 distclean: clean
