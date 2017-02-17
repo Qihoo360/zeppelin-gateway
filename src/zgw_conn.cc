@@ -34,9 +34,9 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* res)
 
   
   // Build Response
-  res->content.append("HTTP/1.1 200 OK\r\n");
-  res->content.append("Content-Length:7");
-  res->content.append("\r\n\r\n");
-  res->content.append("success\r\n");
+  res->body.append("HTTP/1.1 200 OK\r\n");
+  res->body.append("Content-Length:7");
+  res->body.append("\r\n\r\n");
+  res->body.append("success\r\n");
 }
 

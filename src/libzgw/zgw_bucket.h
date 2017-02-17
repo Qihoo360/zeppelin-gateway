@@ -17,7 +17,7 @@ public:
 
 private:
   std::string name_;
-  std::map<uint64_t, ZgwObject*> objects_
+  //std::map<uint64_t, ZgwObject*> objects_;
 };
 
 

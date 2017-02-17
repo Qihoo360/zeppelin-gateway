@@ -1,5 +1,20 @@
-#include "libzgw.h"
+#include "zgw_store.h"
 
-namespace zgw {
+namespace libzgw {
+  
+  ZgwStore::ZgwStore() {
+  }
+  
+  ZgwStore::~ZgwStore() {
+  }
+
+  Status ZgwStore::AddBucket(const std::string name, const ZgwBucket& bucket) {
+    return Status::OK();
+  }
+
+  Status ZgwStore::ListBucket(std::vector<std::string>* buckets) {
+    return Status::OK();
+  }
+
 
 }

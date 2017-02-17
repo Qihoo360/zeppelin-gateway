@@ -10,33 +10,40 @@ OBJECT = zgw_server
 
 SO_PATH = ./lib
 SRC_DIR = ./src
+LIBZGW_DIR = ./src/libzgw
 THIRD_DIR = ./third
 OUTPUT = ./output
 
 LIB_PATH = -L$(THIRD_DIR)/slash/output/lib/ \
-					 -L$(THIRD_DIR)/pink/output/lib/
+					 -L$(THIRD_DIR)/pink/output/lib/ \
+					 -L$(THIRD_DIR)/libzp/output/lib/
 
 LIBS = -lpink \
 			 -lslash \
 			 -lglog \
 			 -lpthread
 
-INCLUDE_PATH = -I$(THIRD_DIR)/slash \
+INCLUDE_PATH = -I$(LIBZGW_DIR)/\
+							 -I$(THIRD_DIR)/slash \
 							 -I$(THIRD_DIR)/slash/include \
 							 -I$(THIRD_DIR)/pink \
 							 -I$(THIRD_DIR)/pink/include \
+							 -I$(THIRD_DIR)/libzp \
+							 -I$(THIRD_DIR)/libzp/include \
 							 -I$(THIRD_DIR)/glog/src \
 
 .PHONY: all clean
 
 
-BASE_BOJS := $(wildcard $(SRC_DIR)/*.cc)
+BASE_BOJS := $(wildcard $(LIBZGW_DIR)/*.cc)
+BASE_BOJS += $(wildcard $(SRC_DIR)/*.cc)
 BASE_BOJS += $(wildcard $(SRC_DIR)/*.c)
 BASE_BOJS += $(wildcard $(SRC_DIR)/*.cpp)
 OBJS = $(patsubst %.cc,%.o,$(BASE_BOJS))
 
 PINK = $(THIRD_DIR)/pink/output/lib/libpink.a
 SLASH = $(THIRD_DIR)/slash/output/lib/libslash.a
+LIBZP = $(THIRD_DIR)/libzp/output/lib/libzp.a
 GLOG = $(THIRD_DIR)/glog/.libs/libglog.so.0
 
 all: $(OBJECT)
@@ -44,13 +51,14 @@ all: $(OBJECT)
 	mkdir -p $(OUTPUT)
 	mkdir -p $(OUTPUT)/bin
 	mkdir -p $(OUTPUT)/log
-	cp -r $(SO_PATH) $(OUTPUT)/
+	mkdir -p $(OUTPUT)/lib
+	cp -r $(GLOG) $(OUTPUT)/lib/
 	cp $(OBJECT) $(OUTPUT)/bin/
 	rm -rf $(OBJECT)
 	@echo "Success, go, go, go..."
 
 
-$(OBJECT): $(SLASH) $(PINK) $(GLOG) $(OBJS)
+$(OBJECT): $(SLASH) $(PINK) $(LIBZP) $(GLOG) $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(INCLUDE_PATH) $(LIB_PATH) $(LIBS)
 
 $(OBJS): %.o : %.cc
@@ -62,10 +70,13 @@ $(SLASH):
 $(PINK):
 	make -C $(THIRD_DIR)/pink/ __PERF=$(__PERF)
 
+$(LIBZP):
+	make -C $(THIRD_DIR)/libzp/ __PERF=$(__PERF)
+
 $(GLOG):
 	if [ ! -f $(GLOG) ]; then \
 		cd $(THIRD_DIR)/glog; \
-		autoreconf -ivf; ./configure; make; echo '*' > .gitignore; cp .libs/libglog.so.0 $(SO_PATH); \
+		autoreconf -ivf; ./configure; make; echo '*' > .gitignore;\
 	fi; 
 
 clean: 
@@ -76,3 +87,4 @@ clean:
 distclean: clean
 	make -C $(THIRD_DIR)/slash/ clean
 	make -C $(THIRD_DIR)/pink/ clean
+	make -C $(THIRD_DIR)/libzp/ clean

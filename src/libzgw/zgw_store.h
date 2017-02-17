@@ -18,7 +18,6 @@ public:
   
   Status AddBucket(const std::string name, const ZgwBucket& bucket);
   Status ListBucket(std::vector<std::string>* buckets);
-  Status GetAllObjects(const std::string name, std::vector<ZgwObject*>* objects);
 
 
 private:
