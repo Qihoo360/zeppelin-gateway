@@ -34,10 +34,10 @@ slash::Status ZgwServer::Start() {
   
   while (!should_exit_) {
     DoTimingTask();
-    int sleep_count = kZgwCronCount;
-    while (!should_exit_ && sleep_count-- > 0){
-      usleep(kZgwCronInterval * 1000);
-    }
+    // int sleep_count = kZgwCronCount;
+    // while (!should_exit_ && sleep_count-- > 0){
+    usleep(kZgwCronInterval * 1000);
+    // }
   }
   return slash::Status::OK();
 }

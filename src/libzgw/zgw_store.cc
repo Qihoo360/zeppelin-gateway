@@ -59,7 +59,7 @@ Status ZgwStore::AddBucket(const ZgwBucket& bucket,
   return zp_->Set(bucket.name(), bucket.MetaKey(), bucket.MetaValue());
 }
 
-Status ZgwStore::ListBucket(std::vector<ZgwBucket*>* buckets) {
+Status ZgwStore::ListBuckets(std::vector<ZgwBucket>* buckets) {
   assert(buckets);
   Status s = zp_->Connect();
   if (!s.ok()) {
@@ -82,12 +82,27 @@ Status ZgwStore::ListBucket(std::vector<ZgwBucket*>* buckets) {
       if (!obucket.ParseMetaValue(value).ok()) {
         continue; // Skip table with not meta info
       }
-      buckets->push_back(&obucket);
+      buckets->push_back(obucket);
     }
   }
 
   return Status::OK();
 }
 
+
+Status ZgwStore::DelBucket(const std::string &bucket_name) {
+  return Status::OK();
+}
+
+Status ZgwStore::DelObject(const std::string &bucket_name,
+    const std::string &object_name) {
+  return Status::OK();
+}
+Status ZgwStore::ListObjects(const std::string &bucket_name,
+    std::vector<ZgwObject>* buckets) {
+  buckets->push_back(ZgwObject(bucket_name, "key1"));
+  buckets->push_back(ZgwObject(bucket_name, "key2"));
+  return Status::OK();
+}
 
 }

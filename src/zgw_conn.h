@@ -12,6 +12,14 @@ class ZgwConn : public pink::HttpConn {
  private:
   virtual void DealMessage(const pink::HttpRequest* req,
       pink::HttpResponse* res) override;
+
+  void ListObjectOperation(std::string &bucket_name,
+                           pink::HttpResponse* resp);
+  void DeleteBucketOperation(std::string &bucket_name,
+                             pink::HttpResponse* resp);
+  void CreateBucketOperation(std::string &bucket_name,
+                             pink::HttpResponse* resp);
+  void ListBucketOperation(pink::HttpResponse* resp);
 };
 
 

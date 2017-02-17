@@ -20,6 +20,10 @@ public:
     return name_;
   }
 
+  time_t ctime() {
+    return ctime_;
+  }
+
   std::string MetaKey() const;
   std::string MetaValue() const;
   Status ParseMetaValue(const std::string& value);

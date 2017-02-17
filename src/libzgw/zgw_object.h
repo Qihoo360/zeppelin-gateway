@@ -11,8 +11,14 @@ class ZgwObjectMeta {
 
 class ZgwObject {
 public:
-  ZgwObject(uint64_t id);
-  ~ZgwObject();
+  ZgwObject(uint64_t id) {}
+  ZgwObject(std::string b, std::string k)
+      : key(k),
+        bucket_name(b) {
+  }
+  ~ZgwObject() {}
+  std::string key;
+  std::string bucket_name;
 
 private:
   uint64_t id_;
