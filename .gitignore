@@ -1,2 +1,6 @@
-*.out
+**.out
 tags
+lib
+**output
+**.o
+**.swp
