@@ -9,8 +9,8 @@ namespace libzgw {
 
 class ZgwBucket {
 public:
-  ZgwBucket(const std::string name);
-  ~ZgwBucket();
+  ZgwBucket(const std::string name) {}
+  ~ZgwBucket() {}
  
   ZgwObject* GetObject(uint64_t id);
   

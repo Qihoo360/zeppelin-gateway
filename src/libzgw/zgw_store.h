@@ -17,7 +17,7 @@ public:
   ~ZgwStore();
   
   Status AddBucket(const std::string name, const ZgwBucket& bucket);
-  Status ListBucket(std::vector<std::string>* buckets);
+  Status ListBucket(std::vector<ZgwBucket>* buckets);
 
 
 private:

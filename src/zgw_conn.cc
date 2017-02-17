@@ -1,3 +1,4 @@
+#include "slash_string.h"
 #include "zgw_conn.h"
 #include "zgw_server.h"
 
@@ -28,15 +29,36 @@ ZgwConn::ZgwConn(const int fd, const std::string &ip_port,
     HttpConn(fd, ip_port) {
   }
 
-void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* res) {
+void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp) {
   DumpHttpRequest(req);
 
+  const std::string &path = req->path;
+  std::vector<std::string> elems;
+  slash::StringSplit(path, '/', elems);
+  libzgw::ZgwStore *store = g_zgw_server->GetStore();
 
+  if (req->method == "GET") {
+    if (elems.size() == 0) {
+      // * List bucekts
+      std::vector<libzgw::ZgwBucket> buckets;
+      slash::Status s = store->ListBucket(&buckets);
   
-  // Build Response
-  res->body.append("HTTP/1.1 200 OK\r\n");
-  res->body.append("Content-Length:7");
-  res->body.append("\r\n\r\n");
-  res->body.append("success\r\n");
+      //    * Build Response
+      resp->SetStatusCode(200);
+    } else if (elems.size() < 2) {
+      // * List object
+      //    * Build Response
+    } else {
+      // * Get object
+      //    * Build Response
+    }
+  
+  } else if (req->method == "PUT") {
+  } else if (req->method == "DELETE") {
+  } else if (req->method == "HEAD") {
+  } else {
+    // Unknow request
+    resp->SetStatusCode(400);
+  }
 }
 

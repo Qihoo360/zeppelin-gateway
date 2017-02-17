@@ -8,7 +8,6 @@ endif
 OBJECT = zgw_server
 
 
-SO_PATH = ./lib
 SRC_DIR = ./src
 LIBZGW_DIR = ./src/libzgw
 THIRD_DIR = ./third
@@ -16,6 +15,7 @@ OUTPUT = ./output
 
 LIB_PATH = -L$(THIRD_DIR)/slash/output/lib/ \
 					 -L$(THIRD_DIR)/pink/output/lib/ \
+					 -L$(THIRD_DIR)/glog/.libs \
 					 -L$(THIRD_DIR)/libzp/output/lib/
 
 LIBS = -lpink \

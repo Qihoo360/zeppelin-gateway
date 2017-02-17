@@ -12,7 +12,7 @@ namespace libzgw {
     return Status::OK();
   }
 
-  Status ZgwStore::ListBucket(std::vector<std::string>* buckets) {
+  Status ZgwStore::ListBucket(std::vector<ZgwBucket>* buckets) {
     return Status::OK();
   }
 

@@ -28,6 +28,10 @@ class ZgwServer {
     should_exit_ = true;
   }
 
+  libzgw::ZgwStore *GetStore() {
+    return &store_;
+  }
+
  private:
   // Server related
   std::string ip_;
