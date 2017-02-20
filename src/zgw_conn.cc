@@ -1,9 +1,9 @@
 #include "zgw_conn.h"
 #include "zgw_server.h"
 
-#include "rapidxml/rapidxml.hpp"
-#include "rapidxml/rapidxml_print.hpp"
-#include "rapidxml/rapidxml_utils.hpp"
+#include "rapidxml.hpp"
+#include "rapidxml_print.hpp"
+#include "rapidxml_utils.hpp"
 
 extern ZgwServer* g_zgw_server;
 
@@ -115,25 +115,15 @@ void ZgwConn::ListObjectOperation(std::string &bucket_name,
   rnode->append_attribute(attr);
   doc.append_node(rnode);
   //    <Name>
-  xml_node<> *name =
-    doc.allocate_node(node_element, "Name", bucket_name.c_str());
-  rnode->append_node(name);
+  rnode->append_node(doc.allocate_node(node_element, "Name", bucket_name.c_str()));
   //    <Prefix>
-  xml_node<> *prefix =
-    doc.allocate_node(node_element, "Prefix", "");
-  rnode->append_node(prefix);
+  rnode->append_node(doc.allocate_node(node_element, "Prefix", ""));
   //    <Marker>
-  xml_node<> *marker =
-    doc.allocate_node(node_element, "Marker", "");
-  rnode->append_node(marker);
+  rnode->append_node(doc.allocate_node(node_element, "Marker", ""));
   //    <MaxKeys>
-  xml_node<> *maxkeys =
-    doc.allocate_node(node_element, "MaxKeys", "1000");
-  rnode->append_node(maxkeys);
+  rnode->append_node(doc.allocate_node(node_element, "MaxKeys", "1000"));
   //    <IsTruncated>
-  xml_node<> *is_truncated =
-    doc.allocate_node(node_element, "IsTruncated", "false");
-  rnode->append_node(is_truncated);
+  rnode->append_node(doc.allocate_node(node_element, "IsTruncated", "false"));
   
   for (auto &object : objects) {
     //  <Contents>
@@ -141,35 +131,23 @@ void ZgwConn::ListObjectOperation(std::string &bucket_name,
       doc.allocate_node(node_element, "Contents", bucket_name.c_str());
     rnode->append_node(content);
     //    <Key>
-    xml_node<> *key =
-      doc.allocate_node(node_element, "Key", object.info().key.c_str());
-    content->append_node(key);
+    content->append_node(doc.allocate_node(node_element, "Key", object.info().key.c_str()));
     //    <LastModified>
-    xml_node<> *lastmodified =
-      doc.allocate_node(node_element, "LastModified", "last");
-    content->append_node(lastmodified);
+    content->append_node(doc.allocate_node(node_element, "LastModified", "last"));
     //    <ETag>
-    xml_node<> *etag =
-      doc.allocate_node(node_element, "ETag", "ETag");
-    content->append_node(etag);
+    content->append_node(doc.allocate_node(node_element, "ETag", "ETag"));
     //    <Size>
-    xml_node<> *size =
-      doc.allocate_node(node_element, "Size", "size");
-    content->append_node(size);
+    content->append_node(doc.allocate_node(node_element, "Size", "size"));
     //    <StorageClass>
-    xml_node<> *storageclass =
-      doc.allocate_node(node_element, "Key", "STANDARD");
-    content->append_node(storageclass);
+    content->append_node(doc.allocate_node(node_element, "Key", "STANDARD"));
     //    <Owner>
     xml_node<> *owner =
       doc.allocate_node(node_element, "Owner", "infra");
     content->append_node(owner);
     //      <ID>
-    xml_node<> *id = doc.allocate_node(node_element, "ID", "infra");
+    owner->append_node(doc.allocate_node(node_element, "ID", "infra"));
     //      <DisplayName>
-    xml_node<> *disname = doc.allocate_node(node_element, "DisplayName", "infra");
-    owner->append_node(id);
-    owner->append_node(disname);
+    owner->append_node(doc.allocate_node(node_element, "DisplayName", "infra"));
   }
 
   std::string res_xml;
@@ -204,22 +182,14 @@ void ZgwConn::DeleteBucketOperation(std::string &bucket_name,
       doc.allocate_node(node_element, "Error");
     doc.append_node(error);
     //  <Code>
-    xml_node<> *code =
-      doc.allocate_node(node_element, "Code", "BucketNotEmpty");
-    error->append_node(code);
+    error->append_node(doc.allocate_node(node_element, "Code", "BucketNotEmpty"));
     //  <BucketName>
-    xml_node<> *bucket_name_node =
-      doc.allocate_node(node_element, "BucketName", bucket_name.c_str());
-    error->append_node(bucket_name_node);
+    error->append_node(doc.allocate_node(node_element, "BucketName", bucket_name.c_str()));
     //  <RequestId> TODO gaodq
-    xml_node<> *request_id =
-      doc.allocate_node(node_element, "RequestId",
-                        "tx00000000000000000113c-0058a43a07-7deaf-sh-bt-1");
-    error->append_node(request_id);
+    error->append_node(doc.allocate_node(node_element, "RequestId",
+                                         "tx00000000000000000113c-0058a43a07-7deaf-sh-bt-1"));
     //  <HostId> TODO gaodq
-    xml_node<> *host_id =
-      doc.allocate_node(node_element, "HostId" "7deaf-sh-bt-1-sh");
-    error->append_node(host_id);
+    error->append_node(doc.allocate_node(node_element, "HostId" "7deaf-sh-bt-1-sh"));
 
     std::string res_xml;
     print(std::back_inserter(res_xml), doc, 0);
@@ -239,7 +209,16 @@ void ZgwConn::CreateBucketOperation(std::string &bucket_name,
     resp->SetStatusCode(200);
   } else {
     resp->SetStatusCode(403);
+    resp->SetBody(s.ToString());
   }
+}
+
+std::string iso8601_time(timeval t) {
+  int milli = t.tv_usec / 1000;
+  char buf[128];
+  strftime(buf, sizeof buf, "%FT%T", localtime(&t.tv_sec));
+  sprintf(buf, "%s.%dZ", buf, milli);
+  return std::string(buf);
 }
 
 void ZgwConn::ListBucketOperation(pink::HttpResponse* resp) {
@@ -266,25 +245,25 @@ void ZgwConn::ListBucketOperation(pink::HttpResponse* resp) {
 
   // <Owner>
   xml_node<> *owner = doc.allocate_node(node_element, "Owner");
-  xml_node<> *id = doc.allocate_node(node_element, "ID", "infra");
-  xml_node<> *disname = doc.allocate_node(node_element, "DisplayName", "infra");
-  owner->append_node(id);
-  owner->append_node(disname);
+  owner->append_node(doc.allocate_node(node_element, "ID", "infra"));
+  owner->append_node(doc.allocate_node(node_element, "DisplayName", "infra"));
   rnode->append_node(owner);
 
   // <Buckets>
   xml_node<> *buckets_node = doc.allocate_node(node_element, "Buckets");
   rnode->append_node(buckets_node);
 
+  // Save data for xml parser
+  std::vector<std::string> cdates;
+
   for (auto &bucket : buckets) {
     // <Bucket>
     xml_node<> *bucket_node = doc.allocate_node(node_element, "Bucket");
-    xml_node<> *name = doc.allocate_node(node_element, "Name",
-                                         bucket.name().c_str());
-    xml_node<> *date = doc.allocate_node(node_element, "CreationDate",
-                                         std::to_string(bucket.ctime()).c_str());
-    bucket_node->append_node(name);
-    bucket_node->append_node(date);
+    bucket_node->append_node(doc.allocate_node(node_element, "Name",
+                                               bucket.name().c_str()));
+    cdates.push_back(iso8601_time(bucket.ctime()));
+    bucket_node->append_node(doc.allocate_node(node_element, "CreationDate",
+                                               cdates.back().c_str()));
     buckets_node->append_node(bucket_node);
   }
 

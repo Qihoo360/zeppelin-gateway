@@ -13,14 +13,12 @@
 #include "include/env.h"
 #include "include/slash_string.h"
 #include "zgw_server.h"
+#include "zgw_conf.h"
 
-
-//ZgwConf *g_zgw_conf;
 ZgwServer* g_zgw_server;
 
-static void GlogInit() {
-  //std::string log_path = g_zgw_conf->log_path();
-  std::string log_path("./log");
+static void GlogInit(ZgwConf *zgw_conf) {
+  std::string log_path = zgw_conf->log_path;
   if (!slash::FileExists(log_path)) {
     slash::CreatePath(log_path);
   }
@@ -49,53 +47,79 @@ static void ZgwSignalSetup() {
 
 void Usage() {
   printf("Usage:\n"
-          "  ./zgw ip port\n");
+          "  ./zgw -c [config file]\n");
 }
 
-//void ZgwConfInit(int argc, char* argv[]) {
-//  if (argc < 1) {
-//    Usage();
-//    exit(-1);
-//  }
-//  bool path_opt = false;
-//  char c;
-//  char path[1024];
-//  while (-1 != (c = getopt(argc, argv, "c:h"))) {
-//    switch (c) {
-//      case 'c':
-//        snprintf(path, 1024, "%s", optarg);
-//        path_opt = true;
-//        break;
-//      case 'h':
-//        Usage();
-//        exit(-1);
-//        return;
-//      default:
-//        Usage();
-//        exit(-1);
-//    }
-//  }
-//
-//  if (path_opt == false) {
-//    fprintf(stderr, "Please specify the conf file path\n" );
-//    Usage();
-//    exit(-1);
-//  }
-//
-//  g_zgw_conf = new ZgwConf();
-//  if (g_zgw_conf->Load(path) != 0) {
-//    LOG(FATAL) << "zp-meta load conf file error";
-//  }
-//  g_zgw_conf->Dump();
-//}
+void ZgwConfInit(ZgwConf **zgw_conf, int argc, char* argv[]) {
+  if (argc < 1) {
+    Usage();
+    exit(-1);
+  }
+  bool path_opt = false;
+  char c;
+  char path[1024];
+  while (-1 != (c = getopt(argc, argv, "c:h"))) {
+    switch (c) {
+      case 'c':
+        snprintf(path, 1024, "%s", optarg);
+        path_opt = true;
+        break;
+      case 'h':
+        Usage();
+        exit(0);
+        return;
+      default:
+        Usage();
+        exit(-1);
+    }
+  }
+
+  if (path_opt == false) {
+    fprintf(stderr, "Please specify the conf file path\n" );
+    Usage();
+    exit(-1);
+  }
+
+  *zgw_conf = new ZgwConf(path);
+  if ((*zgw_conf)->LoadConf() != 0) {
+    LOG(FATAL) << "zp-meta load conf file error";
+  }
+  (*zgw_conf)->Dump();
+}
+
+static void daemonize() {
+  pid_t pid;
+  umask(0);
+
+  if ((pid = fork()) < 0) {
+    LOG(FATAL) << "can't fork" << std::endl;
+    exit(1);
+  } else if (pid != 0)
+    exit(0);
+  setsid();
+
+  // close std fd
+  int fd;
+  if ((fd = open("/dev/null", O_RDWR, 0)) != -1) {
+    dup2(fd, STDIN_FILENO);
+    dup2(fd, STDOUT_FILENO);
+    dup2(fd, STDERR_FILENO);
+    close(fd);
+  } else {
+    LOG(FATAL) << "close std fd failed" << std::endl;
+  }
+}
 
 int main(int argc, char** argv) {
-  //ZpConfInit(argc, argv);
-  //if (g_zgw_conf->daemonize()) {
-  //  daemonize();
-  //}
+  if (argc < 3) {
+    Usage();
+    return 1;
+  }
 
-  GlogInit();
+  ZgwConf *zgw_conf;
+  ZgwConfInit(&zgw_conf, argc, argv);
+
+  GlogInit(zgw_conf);
   ZgwSignalSetup();
 
  // FileLocker db_lock(g_zgw_conf->lock_file());
@@ -104,24 +128,20 @@ int main(int argc, char** argv) {
  //   return 1;
  // }
 
- // if (g_zgw_conf->daemonize()) {
- //   create_pid_file();
- //   close_std();
- // }
-
-  if (argc < 3) {
-    Usage();
-    return 1;
+  if (zgw_conf->daemonize) {
+    daemonize();
   }
-  std::string sport(argv[2]);
-  long port;
-  slash::string2l(sport.data(), sport.size(), &port);
-  LOG(INFO) << "Start Server on " << argv[1] << ":" << port;
 
-  g_zgw_server = new ZgwServer(argv[1], port);
+  LOG(INFO) << "Start Server on " << zgw_conf->server_ip <<
+    ": " << zgw_conf->server_port;
+
+  g_zgw_server = new ZgwServer(zgw_conf->zp_meta_ip_port,
+                               zgw_conf->server_ip,
+                               zgw_conf->server_port);
   g_zgw_server->Start();
 
   delete g_zgw_server;
+  delete zgw_conf;
   ::google::ShutdownGoogleLogging();
   return 0;
 }

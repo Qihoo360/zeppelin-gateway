@@ -14,7 +14,9 @@
 
 class ZgwServer {
  public:
-  explicit ZgwServer(const std::string& ip, int port);
+  explicit ZgwServer(const std::string zp_meta_ip_port,
+										 const std::string& server_ip,
+										 int server_port);
   virtual ~ZgwServer();
   slash::Status Start();
 
@@ -34,6 +36,7 @@ class ZgwServer {
 
  private:
   // Server related
+	std::vector<std::string> zp_meta_ip_ports_;
   std::string ip_;
   int port_;
   std::atomic<bool> should_exit_;

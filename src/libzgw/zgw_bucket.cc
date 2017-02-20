@@ -1,3 +1,5 @@
+#include <sys/time.h>
+
 #include "zgw_bucket.h"
 
 namespace libzgw {
@@ -6,8 +8,8 @@ static const std::string kBucketMetaPrefix = "__B";
 
 ZgwBucket::ZgwBucket(const std::string& name)
   : name_(name) {
-    ctime_ = time(NULL);
-  }
+  gettimeofday(&ctime_, NULL);
+}
 
 ZgwBucket::~ZgwBucket() {
 }
@@ -18,16 +20,16 @@ std::string ZgwBucket::MetaKey() const {
 
 std::string ZgwBucket::MetaValue() const {
   char buf[256];
-  sprintf(buf, "%ld", ctime_);
+  sprintf(buf, "%ld,%ld", ctime_.tv_sec, ctime_.tv_usec);
   return std::string(buf);
 }
 
 Status ZgwBucket::ParseMetaValue(const std::string& value) {
-  if (!slash::string2l(value.data(), value.size(),
-        static_cast<long*>(&ctime_))) {
+  int ret = sscanf(value.c_str(), "%ld,%ld", &ctime_.tv_sec, &ctime_.tv_usec);
+  if (ret != 2) {
     return Status::InvalidArgument("invalid ctime");
   }
   return Status::OK();
 }
 
-}
+}  // namespace libzgw

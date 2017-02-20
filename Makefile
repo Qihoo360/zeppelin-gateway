@@ -30,6 +30,7 @@ INCLUDE_PATH = -I$(LIBZGW_DIR)/\
 							 -I$(THIRD_DIR)/slash/include \
 							 -I$(THIRD_DIR)/pink \
 							 -I$(THIRD_DIR)/pink/include \
+							 -I$(THIRD_DIR)/rapidxml \
 							 -I$(THIRD_DIR)/libzp \
 							 -I$(THIRD_DIR)/libzp/include \
 							 -I$(THIRD_DIR)/glog/src \
@@ -56,6 +57,7 @@ all: $(OBJECT)
 	mkdir -p $(OUTPUT)/lib
 	cp -r $(GLOG) $(OUTPUT)/lib/
 	cp $(OBJECT) $(OUTPUT)/bin/
+	cp -r ./conf $(OUTPUT)/
 	rm -rf $(OBJECT)
 	@echo "Success, go, go, go..."
 
