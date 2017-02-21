@@ -1,3 +1,5 @@
+#include <sys/time.h>
+
 #include "zgw_conn.h"
 #include "zgw_server.h"
 
@@ -27,10 +29,12 @@ static void DumpHttpRequest(const pink::HttpRequest* req) {
   LOG(INFO) << "------------------------------------- ";
 } 
 
-ZgwConn::ZgwConn(const int fd, const std::string &ip_port,
-      pink::WorkerThread<ZgwConn>* worker) :
-    HttpConn(fd, ip_port) {
-  }
+ZgwConn::ZgwConn(const int fd,
+                 const std::string &ip_port,
+                 pink::WorkerThread<ZgwConn>* worker)
+      : HttpConn(fd, ip_port) {
+  store_ = g_zgw_server->GetStore();
+}
 
 void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp) {
   DumpHttpRequest(req);
@@ -51,34 +55,28 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
 
   if (req->method == "GET") {
     if (bucket_name.empty()) {
-      // * List buckets
-      ListBucketOperation(resp);
+      ListBucketHandle(resp);
     } else if (!bucket_name.empty() && object_name.empty()) {
-      // * List objects
-      ListObjectOperation(bucket_name, resp);
+      ListObjectHandle(bucket_name, resp);
     } else if (!bucket_name.empty() && !object_name.empty()){
-      // * Get object
+      GetObjectHandle(bucket_name, object_name, resp);
     }
   } else if (req->method == "PUT") {
     if (!bucket_name.empty() && object_name.empty()) {
-      // * Put Bucket
-      CreateBucketOperation(bucket_name, resp);
+      PutBucketHandle(bucket_name, resp);
     } else if (!bucket_name.empty() && !object_name.empty()) {
-      // * Put Object
+      // TODO gaodq test 100-continue
+      if (req->headers.find("Expect") != req->headers.end()) {
+        resp->SetStatusCode(100);
+      } else {
+        PutObjectHandle(req, bucket_name, object_name, resp);
+      }
     }
   } else if (req->method == "DELETE") {
     if (!bucket_name.empty() && object_name.empty()) {
-      // * Delete Bucket
-      DeleteBucketOperation(bucket_name, resp);
+      DelBucketHandle(bucket_name, resp);
     } else if (!bucket_name.empty() && !object_name.empty()) {
-      // * Delete Object
-      libzgw::ZgwStore *store = g_zgw_server->GetStore();
-      slash::Status s = store->DelBucket(bucket_name);
-      if (s.ok()) {
-        resp->SetStatusCode(204);
-      } else {
-        resp->SetStatusCode(403);
-      }
+      DelObjectHandle(bucket_name, object_name, resp);
     }
   } else if (req->method == "HEAD") {
     if (!bucket_name.empty() && object_name.empty()) {
@@ -92,13 +90,55 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   }
 }
 
-void ZgwConn::ListObjectOperation(std::string &bucket_name,
-                                    pink::HttpResponse* resp) {
-  libzgw::ZgwStore *store = g_zgw_server->GetStore();
+void ZgwConn::DelObjectHandle(std::string &bucket_name,
+                              std::string &object_name,
+                              pink::HttpResponse* resp) {
+  slash::Status s = store_->DelObject(bucket_name, object_name);
+  if (s.ok()) {
+    resp->SetStatusCode(204);
+  } else {
+    resp->SetStatusCode(403);
+  }
+}
 
+void ZgwConn::GetObjectHandle(std::string &bucket_name,
+                              std::string &object_name,
+                              pink::HttpResponse* resp) {
+  libzgw::ZgwObject object(object_name);
+  Status s = store_->GetObject(bucket_name, object_name, &object);
+  if (s.ok()) {
+    resp->SetStatusCode(200);
+    resp->SetBody(object.content());
+  } else {
+    resp->SetStatusCode(204);
+  }
+}
+
+void ZgwConn::PutObjectHandle(const pink::HttpRequest *req,
+                              std::string &bucket_name,
+                              std::string &object_name,
+                              pink::HttpResponse* resp) {
+  libzgw::ZgwUser zgw_user(123456, "infra");
+  libzgw::ZgwObjectInfo ob_info(time(NULL),
+                                "",
+                                req->content.size(),
+                                libzgw::kStandard,
+                                zgw_user);
+  libzgw::ZgwObject object(object_name, req->content, ob_info);
+  Status s = store_->AddObject(bucket_name, object);
+  if (s.ok()) {
+    resp->SetStatusCode(200);
+  } else {
+    resp->SetStatusCode(403);
+  }
+}
+
+// TODO gaodq Not Implement
+void ZgwConn::ListObjectHandle(std::string &bucket_name,
+                               pink::HttpResponse* resp) {
   // * List bucekts
   std::vector<libzgw::ZgwObject> objects;
-  slash::Status s = store->ListObjects(bucket_name, &objects);
+  slash::Status s = store_->ListObjects(bucket_name, &objects);
 
   //    * Build xml Response
   // <root>
@@ -124,14 +164,14 @@ void ZgwConn::ListObjectOperation(std::string &bucket_name,
   rnode->append_node(doc.allocate_node(node_element, "MaxKeys", "1000"));
   //    <IsTruncated>
   rnode->append_node(doc.allocate_node(node_element, "IsTruncated", "false"));
-  
+
   for (auto &object : objects) {
     //  <Contents>
     xml_node<> *content =
       doc.allocate_node(node_element, "Contents", bucket_name.c_str());
     rnode->append_node(content);
     //    <Key>
-    content->append_node(doc.allocate_node(node_element, "Key", object.name().c_str()));
+    content->append_node(doc.allocate_node(node_element, "Key", "key"));
     //    <LastModified>
     content->append_node(doc.allocate_node(node_element, "LastModified", "last"));
     //    <ETag>
@@ -161,11 +201,9 @@ void ZgwConn::ListObjectOperation(std::string &bucket_name,
   }
 }
 
-void ZgwConn::DeleteBucketOperation(std::string &bucket_name,
-                                    pink::HttpResponse* resp) {
-  libzgw::ZgwStore *store = g_zgw_server->GetStore();
-  
-  slash::Status s = store->DelBucket(bucket_name);
+void ZgwConn::DelBucketHandle(std::string &bucket_name,
+                              pink::HttpResponse* resp) {
+  slash::Status s = store_->DelBucket(bucket_name);
   if (s.ok()) {
     resp->SetStatusCode(204);
   } else {
@@ -199,12 +237,10 @@ void ZgwConn::DeleteBucketOperation(std::string &bucket_name,
   }
 }
 
-void ZgwConn::CreateBucketOperation(std::string &bucket_name,
-                                    pink::HttpResponse* resp) {
-  libzgw::ZgwStore *store = g_zgw_server->GetStore();
-
+void ZgwConn::PutBucketHandle(std::string &bucket_name,
+                              pink::HttpResponse* resp) {
   libzgw::ZgwBucket new_bucket(bucket_name);
-  slash::Status s = store->AddBucket(new_bucket);
+  slash::Status s = store_->AddBucket(new_bucket);
   if (s.ok()) {
     resp->SetStatusCode(200);
   } else {
@@ -213,20 +249,19 @@ void ZgwConn::CreateBucketOperation(std::string &bucket_name,
   }
 }
 
-std::string iso8601_time(timeval t) {
-  int milli = t.tv_usec / 1000;
+std::string ZgwConn::iso8601_time(time_t sec, suseconds_t usec) {
+  int milli = usec / 1000;
   char buf[128];
-  strftime(buf, sizeof buf, "%FT%T", localtime(&t.tv_sec));
-  sprintf(buf, "%s.%dZ", buf, milli);
+  strftime(buf, sizeof buf, "%FT%T", localtime(&sec));
+  sprintf(buf, "%s.%3dZ", buf, milli);
   return std::string(buf);
 }
 
-void ZgwConn::ListBucketOperation(pink::HttpResponse* resp) {
-  libzgw::ZgwStore *store = g_zgw_server->GetStore();
+void ZgwConn::ListBucketHandle(pink::HttpResponse* resp) {
 
   // * List bucekts
   std::vector<libzgw::ZgwBucket> buckets;
-  slash::Status s = store->ListBuckets(&buckets);
+  slash::Status s = store_->ListBuckets(&buckets);
 
   //    * Build xml Response
   // <root>
@@ -261,7 +296,7 @@ void ZgwConn::ListBucketOperation(pink::HttpResponse* resp) {
     xml_node<> *bucket_node = doc.allocate_node(node_element, "Bucket");
     bucket_node->append_node(doc.allocate_node(node_element, "Name",
                                                bucket.name().c_str()));
-    cdates.push_back(iso8601_time(bucket.ctime()));
+    cdates.push_back(iso8601_time(bucket.ctime().tv_sec, bucket.ctime().tv_usec));
     bucket_node->append_node(doc.allocate_node(node_element, "CreationDate",
                                                cdates.back().c_str()));
     buckets_node->append_node(bucket_node);

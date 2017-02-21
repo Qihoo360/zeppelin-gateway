@@ -49,8 +49,9 @@ std::string ZgwObject::NextDataStrip(uint32_t* iter) const {
     return std::string();
   }
   uint32_t clen = content_.size() - *iter;
-  clen = (strip_len_ < clen) ? strip_len_ : clen;
-  return content_.substr((*iter)++, clen);
+  clen = (clen > strip_len_) ? strip_len_ : clen;
+  *iter += clen;
+  return content_.substr(*iter - clen, clen);
 }
 
 Status ZgwObject::ParseMetaValue(std::string* value) {

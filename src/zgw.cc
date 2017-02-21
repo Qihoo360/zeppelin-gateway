@@ -13,11 +13,11 @@
 #include "include/env.h"
 #include "include/slash_string.h"
 #include "zgw_server.h"
-#include "zgw_conf.h"
+#include "zgw_config.h"
 
 ZgwServer* g_zgw_server;
 
-static void GlogInit(ZgwConf *zgw_conf) {
+static void GlogInit(ZgwConfig *zgw_conf) {
   std::string log_path = zgw_conf->log_path;
   if (!slash::FileExists(log_path)) {
     slash::CreatePath(log_path);
@@ -50,7 +50,7 @@ void Usage() {
           "  ./zgw -c [config file]\n");
 }
 
-void ZgwConfInit(ZgwConf **zgw_conf, int argc, char* argv[]) {
+void ZgwConfigInit(ZgwConfig **zgw_conf, int argc, char* argv[]) {
   if (argc < 1) {
     Usage();
     exit(-1);
@@ -80,7 +80,7 @@ void ZgwConfInit(ZgwConf **zgw_conf, int argc, char* argv[]) {
     exit(-1);
   }
 
-  *zgw_conf = new ZgwConf(path);
+  *zgw_conf = new ZgwConfig(path);
   if ((*zgw_conf)->LoadConf() != 0) {
     LOG(FATAL) << "zp-meta load conf file error";
   }
@@ -116,8 +116,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  ZgwConf *zgw_conf;
-  ZgwConfInit(&zgw_conf, argc, argv);
+  ZgwConfig *zgw_conf;
+  ZgwConfigInit(&zgw_conf, argc, argv);
 
   GlogInit(zgw_conf);
   ZgwSignalSetup();

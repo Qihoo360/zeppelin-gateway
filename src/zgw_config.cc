@@ -1,7 +1,7 @@
-#include "zgw_conf.h"
+#include "zgw_config.h"
 #include <iostream>
 
-ZgwConf::ZgwConf(std::string path)
+ZgwConfig::ZgwConfig(std::string path)
       : zp_meta_ip_port(""),
         server_ip("0.0.0.0"),
         server_port(8099),
@@ -9,10 +9,10 @@ ZgwConf::ZgwConf(std::string path)
   b_conf = new slash::BaseConf(path);
 }
 
-ZgwConf::~ZgwConf() {
+ZgwConfig::~ZgwConfig() {
 }
 
-int ZgwConf::LoadConf() {
+int ZgwConfig::LoadConf() {
   if (b_conf->LoadConf() != 0)
     return -1;
 
@@ -25,7 +25,7 @@ int ZgwConf::LoadConf() {
   return 0;
 }
 
-void ZgwConf::Dump() {
+void ZgwConfig::Dump() {
   std::cout << "zp_meta_addr: " << zp_meta_ip_port<< std::endl;
   std::cout << "server_ip: " << server_ip << std::endl;
   std::cout << "server_port: " << server_port << std::endl;

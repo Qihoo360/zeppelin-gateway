@@ -3,6 +3,7 @@
 #include "zgw_store.h"
 
 #include "include/slash_string.h"
+#include <glog/logging.h>
 
 namespace libzgw {
  
@@ -20,10 +21,11 @@ Status ZgwStore::AddBucket(const ZgwBucket& bucket,
   }
 
   // Add Bucket Meta
+  int retry = 3;
   do {
-    usleep(500);
+    sleep(2); // waiting zeppelin
     s = zp_->Set(bucket.name(), bucket.MetaKey(), bucket.MetaValue());
-  } while (s.IsNotSupported());
+  } while (retry-- && s.IsNotSupported());
   return s;
 }
 
