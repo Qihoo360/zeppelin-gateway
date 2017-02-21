@@ -142,7 +142,7 @@ void ZgwConn::ListObjectOperation(std::string &bucket_name,
     rnode->append_node(content);
     //    <Key>
     xml_node<> *key =
-      doc.allocate_node(node_element, "Key", object.info().key.c_str());
+      doc.allocate_node(node_element, "Key", object.name().c_str());
     content->append_node(key);
     //    <LastModified>
     xml_node<> *lastmodified =

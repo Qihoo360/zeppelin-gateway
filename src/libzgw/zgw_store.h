@@ -25,6 +25,8 @@ public:
   
   Status AddObject(const std::string &bucket_name,
       const ZgwObject& object);
+  Status GetObject(const std::string &bucket_name,
+      const std::string& object_name, ZgwObject* object);
   Status DelObject(const std::string &bucket_name,
       const std::string &object_name);
   Status ListObjects(const std::string &bucket_name,

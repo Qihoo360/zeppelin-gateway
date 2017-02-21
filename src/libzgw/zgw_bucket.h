@@ -13,7 +13,7 @@ using slash::Status;
 
 class ZgwBucket {
 public:
-  ZgwBucket(const std::string& name);
+  explicit ZgwBucket(const std::string& name);
   ~ZgwBucket();
   
   std::string name() const {

@@ -72,4 +72,14 @@ Status ZgwStore::DelBucket(const std::string &name) {
   return Status::OK();
 }
 
+Status ZgwStore::ListObjects(const std::string &bucket_name,
+    std::vector<ZgwObject>* objects) {
+  Status s = zp_->Connect();
+  if (!s.ok()) {
+    return s;
+  }
+
+  return Status::OK();
+}
+
 }
