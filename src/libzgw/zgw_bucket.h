@@ -26,7 +26,8 @@ public:
 
   std::string MetaKey() const;
   std::string MetaValue() const;
-  Status ParseMetaValue(const std::string& value);
+  // this may change value inside
+  Status ParseMetaValue(std::string& value);
  
 private:
   std::string name_;

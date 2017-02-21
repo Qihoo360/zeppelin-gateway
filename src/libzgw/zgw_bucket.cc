@@ -1,6 +1,7 @@
 #include <sys/time.h>
 
 #include "zgw_bucket.h"
+#include "include/slash_coding.h"
 
 namespace libzgw {
 
@@ -19,16 +20,18 @@ std::string ZgwBucket::MetaKey() const {
 }
 
 std::string ZgwBucket::MetaValue() const {
-  char buf[256];
-  sprintf(buf, "%ld,%ld", ctime_.tv_sec, ctime_.tv_usec);
-  return std::string(buf);
+  std::string result;
+  slash::PutFixed32(&result, ctime_.tv_sec);
+  slash::PutFixed32(&result, ctime_.tv_usec);
+  return result;
 }
 
-Status ZgwBucket::ParseMetaValue(const std::string& value) {
-  int ret = sscanf(value.c_str(), "%ld,%ld", &ctime_.tv_sec, &ctime_.tv_usec);
-  if (ret != 2) {
-    return Status::InvalidArgument("invalid ctime");
-  }
+Status ZgwBucket::ParseMetaValue(std::string& value) {
+  uint32_t tmp; 
+  slash::GetFixed32(&value, &tmp);
+  ctime_.tv_sec = static_cast<time_t>(tmp);
+  slash::GetFixed32(&value, &tmp);
+  ctime_.tv_usec = static_cast<suseconds_t>(tmp);
   return Status::OK();
 }
 
