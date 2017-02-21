@@ -15,7 +15,7 @@ Status ZgwUser::ParseMetaValue(std::string* value) {
   slash::GetFixed32(value, &id_);
   bool res = slash::GetLengthPrefixedString(value, &(disply_name_)); // etag
   if (!res) {
-    return Status::Corruption("Parse disply_name etag failed");
+    return Status::Corruption("Parse disply_name failed");
   }
   return Status::OK();
 }

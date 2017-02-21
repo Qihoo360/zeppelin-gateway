@@ -3,8 +3,9 @@
 
 namespace libzgw {
 
-static const std::string kObjectMetaPrefix = "__O";
+static const std::string kObjectMetaPrefix = "__O__";
 static const std::string kObjectDataPrefix = "__o";
+static const std::string kObjectDataSep = "__";
 
 ZgwObject::ZgwObject(const std::string& name)
   :name_(name) {
@@ -35,13 +36,13 @@ std::string ZgwObject::MetaValue() const {
   slash::PutFixed64(&result, info_.mtime);
   slash::PutLengthPrefixedString(&result,  info_.etag);
   slash::PutFixed64(&result, info_.size);
-  slash::PutFixed32(&result, info_.storage_class);
+  slash::PutFixed64(&result, info_.storage_class);
   slash::PutLengthPrefixedString(&result,  info_.user.MetaValue());
   return result;
 }
 
 std::string ZgwObject::DataKey(int index) const {
-  return kObjectDataPrefix + name_ + std::to_string(index);
+  return kObjectDataPrefix + std::to_string(index) + kObjectDataSep + name_;
 }
 
 std::string ZgwObject::NextDataStrip(uint32_t* iter) const {

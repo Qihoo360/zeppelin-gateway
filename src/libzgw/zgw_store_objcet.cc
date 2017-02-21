@@ -13,9 +13,9 @@ Status ZgwStore::AddObject(const std::string &bucket_name,
 
   // Set Object Data
   std::string dvalue;
-  uint32_t iter = 0;
+  uint32_t index = 0, iter = 0;
   while (!(dvalue = object.NextDataStrip(&iter)).empty()) {
-    s = zp_->Set(bucket_name, object.DataKey(iter - 1), dvalue);
+    s = zp_->Set(bucket_name, object.DataKey(index++), dvalue);
     if (!s.ok()) {
       return s;
     }

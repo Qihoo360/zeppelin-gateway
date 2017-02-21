@@ -76,6 +76,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     if (!bucket_name.empty() && object_name.empty()) {
       DelBucketHandle(bucket_name, resp);
     } else if (!bucket_name.empty() && !object_name.empty()) {
+
       DelObjectHandle(bucket_name, object_name, resp);
     }
   } else if (req->method == "HEAD") {
