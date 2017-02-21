@@ -5,7 +5,7 @@
 namespace libzgw {
  
 Status ZgwStore::AddObject(const std::string &bucket_name,
-    const ZgwObject& object) {
+                           const ZgwObject& object) {
   Status s = zp_->Connect();
   if (!s.ok()) {
     return s;
@@ -22,7 +22,10 @@ Status ZgwStore::AddObject(const std::string &bucket_name,
   }
 
   // Set Object Meta
-  return zp_->Set(bucket_name, object.MetaKey(), object.MetaValue());
+  std::string mkey = object.MetaKey();
+  std::string mval = object.MetaValue();
+  s = zp_->Set(bucket_name, object.MetaKey(), object.MetaValue());
+  return s;
 }
 
 Status ZgwStore::DelObject(const std::string &bucket_name,

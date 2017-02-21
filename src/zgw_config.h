@@ -5,9 +5,9 @@
 
 #include "base_conf.h"
 
-struct ZgwConf {
-  explicit ZgwConf(std::string path);
-  ~ZgwConf();
+struct ZgwConfig {
+  explicit ZgwConfig(std::string path);
+  ~ZgwConfig();
   int LoadConf();
   void Dump();
 

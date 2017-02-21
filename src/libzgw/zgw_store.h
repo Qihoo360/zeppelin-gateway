@@ -17,18 +17,18 @@ public:
   static Status Open(const std::vector<std::string>& ips, ZgwStore** ptr);
   ~ZgwStore();
   
-  Status AddBucket(const ZgwBucket& bucket, int partition_num = 1024);
+  Status AddBucket(const ZgwBucket& bucket, int partition_num = 10);
   Status ListBuckets(std::vector<ZgwBucket>* buckets);
   Status DelBucket(const std::string &bucket_name);
   
   Status AddObject(const std::string &bucket_name,
-      const ZgwObject& object);
+                   const ZgwObject& object);
   Status GetObject(const std::string &bucket_name,
-      const std::string& object_name, ZgwObject* object);
+                   const std::string& object_name, ZgwObject* object);
   Status DelObject(const std::string &bucket_name,
-      const std::string &object_name);
+                   const std::string &object_name);
   Status ListObjects(const std::string &bucket_name,
-      std::vector<ZgwObject>* objects);
+                     std::vector<ZgwObject>* objects);
 
 private:
   ZgwStore();
@@ -38,6 +38,6 @@ private:
 };
 
 
-}
+}  // namespace libzgw
 
 #endif
