@@ -14,9 +14,7 @@ namespace libzgw {
 
 class ZgwStore {
 public:
-  Status Open(const std::string& name,
-    const std::vector<std::string>& ips, ZgwStore** ptr);
-
+  static Status Open(const std::vector<std::string>& ips, ZgwStore** ptr);
   ~ZgwStore();
   
   Status AddBucket(const ZgwBucket& bucket, int partition_num = 1024);
@@ -33,9 +31,8 @@ public:
       std::vector<ZgwObject>* objects);
 
 private:
-  ZgwStore(const std::string& name);
+  ZgwStore();
   Status Init(const std::vector<std::string>& ips);
-  std::string name_;
   libzp::Cluster* zp_;
 
 };

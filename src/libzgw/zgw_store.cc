@@ -4,26 +4,25 @@
 
 namespace libzgw {
  
-Status ZgwStore::Open(const std::string& name,
-    const std::vector<std::string>& ips, ZgwStore** ptr) {
-  *ptr = new ZgwStore(name);
+Status ZgwStore::Open(const std::vector<std::string>& ip_ports, ZgwStore** ptr) {
+  *ptr = new ZgwStore();
   assert(*ptr);
-  Status s = (*ptr)->Init(ips);
+  Status s = (*ptr)->Init(ip_ports);
   if (!s.ok()) {
     delete *ptr;
   }
   return s;
 }
 
-Status ZgwStore::Init(const std::vector<std::string>& ips) {
-  if (ips.empty()) {
+Status ZgwStore::Init(const std::vector<std::string>& ip_ports) {
+  if (ip_ports.empty()) {
     return Status::InvalidArgument("no meta ip provided");
   }
 
   std::string t_ip;
   int t_port = 0;
   libzp::Options zp_option;
-  for (auto& node : ips) {
+  for (auto& node : ip_ports) {
     if (!slash::ParseIpPortString(node, t_ip, t_port)) {
       return Status::InvalidArgument("invalid ip port string");
     }
@@ -34,8 +33,7 @@ Status ZgwStore::Init(const std::vector<std::string>& ips) {
   return Status::OK();
 }
 
-ZgwStore::ZgwStore(const std::string& name)
-  :name_(name) {
+ZgwStore::ZgwStore() {
 }
 
 ZgwStore::~ZgwStore() {

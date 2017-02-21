@@ -1,3 +1,5 @@
+#include <unistd.h>
+
 #include "zgw_store.h"
 
 #include "include/slash_string.h"
@@ -18,7 +20,11 @@ Status ZgwStore::AddBucket(const ZgwBucket& bucket,
   }
 
   // Add Bucket Meta
-  return zp_->Set(bucket.name(), bucket.MetaKey(), bucket.MetaValue());
+  do {
+    usleep(500);
+    s = zp_->Set(bucket.name(), bucket.MetaKey(), bucket.MetaValue());
+  } while (s.IsNotSupported());
+  return s;
 }
 
 Status ZgwStore::ListBuckets(std::vector<ZgwBucket>* buckets) {

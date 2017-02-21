@@ -2,7 +2,7 @@
 #define ZGW_BUCKET_H
 #include <string>
 #include <map>
-#include <time.h>
+#include <sys/time.h>
 
 #include "include/slash_string.h"
 #include "include/slash_status.h"
@@ -20,7 +20,7 @@ public:
     return name_;
   }
 
-  time_t ctime() {
+  timeval ctime() {
     return ctime_;
   }
 
@@ -30,7 +30,7 @@ public:
  
 private:
   std::string name_;
-  time_t ctime_;
+  timeval ctime_;
 };
 
 

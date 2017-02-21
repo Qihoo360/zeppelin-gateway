@@ -2,9 +2,11 @@
 
 #include <glog/logging.h>
 
-ZgwServer::ZgwServer(const std::string& ip, int port)
-  : ip_(ip),
-  port_(port),
+ZgwServer::ZgwServer(const std::string zp_meta_ip_port,
+                     const std::string& server_ip,
+                     int server_port)
+  : ip_(server_ip),
+  port_(server_port),
   should_exit_(false) {
     worker_num_ = 4;
     for (int i = 0; i < worker_num_; i++) {
@@ -18,7 +20,8 @@ ZgwServer::ZgwServer(const std::string& ip, int port)
         worker_num_,
         zgw_worker_thread_,
         kDispatchCronInterval);
-  }
+    zp_meta_ip_ports_.push_back(zp_meta_ip_port);
+}
 
 ZgwServer::~ZgwServer() {
   delete zgw_dispatch_thread_;
@@ -30,6 +33,8 @@ ZgwServer::~ZgwServer() {
 }
 
 slash::Status ZgwServer::Start() {
+  // Open ZgwStore
+  libzgw::ZgwStore::Open(zp_meta_ip_ports_, &store_); 
   zgw_dispatch_thread_->StartThread();
   
   while (!should_exit_) {
