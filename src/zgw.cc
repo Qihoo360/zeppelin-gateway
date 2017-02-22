@@ -4,16 +4,15 @@
 // of patent rights can be found in the PATENTS file in the same directory.
 #include <string>
 #include <iostream>
-
+#include <fstream>
 #include <getopt.h>
-#include <iostream>
-#include <sstream>
 #include <glog/logging.h>
 
 #include "include/env.h"
 #include "include/slash_string.h"
 #include "zgw_server.h"
 #include "zgw_config.h"
+#include "zgw_const.h"
 
 ZgwServer* g_zgw_server;
 
@@ -25,7 +24,7 @@ static void GlogInit(ZgwConfig *zgw_conf) {
 
   FLAGS_alsologtostderr = true;
   FLAGS_log_dir = log_path;
-  FLAGS_minloglevel = 0;
+  FLAGS_minloglevel = zgw_conf->minloglevel;
   FLAGS_max_log_size = 1800;
 
   ::google::InitGoogleLogging("zgw");
@@ -47,7 +46,7 @@ static void ZgwSignalSetup() {
 
 void Usage() {
   printf("Usage:\n"
-          "  ./zgw -c [config file]\n");
+          "  zgw_server -c [config file]\n");
 }
 
 void ZgwConfigInit(ZgwConfig **zgw_conf, int argc, char* argv[]) {
@@ -58,7 +57,7 @@ void ZgwConfigInit(ZgwConfig **zgw_conf, int argc, char* argv[]) {
   bool path_opt = false;
   char c;
   char path[1024];
-  while (-1 != (c = getopt(argc, argv, "c:h"))) {
+  while (-1 != (c = getopt(argc, argv, "c:h:v"))) {
     switch (c) {
       case 'c':
         snprintf(path, 1024, "%s", optarg);
@@ -67,7 +66,9 @@ void ZgwConfigInit(ZgwConfig **zgw_conf, int argc, char* argv[]) {
       case 'h':
         Usage();
         exit(0);
-        return;
+      case 'v':
+        std::cout << "Zeppelin gateway " << kZgwVersion << std::endl;
+        exit(0);
       default:
         Usage();
         exit(-1);
@@ -108,6 +109,9 @@ static void daemonize() {
   } else {
     LOG(FATAL) << "close std fd failed" << std::endl;
   }
+  // Write pid file
+  std::ofstream of(kZgwPidFile);
+  of << getpid() << std::endl;
 }
 
 int main(int argc, char** argv) {
@@ -129,15 +133,14 @@ int main(int argc, char** argv) {
  // }
 
   if (zgw_conf->daemonize) {
+    std::cout << "Running as daemon" << std::endl;
     daemonize();
   }
 
   LOG(INFO) << "Start Server on " << zgw_conf->server_ip <<
     ": " << zgw_conf->server_port;
 
-  g_zgw_server = new ZgwServer(zgw_conf->zp_meta_ip_port,
-                               zgw_conf->server_ip,
-                               zgw_conf->server_port);
+  g_zgw_server = new ZgwServer(zgw_conf);
   g_zgw_server->Start();
 
   delete g_zgw_server;

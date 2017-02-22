@@ -8,15 +8,18 @@
 struct ZgwConfig {
   explicit ZgwConfig(std::string path);
   ~ZgwConfig();
+
   int LoadConf();
   void Dump();
 
   slash::BaseConf *b_conf;
 
-  std::string zp_meta_ip_port;
+  std::vector<std::string> zp_meta_ip_ports;
   std::string server_ip;
   int server_port;
   bool daemonize;
+  int minloglevel;
+  int cron_interval;
 
   std::string log_path;
 };
