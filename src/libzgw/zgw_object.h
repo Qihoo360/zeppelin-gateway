@@ -35,7 +35,7 @@ class ZgwObject {
 public:
   ZgwObject(const std::string& name);
   ZgwObject(const std::string& name,  const std::string& content,
-      const ZgwObjectInfo& i, uint32_t strip_len = 1073741824/* 1 MB */);
+      const ZgwObjectInfo& i, uint32_t strip_len = 101376 /* 99 KB */);
   ~ZgwObject();
 
   std::string name() const {
@@ -62,7 +62,6 @@ public:
   
   // Deserialization
   Status ParseMetaValue(std::string* value);
-  uint32_t ParseStripCount(std::string* value);
   void ParseNextStrip(std::string* value);
 
 private:

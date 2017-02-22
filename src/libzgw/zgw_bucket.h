@@ -24,7 +24,11 @@ public:
     return ctime_;
   }
 
-  std::string MetaKey() const;
+  uint32_t object_count() {
+    return object_count_;
+  }
+
+  static std::string MetaKey(std::string name);
   std::string MetaValue() const;
   // this may change value inside
   Status ParseMetaValue(std::string& value);
@@ -32,6 +36,7 @@ public:
 private:
   std::string name_;
   timeval ctime_;
+  uint32_t object_count_;
 };
 
 

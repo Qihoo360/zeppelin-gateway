@@ -21,6 +21,14 @@ public:
     }
   ~ZgwUser() {}
 
+  uint32_t id() {
+    return id_;
+  }
+
+  std::string disply_name() {
+    return disply_name_;
+  }
+
   // Serialization
   std::string MetaValue() const;
   
