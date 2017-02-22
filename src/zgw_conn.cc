@@ -215,7 +215,7 @@ void ZgwConn::ListObjectHandle(std::string &bucket_name,
                                            "STANDARD"));
     //    <Owner>
     xml_node<> *owner =
-      doc.allocate_node(node_element, "Owner", user.disply_name().c_str());
+      doc.allocate_node(node_element, "Owner");
     content->append_node(owner);
     //      <ID>
     ids.push_back(std::to_string(user.id()));

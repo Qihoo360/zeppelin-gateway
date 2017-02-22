@@ -10,13 +10,12 @@
 
 #include "zgw_const.h"
 #include "zgw_conn.h"
+#include "zgw_config.h"
 #include "libzgw/zgw_store.h"
 
 class ZgwServer {
  public:
-  explicit ZgwServer(const std::string zp_meta_ip_port,
-										 const std::string& server_ip,
-										 int server_port);
+  explicit ZgwServer(ZgwConfig *zgw_conf);
   virtual ~ZgwServer();
   slash::Status Start();
 
@@ -35,6 +34,7 @@ class ZgwServer {
   }
 
  private:
+  ZgwConfig *zgw_conf_;
   // Server related
 	std::vector<std::string> zp_meta_ip_ports_;
   std::string ip_;
