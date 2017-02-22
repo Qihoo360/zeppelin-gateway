@@ -35,7 +35,7 @@ class ZgwObject {
 public:
   ZgwObject(const std::string& name);
   ZgwObject(const std::string& name,  const std::string& content,
-      const ZgwObjectInfo& i, uint32_t strip_len = 101376 /* 99 KB */);
+            const ZgwObjectInfo& i, uint32_t strip_len = 101376 /* 99 KB */);
   ~ZgwObject();
 
   std::string name() const {
@@ -72,6 +72,6 @@ private:
   uint32_t strip_count_;
 };
 
-}
+}  // namespace libzgw
 
 #endif
