@@ -56,7 +56,7 @@ Status Cluster::Set(const std::string& table, const std::string& key,
   set_info->set_key(key);
   set_info->set_value(value);
   s = SubmitDataCmd(table, key);
-  if (s.IsIOError() || s.IsCorruption()) {
+  if (!s.ok()) {
     return s;
   }
   if (data_res_.code() == client::StatusCode::kOk) {
@@ -74,7 +74,7 @@ Status Cluster::Delete(const std::string& table, const std::string& key) {
   del_info->set_table_name(table);
   del_info->set_key(key);
   s = SubmitDataCmd(table, key);
-  if (s.IsIOError() || s.IsCorruption()) {
+  if (!s.ok()) {
     return s;
   }
   if (data_res_.code() == client::StatusCode::kOk) {
@@ -97,7 +97,7 @@ Status Cluster::Get(const std::string& table, const std::string& key,
 
   s = SubmitDataCmd(table, key);
 
-  if (s.IsIOError() || s.IsCorruption()) {
+  if (!s.ok()) {
     return s;
   }
   if (data_res_.code() == client::StatusCode::kOk) {
@@ -122,7 +122,7 @@ Status Cluster::CreateTable(const std::string& table_name,
   slash::Status ret = SubmitMetaCmd();
 
   if (!ret.ok()) {
-    return slash::Status::IOError(meta_res_.msg());
+    return ret;
   }
   if (meta_res_.code() != ZPMeta::StatusCode::OK) {
     return Status::NotSupported(meta_res_.msg());
@@ -162,9 +162,6 @@ Status Cluster::Pull(const std::string& table) {
     return ret;
   }
 
-  if (!ret.ok()) {
-    return Status::IOError(meta_res_.msg());
-  }
   if (meta_res_.code() != ZPMeta::StatusCode::OK) {
     return Status::NotFound(meta_res_.msg());
   }
@@ -193,7 +190,7 @@ Status Cluster::SetMaster(const std::string& table_name,
   slash::Status ret = SubmitMetaCmd();
 
   if (!ret.ok()) {
-    return slash::Status::IOError(meta_res_.msg());
+    return ret;
   }
   if (meta_res_.code() != ZPMeta::StatusCode::OK) {
     return Status::NotSupported(meta_res_.msg());
@@ -216,7 +213,7 @@ Status Cluster::AddSlave(const std::string& table_name,
   slash::Status ret = SubmitMetaCmd();
 
   if (!ret.ok()) {
-    return slash::Status::IOError(meta_res_.msg());
+    return ret;
   }
   if (meta_res_.code() != ZPMeta::StatusCode::OK) {
     return Status::NotSupported(meta_res_.msg());
@@ -241,7 +238,7 @@ Status Cluster::RemoveSlave(const std::string& table_name,
   slash::Status ret = SubmitMetaCmd();
 
   if (!ret.ok()) {
-    return slash::Status::IOError(meta_res_.msg());
+    return ret;
   }
   if (meta_res_.code() != ZPMeta::StatusCode::OK) {
     return Status::NotSupported(meta_res_.msg());
@@ -257,7 +254,7 @@ Status Cluster::ListMeta(Node* master, std::vector<Node>* nodes) {
   slash::Status ret = SubmitMetaCmd();
 
   if (!ret.ok()) {
-    return slash::Status::IOError(meta_res_.msg());
+    return ret;
   }
   if (meta_res_.code() != ZPMeta::StatusCode::OK) {
     return Status::NotSupported(meta_res_.msg());
@@ -282,7 +279,7 @@ Status Cluster::ListNode(std::vector<Node>* nodes,
   slash::Status ret = SubmitMetaCmd();
 
   if (!ret.ok()) {
-    return slash::Status::IOError(meta_res_.msg());
+    return ret;
   }
   if (meta_res_.code() != ZPMeta::StatusCode::OK) {
     return Status::NotSupported(meta_res_.msg());
@@ -309,7 +306,7 @@ Status Cluster::ListTable(std::vector<std::string>* tables) {
   slash::Status ret = SubmitMetaCmd();
 
   if (!ret.ok()) {
-    return slash::Status::IOError(meta_res_.msg());
+    return ret;
   }
   if (meta_res_.code() != ZPMeta::StatusCode::OK) {
     return Status::NotSupported(meta_res_.msg());
