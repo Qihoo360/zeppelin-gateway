@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <unistd.h>
 #include <set>
 
@@ -26,42 +25,20 @@ Status ZgwStore::AddObject(const std::string &bucket_name,
     }
   }
 
-  // Add to Objects List
-  // Get object name list
+  // Add objects to name list in bucket
   std::string meta_value;
-  s = zp_->Get(bucket_name, ZgwBucket::MetaKey(bucket_name), &meta_value);
+  ZgwBucket bucket(bucket_name);
+  s = zp_->Get(bucket_name, bucket.MetaKey(), &meta_value);
   if (!s.ok()) {
     return s;
   }
-  // Not used here
-  uint32_t tmp1, tmp2;
-  slash::GetFixed32(&meta_value, &tmp1);
-  slash::GetFixed32(&meta_value, &tmp2);
-
-  // Parse objects count and name;
-  uint32_t name_count;
-  std::set<std::string> name_list;
-  slash::GetFixed32(&meta_value, &name_count);
-  for (size_t i = 0; i < name_count; i++) {
-    std::string name;
-    slash::GetLengthPrefixedString(&meta_value, &name);
-    name_list.insert(name);
+  bucket.ParseMetaValue(meta_value);
+  bucket.AddObject(object.name());
+  // Update bucket meta value
+  s = zp_->Set(bucket_name, bucket.MetaKey(), bucket.MetaValue());
+  if (!s.ok()) {
+    return s;
   }
-  assert(name_count == name_list.size());
-
-  // Insert new object name
-  name_list.insert(object.name());
-
-  // Put back name list to bucket meta
-  meta_value.clear();
-  slash::PutFixed32(&meta_value, tmp1);
-  slash::PutFixed32(&meta_value, tmp2);
-
-  slash::PutFixed32(&meta_value, name_list.size());
-  for (auto &name : name_list) {
-    slash::PutLengthPrefixedString(&meta_value, name);
-  }
-  s = zp_->Set(bucket_name, ZgwBucket::MetaKey(bucket_name), meta_value);
 
   // Set Object Meta
   s = zp_->Set(bucket_name, object.MetaKey(), object.MetaValue());
@@ -83,39 +60,20 @@ Status ZgwStore::DelObject(const std::string &bucket_name,
     return s;
   }
 
-  // Delete from Objects List
-  // Get object name list
+  // Delete objects from name list in bucket
   std::string meta_value;
-  s = zp_->Get(bucket_name, ZgwBucket::MetaKey(bucket_name), &meta_value);
-  // Not used here
-  uint32_t tmp1, tmp2;
-  slash::GetFixed32(&meta_value, &tmp1);
-  slash::GetFixed32(&meta_value, &tmp2);
-
-  // Parse objects count and name;
-  uint32_t name_count;
-  std::set<std::string> name_list;
-  slash::GetFixed32(&meta_value, &name_count);
-  for (size_t i = 0; i < name_count; i++) {
-    std::string name;
-    slash::GetLengthPrefixedString(&meta_value, &name);
-    name_list.insert(name);
+  ZgwBucket bucket(bucket_name);
+  s = zp_->Get(bucket_name, bucket.MetaKey(), &meta_value);
+  if (!s.ok()) {
+    return s;
   }
-  assert(name_count == name_list.size());
-
-  // Delete object name
-  name_list.erase(object.name());
-
-  // Put back name list to bucket meta
-  meta_value.clear();
-  slash::PutFixed32(&meta_value, tmp1);
-  slash::PutFixed32(&meta_value, tmp2);
-
-  slash::PutFixed32(&meta_value, name_list.size());
-  for (auto &name : name_list) {
-    slash::PutLengthPrefixedString(&meta_value, name);
+  bucket.ParseMetaValue(meta_value);
+  bucket.DelObject(object_name);
+  // Update bucket meta value
+  s = zp_->Set(bucket_name, bucket.MetaKey(), bucket.MetaValue());
+  if (!s.ok()) {
+    return s;
   }
-  s = zp_->Set(bucket_name, ZgwBucket::MetaKey(bucket_name), meta_value);
 
   // Delete Object Meta
   s = zp_->Delete(bucket_name, object.MetaKey());
