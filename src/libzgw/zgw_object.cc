@@ -23,6 +23,35 @@ ZgwObject::ZgwObject(const std::string& name, const std::string& content,
 ZgwObject::~ZgwObject() {
 }
 
+std::string ZgwObjectInfo::MetaValue() const {
+  std::string result;
+  slash::PutFixed64(&result, mtime);
+  slash::PutLengthPrefixedString(&result, etag);
+  slash::PutFixed64(&result, size);
+  slash::PutFixed64(&result, storage_class);
+  slash::PutLengthPrefixedString(&result, user.MetaValue());
+  return result;
+}
+
+Status ZgwObjectInfo::ParseMetaValue(std::string *value) {
+  uint64_t tmp; 
+  slash::GetFixed64(value, &tmp);
+  mtime = static_cast<time_t>(tmp); // mtime
+  bool res = slash::GetLengthPrefixedString(value, &etag); // etag
+  if (!res) {
+    return Status::Corruption("Parse info etag failed");
+  }
+  slash::GetFixed64(value, &size); // size
+  slash::GetFixed64(value, &tmp);
+  storage_class = static_cast<ObjectStorageClass>(tmp); // storage_class
+  std::string user_value;
+  res = slash::GetLengthPrefixedString(value, &user_value); //user meta value
+  if (!res) {
+    return Status::Corruption("Parse user meta value failed");
+  }
+  return user.ParseMetaValue(&user_value);
+}
+
 std::string ZgwObject::MetaKey() const {
   return kObjectMetaPrefix + name_;
 }
@@ -33,11 +62,7 @@ std::string ZgwObject::MetaValue() const {
   slash::PutFixed32(&result, strip_count_);
 
   // Object Info
-  slash::PutFixed64(&result, info_.mtime);
-  slash::PutLengthPrefixedString(&result,  info_.etag);
-  slash::PutFixed64(&result, info_.size);
-  slash::PutFixed64(&result, info_.storage_class);
-  slash::PutLengthPrefixedString(&result,  info_.user.MetaValue());
+  slash::PutLengthPrefixedString(&result, info_.MetaValue());
   return result;
 }
 
@@ -60,22 +85,9 @@ Status ZgwObject::ParseMetaValue(std::string* value) {
   slash::GetFixed32(value, &strip_count_);
   
   // Object info
-  uint64_t tmp; 
-  slash::GetFixed64(value, &tmp);
-  info_.mtime = static_cast<time_t>(tmp); // mtime
-  bool res = slash::GetLengthPrefixedString(value, &(info_.etag)); // etag
-  if (!res) {
-    return Status::Corruption("Parse info etag failed");
-  }
-  slash::GetFixed64(value, &(info_.size)); // size
-  slash::GetFixed64(value, &tmp);
-  info_.storage_class = static_cast<ObjectStorageClass>(tmp); // storage_class
-  std::string user_value;
-  res = slash::GetLengthPrefixedString(value, &user_value); //user meta value
-  if (!res) {
-    return Status::Corruption("Parse user meta value failed");
-  }
-  return info_.user.ParseMetaValue(&user_value);
+  std::string ob_meta;
+  slash::GetLengthPrefixedString(value, &ob_meta);
+  return info_.ParseMetaValue(&ob_meta);
 }
 
 void ZgwObject::ParseNextStrip(std::string* value) {

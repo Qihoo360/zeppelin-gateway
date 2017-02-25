@@ -15,8 +15,8 @@ static void DumpHttpRequest(const pink::HttpRequest* req) {
   LOG(INFO) << " + method: " << req->method;
   LOG(INFO) << " + path: " << req->path;
   LOG(INFO) << " + version: " << req->version;
-  if (req->content.size() > 200) {
-    LOG(INFO) << " + content: " << req->content.substr(0);
+  if (req->content.size() > 50) {
+    LOG(INFO) << " + content: " << req->content.substr(0, 50);
   } else {
     LOG(INFO) << " + content: " << req->content;
   }
@@ -41,6 +41,56 @@ ZgwConn::ZgwConn(const int fd,
   store_ = g_zgw_server->GetStore();
 }
 
+std::string ZgwConn::iso8601_time(time_t sec, suseconds_t usec) {
+  int milli = usec / 1000;
+  char buf[128];
+  strftime(buf, sizeof buf, "%FT%T", localtime(&sec));
+  sprintf(buf, "%s.%03dZ", buf, milli);
+  return std::string(buf);
+}
+
+std::string ZgwConn::GetAccessKey(const pink::HttpRequest* req) {
+  std::string auth_str;
+  auto iter = req->headers.find("Authorization");
+  if (iter != req->headers.end())
+    auth_str.assign(iter->second);
+  else return "";
+  size_t pos = auth_str.find("Credential");
+  if (pos == std::string::npos)
+    return "";
+  size_t slash_pos = auth_str.find('/');
+  // e.g. auth_str: "...Credential=f3oiCCuyE7v3dOZgeEBsa/20170225/us..."
+  return auth_str.substr(pos + 11, slash_pos - pos - 11);
+}
+
+void ZgwConn::AuthFailedHandle(pink::HttpResponse* resp) {
+  // Builid failed Info
+  using namespace rapidxml;
+  xml_document<> doc;
+  xml_node<> *rot =
+    doc.allocate_node(node_pi, doc.allocate_string("xml version='1.0' encoding='utf-8'"));
+  doc.append_node(rot);
+
+  // <Error>
+  xml_node<> *error =
+    doc.allocate_node(node_element, "Error");
+  doc.append_node(error);
+  //  <Code>
+  error->append_node(doc.allocate_node(node_element, "Code", "InvalidAccessKeyId"));
+  //  <RequestId> TODO gaodq
+  error->append_node(doc.allocate_node(node_element, "RequestId",
+                                       "tx00000000000000000113c-0058a43a07-7deaf-sh-bt-1"));
+  //  <HostId> TODO gaodq
+  error->append_node(doc.allocate_node(node_element, "HostId" "7deaf-sh-bt-1-sh"));
+
+  std::string res_xml;
+  print(std::back_inserter(res_xml), doc, 0);
+
+  resp->SetStatusCode(403);
+  resp->SetBody(res_xml);
+  LOG(ERROR) << "Auth failed";
+}
+
 void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp) {
   // DumpHttpRequest(req);
 
@@ -48,7 +98,10 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   std::string bucket_name;
   std::string object_name;
   const std::string &path = req->path;
-  assert(path[0] == '/');
+  if (path[0] != '/') {
+    resp->SetStatusCode(500);
+    return;
+  }
   size_t pos = path.find('/', 1);
   if (pos == std::string::npos) {
     bucket_name.assign(path.substr(1));
@@ -61,18 +114,32 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   if (req->method == "GET") {
     if (bucket_name.empty()) {
       LOG(INFO) << "ListBuckets: ";
-      ListBucketHandle(resp);
+      ListBucketHandle(req, resp);
     } else if (!bucket_name.empty() && object_name.empty()) {
       LOG(INFO) << "ListObjects: " << bucket_name;
-      ListObjectHandle(bucket_name, resp);
+      ListObjectHandle(req, bucket_name, resp);
     } else if (!bucket_name.empty() && !object_name.empty()){
       LOG(INFO) << "GetObjects: " << bucket_name << "/" << object_name;
-      GetObjectHandle(bucket_name, object_name, resp);
+      GetObjectHandle(req, bucket_name, object_name, resp);
     }
   } else if (req->method == "PUT") {
+    // XXX (gaodq) delete me
+    if (bucket_name == "admin_put_user") {
+      std::string access_key;
+      std::string secret_key;
+      Status s = store_->AddUser(object_name, &access_key, &secret_key);
+      if (!s.ok()) {
+        resp->SetStatusCode(500);
+        resp->SetBody(s.ToString());
+      } else {
+        resp->SetStatusCode(200);
+        resp->SetBody(access_key + "\r\n" + secret_key);
+      }
+      return;
+    }
     if (!bucket_name.empty() && object_name.empty()) {
       LOG(INFO) << "CreateBucket: " << bucket_name;
-      PutBucketHandle(bucket_name, resp);
+      PutBucketHandle(req, bucket_name, resp);
     } else if (!bucket_name.empty() && !object_name.empty()) {
       // TODO gaodq test 100-continue
       if (req->headers.find("Expect") != req->headers.end()) {
@@ -85,10 +152,10 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   } else if (req->method == "DELETE") {
     if (!bucket_name.empty() && object_name.empty()) {
       LOG(INFO) << "DeleteBucket: " << bucket_name;
-      DelBucketHandle(bucket_name, resp);
+      DelBucketHandle(req, bucket_name, resp);
     } else if (!bucket_name.empty() && !object_name.empty()) {
       LOG(INFO) << "DeleteObject: " << bucket_name << "/" << object_name;
-      DelObjectHandle(bucket_name, object_name, resp);
+      DelObjectHandle(req, bucket_name, object_name, resp);
     }
   } else if (req->method == "HEAD") {
     if (!bucket_name.empty() && object_name.empty()) {
@@ -101,62 +168,104 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   } else {
     // Unknow request
     resp->SetStatusCode(400);
-    LOG(ERROR) << "400, Unknow request";
+    LOG(ERROR) << "Unknow request";
   }
 }
 
-void ZgwConn::DelObjectHandle(std::string &bucket_name,
+void ZgwConn::DelObjectHandle(const pink::HttpRequest* req,
+                              std::string &bucket_name,
                               std::string &object_name,
                               pink::HttpResponse* resp) {
-  slash::Status s = store_->DelObject(bucket_name, object_name);
-  if (s.ok()) {
-    resp->SetStatusCode(204);
-  } else {
-    resp->SetStatusCode(403);
-    LOG(ERROR) << "Delete object failed: " << s.ToString();
+  std::string access_key = GetAccessKey(req);
+
+  slash::Status s = store_->DelObject(access_key, bucket_name, object_name);
+  if (!s.ok()) {
+    if (s.IsAuthFailed()) {
+      AuthFailedHandle(resp);
+    } else if (s.IsIOError()) {
+      resp->SetStatusCode(500);
+    } else {
+      resp->SetStatusCode(403);
+      LOG(ERROR) << "Delete object failed: " << s.ToString();
+    }
+    return;
   }
+
+  resp->SetStatusCode(204);
 }
 
-void ZgwConn::GetObjectHandle(std::string &bucket_name,
+void ZgwConn::GetObjectHandle(const pink::HttpRequest* req,
+                              std::string &bucket_name,
                               std::string &object_name,
                               pink::HttpResponse* resp) {
+  std::string access_key = GetAccessKey(req);
+
   libzgw::ZgwObject object(object_name);
-  Status s = store_->GetObject(bucket_name, object_name, &object);
-  if (s.ok()) {
-    resp->SetStatusCode(200);
-    resp->SetBody(object.content());
-  } else {
-    resp->SetStatusCode(204);
-    LOG(ERROR) << "Get object failed: " << s.ToString();
+  Status s = store_->GetObject(access_key, bucket_name, object_name, &object);
+  if (!s.ok()) {
+    if (s.IsAuthFailed()) {
+      AuthFailedHandle(resp);
+    } else if (s.IsIOError()) {
+      resp->SetStatusCode(500);
+    } else {
+      resp->SetStatusCode(204);
+      LOG(ERROR) << "Get object failed: " << s.ToString();
+    }
+    return;
   }
+
+  resp->SetStatusCode(200);
+  resp->SetBody(object.content());
 }
 
 void ZgwConn::PutObjectHandle(const pink::HttpRequest *req,
                               std::string &bucket_name,
                               std::string &object_name,
                               pink::HttpResponse* resp) {
-  libzgw::ZgwUser zgw_user(123456, "infra");
+  std::string access_key = GetAccessKey(req);
+
   libzgw::ZgwObjectInfo ob_info(time(NULL),
                                 slash::md5(req->content),
                                 req->content.size(),
-                                libzgw::kStandard,
-                                zgw_user);
-  libzgw::ZgwObject object(object_name, req->content, ob_info);
-  Status s = store_->AddObject(bucket_name, object);
-  if (s.ok()) {
-    resp->SetStatusCode(200);
-  } else {
-    resp->SetStatusCode(403);
-    LOG(ERROR) << "Put object failed: " << s.ToString();
+                                libzgw::kStandard);
+  Status s = store_->AddObject(access_key, bucket_name, object_name,
+                               ob_info, req->content);
+  if (!s.ok()) {
+    if (s.IsAuthFailed()) {
+      AuthFailedHandle(resp);
+    } else if (s.IsIOError()) {
+      resp->SetStatusCode(500);
+    } else {
+      resp->SetStatusCode(403);
+      LOG(ERROR) << "Put object failed: " << s.ToString();
+    }
+    return;
   }
+
+  resp->SetStatusCode(200);
 }
 
-// TODO gaodq Not Implement
-void ZgwConn::ListObjectHandle(std::string &bucket_name,
+void ZgwConn::ListObjectHandle(const pink::HttpRequest* req,
+                               std::string &bucket_name,
                                pink::HttpResponse* resp) {
+  std::string access_key = GetAccessKey(req);
+
   // * List bucekts
   std::vector<libzgw::ZgwObject> objects;
-  slash::Status s = store_->ListObjects(bucket_name, &objects);
+  slash::Status s = store_->ListObjects(access_key, bucket_name, &objects);
+  if (!s.ok()) {
+    if (s.IsAuthFailed()) {
+      AuthFailedHandle(resp);
+    } else if (s.IsIOError()) {
+      resp->SetStatusCode(500);
+    } else {
+      resp->SetStatusCode(204);
+      LOG(ERROR) << "List object failed: " << s.ToString();
+    }
+    return;
+  }
+
+  // Zeppelin success, then build body
 
   //    * Build xml Response
   // <root>
@@ -184,32 +293,29 @@ void ZgwConn::ListObjectHandle(std::string &bucket_name,
   rnode->append_node(doc.allocate_node(node_element, "IsTruncated", "false"));
 
   // Save for xml parser
-  std::vector<libzgw::ZgwObjectInfo> infos;
-  // TODO gaodq
   std::vector<std::string> cdates;
   std::vector<std::string> sizes;
-  std::vector<std::string> ids;
   for (auto &object : objects) {
-    infos.push_back(object.info());
-    libzgw::ZgwUser &user = infos.back().user;
+    const libzgw::ZgwObjectInfo &info = object.info();
+    const libzgw::ZgwUserInfo &user = info.user;
     //  <Contents>
     xml_node<> *content =
-      doc.allocate_node(node_element, "Contents", bucket_name.c_str());
+      doc.allocate_node(node_element, "Contents", bucket_name.data());
     rnode->append_node(content);
     //    <Key>
     content->append_node(doc.allocate_node(node_element, "Key",
-                                           object.name().c_str()));
+                                           object.name().data()));
     //    <LastModified>
-    cdates.push_back(iso8601_time(infos.back().mtime));
+    cdates.push_back(iso8601_time(info.mtime));
     content->append_node(doc.allocate_node(node_element, "LastModified", 
-                                           cdates.back().c_str()));
+                                           cdates.back().data()));
     //    <ETag>
     content->append_node(doc.allocate_node(node_element, "ETag",
-                                           infos.back().etag.c_str()));
+                                           info.etag.data()));
     //    <Size>
-    sizes.push_back(std::to_string(infos.back().size));
+    sizes.push_back(std::to_string(info.size));
     content->append_node(doc.allocate_node(node_element, "Size",
-                                           sizes.back().c_str()));
+                                           sizes.back().data()));
     //    <StorageClass>
     content->append_node(doc.allocate_node(node_element, "StorageClass",
                                            "STANDARD"));
@@ -218,31 +324,33 @@ void ZgwConn::ListObjectHandle(std::string &bucket_name,
       doc.allocate_node(node_element, "Owner");
     content->append_node(owner);
     //      <ID>
-    ids.push_back(std::to_string(user.id()));
     owner->append_node(doc.allocate_node(node_element, "ID",
-                                         ids.back().c_str()));
+                                         user.user_id.data()));
     //      <DisplayName>
     owner->append_node(doc.allocate_node(node_element, "DisplayName",
-                                         user.disply_name().c_str()));
+                                         user.disply_name.data()));
   }
 
   std::string res_xml;
   print(std::back_inserter(res_xml), doc, 0);
 
-  if (s.ok()) {
-    resp->SetStatusCode(200);
-    resp->SetBody(res_xml);
-  } else {
-    resp->SetStatusCode(204);
-    LOG(ERROR) << "List object failed: " << s.ToString();
-  }
+  // Http response
+  resp->SetStatusCode(200);
+  resp->SetBody(res_xml);
 }
 
-void ZgwConn::DelBucketHandle(std::string &bucket_name,
+void ZgwConn::DelBucketHandle(const pink::HttpRequest* req,
+                              std::string &bucket_name,
                               pink::HttpResponse* resp) {
-  slash::Status s = store_->DelBucket(bucket_name);
+  std::string access_key = GetAccessKey(req);
+
+  slash::Status s = store_->DelBucket(access_key, bucket_name);
   if (s.ok()) {
     resp->SetStatusCode(204);
+  } else if (s.IsAuthFailed()) {
+    AuthFailedHandle(resp);
+  } else if (s.IsIOError()) {
+    resp->SetStatusCode(500);
   } else {
     //    * Build xml Response
     // <root>
@@ -259,7 +367,7 @@ void ZgwConn::DelBucketHandle(std::string &bucket_name,
     //  <Code>
     error->append_node(doc.allocate_node(node_element, "Code", "BucketNotEmpty"));
     //  <BucketName>
-    error->append_node(doc.allocate_node(node_element, "BucketName", bucket_name.c_str()));
+    error->append_node(doc.allocate_node(node_element, "BucketName", bucket_name.data()));
     //  <RequestId> TODO gaodq
     error->append_node(doc.allocate_node(node_element, "RequestId",
                                          "tx00000000000000000113c-0058a43a07-7deaf-sh-bt-1"));
@@ -275,31 +383,51 @@ void ZgwConn::DelBucketHandle(std::string &bucket_name,
   }
 }
 
-void ZgwConn::PutBucketHandle(std::string &bucket_name,
+void ZgwConn::PutBucketHandle(const pink::HttpRequest* req,
+                              std::string &bucket_name,
                               pink::HttpResponse* resp) {
-  libzgw::ZgwBucket new_bucket(bucket_name);
-  slash::Status s = store_->AddBucket(new_bucket);
-  if (s.ok()) {
-    resp->SetStatusCode(200);
-  } else {
-    resp->SetStatusCode(409);
-    LOG(ERROR) << "Create bucket failed: " << s.ToString();
+  std::string access_key = GetAccessKey(req);
+
+  slash::Status s = store_->AddBucket(access_key, bucket_name);
+  if (!s.ok()) {
+    if (s.IsAuthFailed()) {
+      AuthFailedHandle(resp);
+    } else if (s.IsIOError()) {
+      resp->SetStatusCode(500);
+    } else {
+      resp->SetStatusCode(409);
+      LOG(ERROR) << "Create bucket failed: " << s.ToString();
+    }
+    return;
   }
+
+  resp->SetStatusCode(200);
 }
 
-std::string ZgwConn::iso8601_time(time_t sec, suseconds_t usec) {
-  int milli = usec / 1000;
-  char buf[128];
-  strftime(buf, sizeof buf, "%FT%T", localtime(&sec));
-  sprintf(buf, "%s.%03dZ", buf, milli);
-  return std::string(buf);
-}
-
-void ZgwConn::ListBucketHandle(pink::HttpResponse* resp) {
+void ZgwConn::ListBucketHandle(const pink::HttpRequest* req, pink::HttpResponse* resp) {
+  std::string access_key = GetAccessKey(req);
 
   // * List bucekts
   std::vector<libzgw::ZgwBucket> buckets;
-  slash::Status s = store_->ListBuckets(&buckets);
+  slash::Status s = store_->ListBuckets(access_key, &buckets);
+  if (!s.ok()) {
+    if (s.IsAuthFailed()) {
+      AuthFailedHandle(resp);
+    } else if (s.IsIOError()) {
+      resp->SetStatusCode(500);
+    } else {
+      resp->SetStatusCode(204);
+      LOG(ERROR) << "List bucket failed: " << s.ToString();
+    }
+    return;
+  }
+
+  // Zeppelin success, then build http body
+
+  libzgw::ZgwUser *user = NULL;
+  // Will return previously if error occured
+  store_->GetUser(access_key, &user);
+  assert(user);
 
   //    * Build xml Response
   // <root>
@@ -317,9 +445,12 @@ void ZgwConn::ListBucketHandle(pink::HttpResponse* resp) {
   doc.append_node(rnode);
 
   // <Owner>
+  const libzgw::ZgwUserInfo &info = user->user_info();
   xml_node<> *owner = doc.allocate_node(node_element, "Owner");
-  owner->append_node(doc.allocate_node(node_element, "ID", "infra"));
-  owner->append_node(doc.allocate_node(node_element, "DisplayName", "infra"));
+  owner->append_node(doc.allocate_node(node_element, "ID",
+                                       info.user_id.data()));
+  owner->append_node(doc.allocate_node(node_element, "DisplayName",
+                                       info.disply_name.data()));
   rnode->append_node(owner);
 
   // <Buckets>
@@ -333,21 +464,16 @@ void ZgwConn::ListBucketHandle(pink::HttpResponse* resp) {
     // <Bucket>
     xml_node<> *bucket_node = doc.allocate_node(node_element, "Bucket");
     bucket_node->append_node(doc.allocate_node(node_element, "Name",
-                                               bucket.name().c_str()));
+                                               bucket.name().data()));
     cdates.push_back(iso8601_time(bucket.ctime().tv_sec, bucket.ctime().tv_usec));
     bucket_node->append_node(doc.allocate_node(node_element, "CreationDate",
-                                               cdates.back().c_str()));
+                                               cdates.back().data()));
     buckets_node->append_node(bucket_node);
   }
 
   std::string res_xml;
   print(std::back_inserter(res_xml), doc, 0);
 
-  if (s.ok()) {
-    resp->SetStatusCode(200);
-    resp->SetBody(res_xml);
-  } else {
-    resp->SetStatusCode(204);
-    LOG(ERROR) << "List bucket failed: " << s.ToString();
-  }
+  resp->SetStatusCode(200);
+  resp->SetBody(res_xml);
 }

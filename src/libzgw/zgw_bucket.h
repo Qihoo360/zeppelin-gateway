@@ -6,13 +6,14 @@
 
 #include "include/slash_string.h"
 #include "include/slash_status.h"
+#include "zgw_user.h"
 
 namespace libzgw {
 
 using slash::Status;
 
 class ZgwBucket {
-public:
+ public:
   explicit ZgwBucket(const std::string& name);
   ~ZgwBucket();
   
@@ -25,7 +26,11 @@ public:
   }
 
   uint32_t object_count() {
-    return object_count_;
+    return objects_name_.size();
+  }
+
+  void SetUserInfo(const ZgwUserInfo &user_info) {
+    user_info_ = user_info;
   }
 
   std::set<std::string> objects_name() {
@@ -45,10 +50,10 @@ public:
   // this may change value inside
   Status ParseMetaValue(std::string& value);
  
-private:
+ private:
+  ZgwUserInfo user_info_;
   std::string name_;
   timeval ctime_;
-  uint32_t object_count_;
   std::set<std::string> objects_name_;
 };
 

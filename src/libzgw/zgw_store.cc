@@ -30,6 +30,13 @@ Status ZgwStore::Init(const std::vector<std::string>& ip_ports) {
   }
   zp_ = new libzp::Cluster(zp_option);
   assert(zp_);
+
+  // Load all users
+  Status s = LoadAllUsers();
+  if (!s.ok()) {
+    return s;
+  }
+
   return Status::OK();
 }
 
@@ -38,6 +45,9 @@ ZgwStore::ZgwStore() {
 
 ZgwStore::~ZgwStore() {
   delete zp_;
+  for (auto &item : access_key_user_map_) {
+    delete item.second;
+  }
 }
 
-}
+}  // namespace libzgw

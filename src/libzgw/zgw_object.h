@@ -1,8 +1,8 @@
 #ifndef ZGW_OBJECT_H
 #define ZGW_OBJECT_H
 #include <string>
+#include <sys/time.h>
 
-#include "time.h"
 #include "include/slash_status.h"
 #include "zgw_user.h"
 
@@ -19,20 +19,23 @@ struct ZgwObjectInfo {
   std::string etag;
   uint64_t size;
   ObjectStorageClass storage_class;
-  ZgwUser user;
+  ZgwUserInfo user;
+
   ZgwObjectInfo(time_t t, const std::string& et,
-      uint64_t s, ObjectStorageClass c, ZgwUser& u)
+      uint64_t s, ObjectStorageClass c)
     : mtime(t), etag(et), size(s),
-    storage_class(c), user(u) {
-    }
+    storage_class(c) {
+  }
   ZgwObjectInfo()
     : mtime(0), size(0),
     storage_class(ObjectStorageClass::kStandard) {
-    }
+  }
+  std::string MetaValue() const;
+  Status ParseMetaValue(std::string *meta_value);
 };
 
 class ZgwObject {
-public:
+ public:
   ZgwObject(const std::string& name);
   ZgwObject(const std::string& name,  const std::string& content,
             const ZgwObjectInfo& i, uint32_t strip_len = 101376 /* 99 KB */);
@@ -41,15 +44,23 @@ public:
   std::string name() const {
     return name_;
   }
+
   void SetName(const std::string& name) {
     name_ = name;
   }
-  ZgwObjectInfo info() const {
+
+  void SetUserInfo(const ZgwUserInfo &user) {
+    info_.user = user;
+  }
+
+  const ZgwObjectInfo &info() const {
     return info_;
   }
+
   std::string content() const {
     return content_;
   }
+
   uint32_t strip_count() const {
     return strip_count_;
   }
@@ -64,7 +75,7 @@ public:
   Status ParseMetaValue(std::string* value);
   void ParseNextStrip(std::string* value);
 
-private:
+ private:
   std::string name_;
   std::string content_;
   ZgwObjectInfo info_;
