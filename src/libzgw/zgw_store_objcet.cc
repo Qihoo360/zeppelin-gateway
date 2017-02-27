@@ -37,6 +37,23 @@ Status ZgwStore::AddObject(const std::string &access_key,
     }
   }
 
+  // Delete Old Data, since the object name may already exist
+  std::string ometa;
+  libzgw::ZgwObject old_object(object_name);
+  s = zp_->Get(bucket_name, object.MetaKey(), &ometa);
+  if (s.ok()) {
+    old_object.ParseMetaValue(&ometa);
+    for (uint32_t ti = object.strip_count(); ti < old_object.strip_count(); ti++) {
+      zp_->Delete(bucket_name, old_object.DataKey(ti));
+    }
+  }
+
+  // Set Object Meta
+  s = zp_->Set(bucket_name, object.MetaKey(), object.MetaValue());
+  if (!s.ok()) {
+    return s;
+  }
+
   // Add objects to name list in bucket
   std::string meta_value;
   ZgwBucket bucket(bucket_name);
@@ -48,12 +65,6 @@ Status ZgwStore::AddObject(const std::string &access_key,
   bucket.AddObject(object.name());
   // Update bucket meta value
   s = zp_->Set(bucket_name, bucket.MetaKey(), bucket.MetaValue());
-  if (!s.ok()) {
-    return s;
-  }
-
-  // Set Object Meta
-  s = zp_->Set(bucket_name, object.MetaKey(), object.MetaValue());
   return s;
 }
 
