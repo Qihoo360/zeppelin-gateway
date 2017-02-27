@@ -141,13 +141,11 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
       LOG(INFO) << "CreateBucket: " << bucket_name;
       PutBucketHandle(req, bucket_name, resp);
     } else if (!bucket_name.empty() && !object_name.empty()) {
-      // TODO gaodq test 100-continue
-      if (req->headers.find("Expect") != req->headers.end()) {
-        resp->SetStatusCode(100);
-      } else {
-        LOG(INFO) << "PutObjcet: " << bucket_name << "/" << object_name;
-        PutObjectHandle(req, bucket_name, object_name, resp);
-      }
+      // if (req->headers.find("Expect") != req->headers.end()) {
+      //   resp->SetStatusCode(100);
+      // }
+      LOG(INFO) << "PutObjcet: " << bucket_name << "/" << object_name;
+      PutObjectHandle(req, bucket_name, object_name, resp);
     }
   } else if (req->method == "DELETE") {
     if (!bucket_name.empty() && object_name.empty()) {
@@ -184,6 +182,7 @@ void ZgwConn::DelObjectHandle(const pink::HttpRequest* req,
       AuthFailedHandle(resp);
     } else if (s.IsIOError()) {
       resp->SetStatusCode(500);
+      LOG(ERROR) << "Delete object failed: " << s.ToString();
     } else {
       resp->SetStatusCode(403);
       LOG(ERROR) << "Delete object failed: " << s.ToString();
@@ -207,6 +206,7 @@ void ZgwConn::GetObjectHandle(const pink::HttpRequest* req,
       AuthFailedHandle(resp);
     } else if (s.IsIOError()) {
       resp->SetStatusCode(500);
+      LOG(ERROR) << "Get object failed: " << s.ToString();
     } else {
       resp->SetStatusCode(204);
       LOG(ERROR) << "Get object failed: " << s.ToString();
@@ -235,6 +235,7 @@ void ZgwConn::PutObjectHandle(const pink::HttpRequest *req,
       AuthFailedHandle(resp);
     } else if (s.IsIOError()) {
       resp->SetStatusCode(500);
+      LOG(ERROR) << "Put object failed: " << s.ToString();
     } else {
       resp->SetStatusCode(403);
       LOG(ERROR) << "Put object failed: " << s.ToString();
@@ -258,6 +259,7 @@ void ZgwConn::ListObjectHandle(const pink::HttpRequest* req,
       AuthFailedHandle(resp);
     } else if (s.IsIOError()) {
       resp->SetStatusCode(500);
+      LOG(ERROR) << "List object failed: " << s.ToString();
     } else {
       resp->SetStatusCode(204);
       LOG(ERROR) << "List object failed: " << s.ToString();
@@ -351,6 +353,7 @@ void ZgwConn::DelBucketHandle(const pink::HttpRequest* req,
     AuthFailedHandle(resp);
   } else if (s.IsIOError()) {
     resp->SetStatusCode(500);
+    LOG(ERROR) << "Delete bucket failed: " << s.ToString();
   } else {
     //    * Build xml Response
     // <root>
@@ -394,6 +397,7 @@ void ZgwConn::PutBucketHandle(const pink::HttpRequest* req,
       AuthFailedHandle(resp);
     } else if (s.IsIOError()) {
       resp->SetStatusCode(500);
+      LOG(ERROR) << "Create bucket failed: " << s.ToString();
     } else {
       resp->SetStatusCode(409);
       LOG(ERROR) << "Create bucket failed: " << s.ToString();
