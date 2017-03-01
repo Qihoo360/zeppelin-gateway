@@ -54,17 +54,18 @@ Status ZgwStore::AddObject(const std::string &access_key,
     return s;
   }
 
-  // Add objects to name list in bucket
-  std::string meta_value;
-  ZgwBucket bucket(bucket_name);
-  s = zp_->Get(bucket_name, bucket.MetaKey(), &meta_value);
-  if (!s.ok()) {
-    return s;
-  }
-  bucket.ParseMetaValue(meta_value);
-  bucket.AddObject(object.name());
-  // Update bucket meta value
-  s = zp_->Set(bucket_name, bucket.MetaKey(), bucket.MetaValue());
+  // // Add objects to name list in bucket
+  // std::string meta_value;
+  // ZgwBucket bucket(bucket_name);
+  // s = zp_->Get(bucket_name, bucket.MetaKey(), &meta_value);
+  // if (!s.ok()) {
+  //   return s;
+  // }
+  // bucket.ParseMetaValue(meta_value);
+  // bucket.AddObject(object.name());
+  // // Update bucket meta value
+  // s = zp_->Set(bucket_name, bucket.MetaKey(), bucket.MetaValue());
+
   return s;
 }
 
@@ -91,20 +92,20 @@ Status ZgwStore::DelObject(const std::string &access_key,
     return s;
   }
 
-  // Delete objects from name list in bucket
-  std::string meta_value;
-  ZgwBucket bucket(bucket_name);
-  s = zp_->Get(bucket_name, bucket.MetaKey(), &meta_value);
-  if (!s.ok()) {
-    return s;
-  }
-  bucket.ParseMetaValue(meta_value);
-  bucket.DelObject(object_name);
-  // Update bucket meta value
-  s = zp_->Set(bucket_name, bucket.MetaKey(), bucket.MetaValue());
-  if (!s.ok()) {
-    return s;
-  }
+  // // Delete objects from name list in bucket
+  // std::string meta_value;
+  // ZgwBucket bucket(bucket_name);
+  // s = zp_->Get(bucket_name, bucket.MetaKey(), &meta_value);
+  // if (!s.ok()) {
+  //   return s;
+  // }
+  // bucket.ParseMetaValue(meta_value);
+  // bucket.DelObject(object_name);
+  // // Update bucket meta value
+  // s = zp_->Set(bucket_name, bucket.MetaKey(), bucket.MetaValue());
+  // if (!s.ok()) {
+  //   return s;
+  // }
 
   // Delete Object Meta
   s = zp_->Delete(bucket_name, object.MetaKey());

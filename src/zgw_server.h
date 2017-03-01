@@ -12,12 +12,26 @@
 #include "zgw_conn.h"
 #include "zgw_config.h"
 #include "libzgw/zgw_store.h"
+#include "libzgw/zgw_namelist.h"
+
+using slash::Status;
+
+class ZgwWorkerThread : public pink::WorkerThread<ZgwConn> {
+ public:
+  libzgw::ZgwStore* GetStore() {
+    return store_;
+  }
+  Status Init(std::vector<std::string> &zp_meta_ip_ports);
+
+ private:
+  libzgw::ZgwStore* store_;
+};
 
 class ZgwServer {
  public:
   explicit ZgwServer(ZgwConfig *zgw_conf);
   virtual ~ZgwServer();
-  slash::Status Start();
+  Status Start();
 
   std::string local_ip() {
     return ip_;
@@ -25,12 +39,14 @@ class ZgwServer {
   int local_port() {
     return port_;
   }
+  libzgw::ListMap *objects_list() {
+    return objects_list_;
+  }
+  libzgw::ListMap *buckets_list() {
+    return buckets_list_;
+  }
   void Exit() {
     should_exit_ = true;
-  }
-
-  libzgw::ZgwStore* GetStore() {
-    return store_;
   }
 
  private:
@@ -41,9 +57,10 @@ class ZgwServer {
   int port_;
   std::atomic<bool> should_exit_;
   int worker_num_;
-  pink::WorkerThread<ZgwConn>* zgw_worker_thread_[kMaxWorkerThread];
+  ZgwWorkerThread* zgw_worker_thread_[kMaxWorkerThread];
   pink::DispatchThread<ZgwConn> *zgw_dispatch_thread_;
-  libzgw::ZgwStore* store_;
+  libzgw::ListMap *buckets_list_;
+  libzgw::ListMap *objects_list_;
 
   void DoTimingTask();
 };

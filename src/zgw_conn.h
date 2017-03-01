@@ -5,14 +5,17 @@
 #include "include/http_conn.h"
 #include "zgw_store.h"
 
+class ZgwWorkerThread;
+
 class ZgwConn : public pink::HttpConn {
  public:
   ZgwConn(const int fd, const std::string &ip_port,
-          pink::WorkerThread<ZgwConn>* worker);
+          pink::Thread* worker);
 
  private:
   virtual void DealMessage(const pink::HttpRequest* req,
                            pink::HttpResponse* res) override;
+  ZgwWorkerThread *worker_;
 
   libzgw::ZgwStore *store_;
   void GetObjectHandle(const pink::HttpRequest* req,

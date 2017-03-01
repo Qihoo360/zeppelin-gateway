@@ -8,10 +8,15 @@
 #include "zgw_bucket.h"
 #include "zgw_object.h"
 #include "zgw_user.h"
+#include "zgw_namelist.h"
 
 using slash::Status;
 
 namespace libzgw {
+
+class NameList;
+class ZgwObjectInfo;
+class ZgwObject;
 
 class ZgwStore {
 public:
@@ -27,7 +32,8 @@ public:
   Status AddBucket(const std::string &access_key,
                    const std::string &bucket_name, int partition_num = 10);
   Status ListBuckets(const std::string &access_key,
-                     std::vector<ZgwBucket>* buckets);
+                     NameList *names,
+                     std::vector<ZgwBucket> *buckets);
   Status DelBucket(const std::string &access_key, const std::string &bucket_name);
   
   Status AddObject(const std::string &access_key,
@@ -44,7 +50,10 @@ public:
                    const std::string &object_name);
   Status ListObjects(const std::string &access_key,
                      const std::string &bucket_name,
-                     std::vector<ZgwObject>* objects);
+                     NameList *names,
+                     std::vector<ZgwObject> *objects);
+  Status GetNameList(std::string &access_key, NameList *name_list);
+  Status SaveNameList(std::string &access_key, NameList *name_list);
 
 private:
   ZgwStore();
@@ -56,7 +65,6 @@ private:
   Status BuildMap();
   std::string GetRandomKey(int width);
 };
-
 
 }  // namespace libzgw
 

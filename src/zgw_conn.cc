@@ -2,6 +2,7 @@
 
 #include "zgw_conn.h"
 #include "zgw_server.h"
+#include "libzgw/zgw_namelist.h"
 
 #include "rapidxml.hpp"
 #include "rapidxml_print.hpp"
@@ -36,9 +37,10 @@ static void DumpHttpRequest(const pink::HttpRequest* req) {
 
 ZgwConn::ZgwConn(const int fd,
                  const std::string &ip_port,
-                 pink::WorkerThread<ZgwConn>* worker)
+                 pink::Thread* worker)
       : HttpConn(fd, ip_port) {
-  store_ = g_zgw_server->GetStore();
+  worker_ = reinterpret_cast<ZgwWorkerThread *>(worker);
+  store_ = worker_->GetStore();
 }
 
 std::string ZgwConn::iso8601_time(time_t sec, suseconds_t usec) {
@@ -176,15 +178,25 @@ void ZgwConn::DelObjectHandle(const pink::HttpRequest* req,
                               pink::HttpResponse* resp) {
   std::string access_key = GetAccessKey(req);
 
-  slash::Status s = store_->DelObject(access_key, bucket_name, object_name);
+  Status s = store_->DelObject(access_key, bucket_name, object_name);
   if (!s.ok()) {
     if (s.IsAuthFailed()) {
       AuthFailedHandle(resp);
-    } else if (s.IsIOError()) {
+    } else {
       resp->SetStatusCode(500);
       LOG(ERROR) << "Delete object failed: " << s.ToString();
+    }
+    return;
+  }
+
+  // Delete meta
+  s = g_zgw_server->objects_list()->
+    Delete(access_key, bucket_name, object_name, store_);
+  if (!s.ok()) {
+    if (s.IsAuthFailed()) {
+      AuthFailedHandle(resp);
     } else {
-      resp->SetStatusCode(403);
+      resp->SetStatusCode(500);
       LOG(ERROR) << "Delete object failed: " << s.ToString();
     }
     return;
@@ -243,6 +255,19 @@ void ZgwConn::PutObjectHandle(const pink::HttpRequest *req,
     return;
   }
 
+  // Add meta
+  s = g_zgw_server->objects_list()->
+    Insert(access_key, bucket_name, object_name, store_);
+  if (!s.ok()) {
+    if (s.IsAuthFailed()) {
+      AuthFailedHandle(resp);
+    } else {
+      resp->SetStatusCode(500);
+      LOG(ERROR) << "Delete object failed: " << s.ToString();
+    }
+    return;
+  }
+
   resp->SetStatusCode(200);
 }
 
@@ -253,16 +278,25 @@ void ZgwConn::ListObjectHandle(const pink::HttpRequest* req,
 
   // * List bucekts
   std::vector<libzgw::ZgwObject> objects;
-  slash::Status s = store_->ListObjects(access_key, bucket_name, &objects);
+  libzgw::NameList *names;
+  Status s = g_zgw_server->objects_list()->
+    ListNames(access_key, bucket_name, &names, store_);
+  if (!s.ok()) {
+    if (s.IsNotFound()) {
+      resp->SetStatusCode(204);
+    } else {
+      resp->SetStatusCode(500);
+      LOG(ERROR) << "ListBuckets Error: " << s.ToString();
+    }
+    return;
+  }
+  s = store_->ListObjects(access_key, bucket_name, names, &objects);
   if (!s.ok()) {
     if (s.IsAuthFailed()) {
       AuthFailedHandle(resp);
-    } else if (s.IsIOError()) {
-      resp->SetStatusCode(500);
-      LOG(ERROR) << "List object failed: " << s.ToString();
     } else {
-      resp->SetStatusCode(204);
-      LOG(ERROR) << "List object failed: " << s.ToString();
+      resp->SetStatusCode(500);
+      LOG(ERROR) << "ListBuckets Error: " << s.ToString();
     }
     return;
   }
@@ -346,8 +380,9 @@ void ZgwConn::DelBucketHandle(const pink::HttpRequest* req,
                               pink::HttpResponse* resp) {
   std::string access_key = GetAccessKey(req);
 
-  slash::Status s = store_->DelBucket(access_key, bucket_name);
+  Status s = store_->DelBucket(access_key, bucket_name);
   if (s.ok()) {
+    // TODO (gaodq) s = buckets_list_->Delete(access_key, access_key, );
     resp->SetStatusCode(204);
   } else if (s.IsAuthFailed()) {
     AuthFailedHandle(resp);
@@ -391,7 +426,7 @@ void ZgwConn::PutBucketHandle(const pink::HttpRequest* req,
                               pink::HttpResponse* resp) {
   std::string access_key = GetAccessKey(req);
 
-  slash::Status s = store_->AddBucket(access_key, bucket_name);
+  Status s = store_->AddBucket(access_key, bucket_name);
   if (!s.ok()) {
     if (s.IsAuthFailed()) {
       AuthFailedHandle(resp);
@@ -405,6 +440,21 @@ void ZgwConn::PutBucketHandle(const pink::HttpRequest* req,
     return;
   }
 
+  // meta info
+  s = g_zgw_server->buckets_list()->
+    Insert(access_key, access_key, bucket_name, store_);
+  if (!s.ok()) {
+    if (s.IsAuthFailed()) {
+      AuthFailedHandle(resp);
+    } else if (s.IsNotSupported()) {
+      resp->SetStatusCode(409);
+    } else {
+      resp->SetStatusCode(500);
+      LOG(ERROR) << "Create bucket failed: " << s.ToString();
+    }
+    return;
+  }
+
   resp->SetStatusCode(200);
 }
 
@@ -413,15 +463,25 @@ void ZgwConn::ListBucketHandle(const pink::HttpRequest* req, pink::HttpResponse*
 
   // * List bucekts
   std::vector<libzgw::ZgwBucket> buckets;
-  slash::Status s = store_->ListBuckets(access_key, &buckets);
+  libzgw::NameList *names;
+  Status s = g_zgw_server->buckets_list()->
+    ListNames(access_key, access_key, &names, store_);
+  if (!s.ok()) {
+    if (s.IsNotFound()) {
+      resp->SetStatusCode(204);
+    } else {
+      resp->SetStatusCode(500);
+      LOG(ERROR) << "ListBuckets Error: " << s.ToString();
+    }
+    return;
+  }
+  s = store_->ListBuckets(access_key, names, &buckets);
   if (!s.ok()) {
     if (s.IsAuthFailed()) {
       AuthFailedHandle(resp);
-    } else if (s.IsIOError()) {
-      resp->SetStatusCode(500);
     } else {
-      resp->SetStatusCode(204);
-      LOG(ERROR) << "List bucket failed: " << s.ToString();
+      resp->SetStatusCode(500);
+      LOG(ERROR) << "ListBuckets Error: " << s.ToString();
     }
     return;
   }

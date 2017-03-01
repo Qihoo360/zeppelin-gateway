@@ -5,6 +5,7 @@
 
 #include "include/slash_status.h"
 #include "zgw_user.h"
+#include "zgw_namelist.h"
 
 namespace libzgw {
 
