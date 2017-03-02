@@ -18,6 +18,7 @@ using slash::Status;
 
 class ZgwWorkerThread : public pink::WorkerThread<ZgwConn> {
  public:
+  ~ZgwWorkerThread();
   libzgw::ZgwStore* GetStore() {
     return store_;
   }

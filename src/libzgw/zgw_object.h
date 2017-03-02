@@ -39,7 +39,7 @@ class ZgwObject {
  public:
   ZgwObject(const std::string& name);
   ZgwObject(const std::string& name,  const std::string& content,
-            const ZgwObjectInfo& i, uint32_t strip_len = 101376 /* 99 KB */);
+            const ZgwObjectInfo& i, uint32_t strip_len = 52428800 /* 50 MB */);
   ~ZgwObject();
 
   std::string name() const {

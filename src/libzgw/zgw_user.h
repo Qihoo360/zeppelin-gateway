@@ -64,10 +64,6 @@ class ZgwUser {
     return secret_keys_;
   }
 
-  std::set<std::string> &buckets_name() {
-    return buckets_name_;
-  }
-
   // Serialization
   std::string MetaKey() const {
     return kUserMetaPrefix + info_.user_id;
@@ -80,7 +76,6 @@ class ZgwUser {
   ZgwUserInfo info_;
   std::set<std::string> access_keys_;
   std::set<std::string> secret_keys_;
-  std::set<std::string> buckets_name_;
 
   std::string GenRandomKey(int width);
 };

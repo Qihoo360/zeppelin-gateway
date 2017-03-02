@@ -8,7 +8,6 @@ static const std::string kObjectsListPre = "__Objects_list_";
 
 void NameList::Ref() {
   ++refs_;
-  std::cout << refs_ << std::endl;
 }
 
 Status NameList::Unref(std::string &access_key, ZgwStore *store) {
@@ -54,7 +53,12 @@ Status NameList::Insert(std::string &access_key,
   std::lock_guard<std::mutex> lock(ref_mutex_);
   Ref();
   name_list_.insert(value);
-  return Unref(access_key, store);
+  Status s = Unref(access_key, store);
+  if (!s.ok()) {
+    name_list_.erase(value);
+    return s;
+  }
+  return Status::OK();
 }
 
 Status NameList::Delete(std::string &access_key,
@@ -63,7 +67,12 @@ Status NameList::Delete(std::string &access_key,
   std::lock_guard<std::mutex> lock(ref_mutex_);
   Ref();
   name_list_.erase(value);
-  return Unref(access_key, store);
+  Status s = Unref(access_key, store);
+  if (!s.ok()) {
+    name_list_.insert(value);
+    return s;
+  }
+  return Status::OK();
 }
 
 Status ListMap::InitDataFromZp(std::string &access_key,
@@ -118,12 +127,6 @@ Status ListMap::Insert(std::string &access_key,
     return s;
   }
   auto &nlist = *map_list.find(key);
-  if (key_type == kBuckets) {
-    const auto &_list = nlist.second->name_list();
-    if (_list.find(value) != _list.end()) {
-      return Status::NotSupported("Bucket Already Exist");
-    }
-  }
   return nlist.second->Insert(access_key, value, store);
 }
 
@@ -148,9 +151,6 @@ Status ListMap::ListNames(std::string &access_key,
     return s;
   }
   auto &nlist = *map_list.find(key);
-  if (nlist.second->name_list().size() == 0) {
-    return Status::NotFound("Empty list");
-  }
   *names = nlist.second;
   return Status::OK();
 }

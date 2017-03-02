@@ -8,6 +8,7 @@ ZgwConfig::ZgwConfig(std::string path)
         server_port(8099),
         daemonize(false),
         minloglevel(0),
+        worker_num(2),
         log_path("./log") {
   b_conf = new slash::BaseConf(path);
 }
@@ -26,6 +27,7 @@ int ZgwConfig::LoadConf() {
   b_conf->GetConfInt("server_port", &server_port);
   b_conf->GetConfBool("daemonize", &daemonize);
   b_conf->GetConfInt("minloglevel", &minloglevel);
+  b_conf->GetConfInt("worker_num", &worker_num);
   b_conf->GetConfStr("log_path", &log_path);
 
   return 0;
@@ -39,5 +41,6 @@ void ZgwConfig::Dump() {
   std::cout << "server_ip: " << server_ip << std::endl;
   std::cout << "server_port: " << server_port << std::endl;
   std::cout << "daemonize: " << daemonize << std::endl;
+  std::cout << "worker_num: " << worker_num << std::endl;
   std::cout << "log_path: " << log_path << std::endl;
 }

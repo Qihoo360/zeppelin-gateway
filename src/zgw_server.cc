@@ -14,12 +14,16 @@ Status ZgwWorkerThread::Init(std::vector<std::string> &zp_meta_ip_ports) {
   return Status::OK();
 }
 
+ZgwWorkerThread::~ZgwWorkerThread() {
+  delete store_;
+}
+
 ZgwServer::ZgwServer(ZgwConfig *zgw_conf)
     : zgw_conf_(zgw_conf),
       ip_(zgw_conf->server_ip),
       port_(zgw_conf->server_port),
       should_exit_(false) {
-  worker_num_ = 3;
+  worker_num_ = zgw_conf->worker_num;
   for (int i = 0; i < worker_num_; i++) {
     zgw_worker_thread_[i] = new ZgwWorkerThread();
   }
