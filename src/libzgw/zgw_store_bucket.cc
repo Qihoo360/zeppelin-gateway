@@ -36,11 +36,11 @@ Status ZgwStore::AddBucket(const std::string &access_key,
   int retry = 3;
   bucket.SetUserInfo(user->user_info());
   do {
+    sleep(2); // waiting zeppelin create partitions
     s = zp_->Set(bucket.name(), bucket.MetaKey(), bucket.MetaValue());
     if (s.ok()) {
       break;
     }
-    sleep(2); // waiting zeppelin
   } while (retry-- && s.IsNotSupported());
 
   return s;
