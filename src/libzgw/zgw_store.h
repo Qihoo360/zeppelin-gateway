@@ -28,6 +28,7 @@ public:
                  std::string *access_key,
                  std::string *secret_key);
   Status GetUser(const std::string &access_key, ZgwUser **user);
+  Status ListUsers(std::set<ZgwUser *> *user_list);
   
   Status AddBucket(const std::string &access_key,
                    const std::string &bucket_name, int partition_num = 10);

@@ -41,10 +41,20 @@ class ZgwConn : public pink::HttpConn {
                        std::string &bucket_name,
                        pink::HttpResponse* resp);
   void ListBucketHandle(const pink::HttpRequest *req, pink::HttpResponse* resp);
+  void ListUsersHandle(pink::HttpResponse* resp);
 
-  void AuthFailedHandle(pink::HttpResponse* resp);
+  void ErrorHandle(std::string code, std::string message,
+                   std::string bucket_name, std::string object_name,
+                   pink::HttpResponse* resp, int resp_code);
   std::string iso8601_time(time_t sec, suseconds_t usec = 0);
   std::string GetAccessKey(const pink::HttpRequest* req);
+  bool IsObjectExist(std::string &access_key,
+                     std::string &bucket_name,
+                     std::string &object_name,
+                     pink::HttpResponse* resp);
+  bool IsBucketExist(std::string &access_key,
+                     std::string &bucket_name,
+                     pink::HttpResponse* resp);
 };
 
 

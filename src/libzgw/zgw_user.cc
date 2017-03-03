@@ -64,11 +64,6 @@ std::string ZgwUser::MetaValue() const {
   for (auto &secret_key : secret_keys_) {
     slash::PutLengthPrefixedString(&result, secret_key);
   }
-  // buckets name
-  slash::PutFixed32(&result, buckets_name_.size());
-  for (auto &bucket_name : buckets_name_) {
-    slash::PutLengthPrefixedString(&result, bucket_name);
-  }
   return result;
 }
 
@@ -97,17 +92,6 @@ Status ZgwUser::ParseMetaValue(std::string* value) {
     secret_keys_.insert(tmp_str);
   }
   if (secret_keys_.size() != secret_key_count_) {
-    return Status::Corruption("Parse access keys failed");
-  }
-
-  // buckets name
-  uint32_t buckets_name_count_;
-  slash::GetFixed32(value, &buckets_name_count_);
-  for (size_t i = 0; i < buckets_name_count_; ++i) {
-    slash::GetLengthPrefixedString(value, &tmp_str);
-    buckets_name_.insert(tmp_str);
-  }
-  if (buckets_name_.size() != buckets_name_count_) {
     return Status::Corruption("Parse access keys failed");
   }
 

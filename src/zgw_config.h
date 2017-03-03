@@ -20,6 +20,7 @@ struct ZgwConfig {
   bool daemonize;
   int minloglevel;
   int cron_interval;
+  int worker_num;
 
   std::string log_path;
 };

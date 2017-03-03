@@ -53,13 +53,17 @@ Status ZgwStore::LoadAllUsers() {
   do {
     sleep(2);
     s = zp_->Get(kUserTableName, user_list_.MetaKey(), &meta_value);
-  } while (retry-- && s.IsNotSupported());
+    if (s.ok()) {
+      break;
+    }
+  } while (retry-- && (s.IsIOError() || s.IsNotSupported()));
+
   if (!s.ok() && !s.IsNotFound()) {
     return s;
   }
 
-  s = user_list_.ParseMetaValue(&meta_value);
-  if (s.ok()) {
+  if (!meta_value.empty() &&
+      user_list_.ParseMetaValue(&meta_value).ok()) {
     return BuildMap();
   }
   // Empty user list
@@ -103,13 +107,35 @@ Status ZgwStore::AddUser(const std::string &user_name,
 
 Status ZgwStore::GetUser(const std::string &access_key, ZgwUser **user) {
   assert(user);
+  int times = 0;
+retry:
+  bool found = (access_key_user_map_.find(access_key) !=
+                access_key_user_map_.end());
 
-  if (access_key_user_map_.find(access_key) ==
-      access_key_user_map_.end()) {
-    return Status::AuthFailed("Can not recognize this access key");
+  if (!found) {
+    if (times == 0) {
+      ++times;
+      LoadAllUsers();
+      goto retry;
+    } else {
+      return Status::AuthFailed("Can not recognize this access key");
+    }
   }
 
   *user = access_key_user_map_[access_key];
+  return Status::OK();
+}
+
+// Use std::set avoid repeated user
+Status ZgwStore::ListUsers(std::set<ZgwUser *> *user_list) {
+  Status s = LoadAllUsers();
+  if (!s.ok()) {
+    return s;
+  }
+  for (auto &item : access_key_user_map_) {
+    user_list->insert(item.second);
+  }
+
   return Status::OK();
 }
 

@@ -25,24 +25,8 @@ class ZgwBucket {
     return ctime_;
   }
 
-  uint32_t object_count() {
-    return objects_name_.size();
-  }
-
   void SetUserInfo(const ZgwUserInfo &user_info) {
     user_info_ = user_info;
-  }
-
-  std::set<std::string> objects_name() {
-    return objects_name_;
-  }
-
-  void AddObject(std::string object_name) {
-    objects_name_.insert(object_name);
-  }
-  void DelObject(std::string object_name) {
-    assert(objects_name_.size() > 0);
-    objects_name_.erase(object_name);
   }
 
   std::string MetaKey() const;
@@ -54,7 +38,6 @@ class ZgwBucket {
   ZgwUserInfo user_info_;
   std::string name_;
   timeval ctime_;
-  std::set<std::string> objects_name_;
 };
 
 
