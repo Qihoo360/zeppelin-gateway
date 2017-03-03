@@ -23,7 +23,7 @@ struct ZpCli {
  public:
   explicit ZpCli(const Node& node);
   ~ZpCli();
-  Status CheckTimeout();
+  bool CheckTimeout();
 
   Node node;
   pink::PinkCli* cli;

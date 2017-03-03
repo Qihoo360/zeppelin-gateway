@@ -98,14 +98,6 @@ class Table {
 };
 
 
-class Options {
- public :
-  Options() {
-  }
-  ~Options() {
-  }
-  std::vector<Node> meta_addr;
-};
 
 }  // namespace libzp
 #endif  // CLIENT_INCLUDE_ZP_TABLE_H_

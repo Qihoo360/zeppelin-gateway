@@ -23,6 +23,7 @@ ZpCli::ZpCli(const Node& node)
 : node(node),
   lastchecktime(NowMicros()) {
     cli = pink::NewPbCli();
+    cli->set_connect_timeout(6000);
     assert(cli);
   }
 
@@ -31,18 +32,13 @@ ZpCli::~ZpCli() {
 }
 
 
-Status ZpCli::CheckTimeout() {
+bool ZpCli::CheckTimeout() {
   uint64_t now = NowMicros();
   if ((now - lastchecktime) > kDataConnTimeout) {
-    Status s = cli->Connect(node.ip, node.port);
-    if (s.ok()) {
-      lastchecktime = now;
-      return Status::OK();
-    }
-    return s;
+    return false;
   }
   lastchecktime = now;
-  return Status::OK();
+  return true;
 }
 
 ConnectionPool::ConnectionPool() {
@@ -58,35 +54,29 @@ ConnectionPool::~ConnectionPool() {
 }
 
 ZpCli* ConnectionPool::GetConnection(const Node& node) {
-  std::map<Node, ZpCli*>::iterator it;
-  it = conn_pool_.find(node);
+  std::map<Node, ZpCli*>::iterator it = conn_pool_.find(node);
   if (it != conn_pool_.end()) {
-    Status s = it->second->CheckTimeout();
-    if (s.ok()) {
+    if (it->second->CheckTimeout()) {
       return it->second;
-    } else {
-      delete it->second;
-      conn_pool_.erase(it);
-      return NULL;
     }
-  } else {
-    ZpCli* cli = new ZpCli(node);
-    Status s = cli->cli->Connect(node.ip, node.port);
-    if (s.ok()) {
-      conn_pool_.insert(std::make_pair(node, cli));
-      return cli;
-    } else {
-      delete cli;
-      return NULL;
-    }
+    delete it->second;
+    conn_pool_.erase(it);
   }
+
+  // Not found or timeout, create new one
+  ZpCli* cli = new ZpCli(node);
+  Status s = cli->cli->Connect(node.ip, node.port);
+  if (s.ok()) {
+    conn_pool_.insert(std::make_pair(node, cli));
+    return cli;
+  }
+  delete cli;
   return NULL;
 }
 
 void ConnectionPool::RemoveConnection(ZpCli* conn) {
   Node node = conn->node;
-  std::map<Node, ZpCli*>::iterator it;
-  it = conn_pool_.find(node);
+  std::map<Node, ZpCli*>::iterator it = conn_pool_.find(node);
   if (it != conn_pool_.end()) {
     delete(it->second);
     conn_pool_.erase(it);
@@ -95,13 +85,16 @@ void ConnectionPool::RemoveConnection(ZpCli* conn) {
 
 ZpCli* ConnectionPool::GetExistConnection() {
   Status s;
-  while (conn_pool_.size() != 0) {
-    s = conn_pool_.begin()->second->CheckTimeout();
-    if (s.ok()) {
-      return conn_pool_.begin()->second;
+  std::map<Node, ZpCli*>::iterator first;
+  while (!conn_pool_.empty()) {
+    first = conn_pool_.begin();
+    if (!first->second->CheckTimeout()) {
+      // Expire connection
+      delete conn_pool_.begin()->second;
+      conn_pool_.erase(conn_pool_.begin());
+      continue;
     }
-    delete conn_pool_.begin()->second;
-    conn_pool_.erase(conn_pool_.begin());
+    return conn_pool_.begin()->second;
   }
   return NULL;
 }

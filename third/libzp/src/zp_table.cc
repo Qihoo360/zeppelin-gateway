@@ -106,7 +106,7 @@ void Table::GetNodes(std::vector<Node>* nodes) {
   std::sort(nodes->begin(), nodes->end());
   nodes->erase(
       std::unique(nodes->begin(),
-                  nodes->end()),
+        nodes->end()),
       nodes->end());
 }
 
