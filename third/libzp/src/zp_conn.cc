@@ -4,8 +4,8 @@
  */
 
 #include "sys/time.h"
-#include "zp_conn.h"
-#include "zp_table.h"
+#include "include/zp_conn.h"
+#include "include/zp_table.h"
 
 namespace libzp {
 
