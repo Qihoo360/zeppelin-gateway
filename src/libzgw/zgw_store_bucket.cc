@@ -46,7 +46,10 @@ Status ZgwStore::AddBucket(const std::string &access_key,
   return s;
 }
 
-Status ZgwStore::SaveNameList(std::string &access_key, NameList *name_list) {
+Status ZgwStore::SaveNameList(const std::string &access_key,
+                              const std::string &table_name,
+                              const std::string &meta_key,
+                              const std::string &meta_value) {
   Status s = zp_->Connect();
   if (!s.ok()) {
     return s;
@@ -59,7 +62,7 @@ Status ZgwStore::SaveNameList(std::string &access_key, NameList *name_list) {
     return s;
   }
 
-  s = zp_->Set(name_list->table_name(), name_list->MetaKey(), name_list->MetaValue());
+  s = zp_->Set(table_name, meta_key, meta_value);
   if (!s.ok()) {
     return s;
   }
@@ -67,7 +70,10 @@ Status ZgwStore::SaveNameList(std::string &access_key, NameList *name_list) {
   return Status::OK();
 }
 
-Status ZgwStore::GetNameList(std::string &access_key, NameList *name_list) {
+Status ZgwStore::GetNameList(const std::string &access_key,
+                             const std::string &table_name,
+                             const std::string &meta_key,
+                             std::string *meta_value) {
   Status s = zp_->Connect();
   if (!s.ok()) {
     return s;
@@ -81,12 +87,12 @@ Status ZgwStore::GetNameList(std::string &access_key, NameList *name_list) {
   }
 
   std::string value;
-  s = zp_->Get(name_list->table_name(), name_list->MetaKey(), &value);
+  s = zp_->Get(table_name, meta_key, meta_value);
   if (!s.ok()) {
     return s;
   }
 
-  return name_list->ParseMetaValue(&value);
+  return Status::OK();
 }
 
 Status ZgwStore::DelBucket(const std::string &access_key,
@@ -126,14 +132,17 @@ Status ZgwStore::ListBuckets(const std::string &access_key,
   }
 
   // Get Bucket Meta
-  std::string value;
-  for (const auto& name : names->name_list()) {
-    ZgwBucket obucket(name);
-    zp_->Get(name, obucket.MetaKey(), &value);
-    if (!obucket.ParseMetaValue(value).ok()) {
-      continue; // Skip table with not meta info
+  {
+    std::string value;
+    std::lock_guard<std::mutex> lock(names->list_lock);
+    for (auto& name : names->name_list) {
+      ZgwBucket obucket(name);
+      zp_->Get(name, obucket.MetaKey(), &value);
+      if (!obucket.ParseMetaValue(value).ok()) {
+        continue; // Skip table with not meta info
+      }
+      buckets->push_back(obucket);
     }
-    buckets->push_back(obucket);
   }
 
   return Status::OK();
@@ -155,15 +164,18 @@ Status ZgwStore::ListObjects(const std::string &access_key,
     return s;
   }
 
-  std::string meta_value;
-  for (auto &object_name : names->name_list()) {
-    ZgwObject ob(object_name);
-    s = zp_->Get(bucket_name, ob.MetaKey(), &meta_value);
-    if (!s.ok()) {
-      return s;
+  {
+    std::string meta_value;
+    std::lock_guard<std::mutex> lock(names->list_lock);
+    for (auto &object_name : names->name_list) {
+      ZgwObject ob(object_name);
+      s = zp_->Get(bucket_name, ob.MetaKey(), &meta_value);
+      if (!s.ok()) {
+        return s;
+      }
+      ob.ParseMetaValue(&meta_value);
+      objects->push_back(ob);
     }
-    ob.ParseMetaValue(&meta_value);
-    objects->push_back(ob);
   }
 
   return Status::OK();
