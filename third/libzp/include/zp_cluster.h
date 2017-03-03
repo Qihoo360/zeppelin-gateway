@@ -7,20 +7,17 @@
 
 #include <string>
 #include <vector>
-#include <map>
-#include <memory>
-#include <utility>
 #include <unordered_map>
 
 
 #include "include/pink_cli.h"
 
-#include "include/zp_meta.pb.h"
-#include "include/client.pb.h"
+#include "src/zp_meta.pb.h"
+#include "src/client.pb.h"
 
-#include "include/zp_table.h"
-#include "include/zp_conn.h"
-#include "include/zp_const.h"
+#include "src/zp_table.h"
+#include "src/zp_conn.h"
+#include "src/zp_const.h"
 
 namespace libzp {
 

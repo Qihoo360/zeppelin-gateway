@@ -11,8 +11,8 @@
 
 #include "include/pink_cli.h"
 
-#include "include/zp_meta.pb.h"
-#include "include/zp_table.h"
+#include "zp_meta.pb.h"
+#include "zp_table.h"
 
 
 namespace libzp {
