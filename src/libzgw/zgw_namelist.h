@@ -18,71 +18,57 @@ class ZgwStore;
 class NameList {
 public:
   explicit NameList(const std::string &table_name, std::string key)
-      : refs_(0),
-        key_(key),
-        table_name_(table_name) {
-  }
-  void Ref();
-  Status Unref(std::string &access_key, ZgwStore *store);
-
-  std::string table_name() const {
-    return table_name_;
+      : dirty(false),
+        meta_key(key),
+        table_name(table_name) {
   }
 
-  const std::set<std::string> &name_list() const{
-    return name_list_;
-  }
+  Status Load(const std::string &access_key, ZgwStore *store);
+  Status Save(const std::string &access_key, ZgwStore *store);
 
-  Status Insert(std::string &access_key,
-                std::string &value,
-                ZgwStore *store);
+  void Insert(std::string &value);
 
-  Status Delete(std::string &access_key,
-                std::string &value,
-                ZgwStore *store);
+  void Delete(std::string &value);
 
-  std::string MetaKey() const {
-    return key_;
+  bool IsExist(std::string &value) {
+    return (name_list.find(value) != name_list.end());
   }
 
   std::string MetaValue() const;
 
   Status ParseMetaValue(std::string *meta_value);
 
- private:
-  std::mutex ref_mutex_;
-  int refs_;
-  std::string key_;
-  std::string table_name_;
-  std::set<std::string> name_list_;
+  bool dirty;
+  int ref;
+  std::mutex list_lock;
+  std::string meta_key;
+  std::string table_name;
+  std::set<std::string> name_list;
 };
 
-struct ListMap {
-  Status Insert(std::string &access_key,
-                std::string &key,
-                std::string &value,
-                ZgwStore *store);
-  Status Delete(std::string &access_key,
-                std::string &key,
-                std::string &value,
-                ZgwStore *store);
-  Status InitDataFromZp(std::string &access_key,
-                        std::string &key,
-                        ZgwStore *store);
-  Status InitIfNeeded(std::string &access_key,
-                      std::string &key,
-                      ZgwStore *store);
-  Status ListNames(std::string &access_key,
-                   std::string &key,
-                   NameList **names,
-                   ZgwStore *store);
-  std::mutex map_lock;
-  std::map<std::string, NameList *> map_list;
-  int key_type;
+class ListMap {
+ public:
   enum KEY_TYPE {
     kBuckets,
     kObjects
   };
+  ListMap(int key_type)
+      : key_type_(key_type) {
+  }
+
+  Status Ref(const std::string &access_key, ZgwStore *store,
+             const std::string key, NameList **names);
+
+  Status Unref(const std::string &access_key, ZgwStore *store,
+               const std::string &key);
+
+  Status InitNameList(const std::string &access_key, const std::string &key,
+                      ZgwStore *store, NameList **names);
+ private:
+  std::mutex ref_lock_;
+  //           key                ref    namelist
+  std::map<std::string, NameList *> map_list_;
+  int key_type_;
 };
 
 }  // namespace libzgw

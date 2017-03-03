@@ -35,10 +35,8 @@ ZgwServer::ZgwServer(ZgwConfig *zgw_conf)
       worker_num_,
       reinterpret_cast<pink::WorkerThread<ZgwConn> **>(zgw_worker_thread_),
       kDispatchCronInterval);
-  buckets_list_ = new libzgw::ListMap();
-  buckets_list_->key_type = libzgw::ListMap::kBuckets;
-  objects_list_ = new libzgw::ListMap();
-  objects_list_->key_type = libzgw::ListMap::kObjects;
+  buckets_list_ = new libzgw::ListMap(libzgw::ListMap::kBuckets);
+  objects_list_ = new libzgw::ListMap(libzgw::ListMap::kObjects);
 }
 
 ZgwServer::~ZgwServer() {

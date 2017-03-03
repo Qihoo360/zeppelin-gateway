@@ -53,9 +53,14 @@ public:
                      const std::string &bucket_name,
                      NameList *names,
                      std::vector<ZgwObject> *objects);
-  Status GetNameList(std::string &access_key, NameList *name_list);
-  Status SaveNameList(std::string &access_key, NameList *name_list);
-
+  Status SaveNameList(const std::string &access_key,
+                      const std::string &table_name,
+                      const std::string &meta_key,
+                      const std::string &meta_value);
+  Status GetNameList(const std::string &access_key,
+                     const std::string &table_name,
+                     const std::string &meta_key,
+                     std::string *meta_value);
 private:
   ZgwStore();
   Status Init(const std::vector<std::string>& ips);

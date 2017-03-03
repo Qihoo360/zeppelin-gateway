@@ -122,6 +122,9 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     bucket_name.assign(path.substr(1, pos - 1));
     object_name.assign(path.substr(pos + 1));
   }
+  
+  // Get access key
+  access_key_ = GetAccessKey(req);
 
   if (req->method == "GET") {
     // TODO (gaodq) administrator interface
@@ -167,7 +170,8 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   } else if (req->method == "DELETE") {
     if (!bucket_name.empty() && object_name.empty()) {
       LOG(INFO) << "DeleteBucket: " << bucket_name;
-      DelBucketHandle(req, bucket_name, resp);
+      // TODO (gaodq) DelBucketHandle(req, bucket_name, resp);
+      resp->SetStatusCode(204);
     } else if (!bucket_name.empty() && !object_name.empty()) {
       LOG(INFO) << "DeleteObject: " << bucket_name << "/" << object_name;
       DelObjectHandle(req, bucket_name, object_name, resp);
@@ -215,26 +219,88 @@ void ZgwConn::ListUsersHandle(pink::HttpResponse* resp) {
   }
 }
 
+Status ZgwConn::BucketListRefHandle(libzgw::NameList **buckets_name,
+                                    pink::HttpResponse *resp) {
+  Status s = g_zgw_server->buckets_list()->
+    Ref(access_key_, store_, access_key_, buckets_name);
+  if (!s.ok()) {
+    if (s.IsAuthFailed()) {
+      ErrorHandle("InvalidAccessKeyId",
+                  "The access key Id you provided does not exist in our records.",
+                  "", "",
+                  resp, 403);
+    } else {
+      resp->SetStatusCode(500);
+      LOG(ERROR) << "List buckets name list failed: " << s.ToString();
+    }
+    return s;
+  }
+
+  return Status::OK();
+}
+
+Status ZgwConn::ObjectListRefHandle(std::string &bucket_name,
+                                    libzgw::NameList **objects_name,
+                                    pink::HttpResponse *resp) {
+  Status s = g_zgw_server->objects_list()->
+    Ref(access_key_, store_, bucket_name, objects_name);
+  if (!s.ok()) {
+    if (s.IsAuthFailed()) {
+      ErrorHandle("InvalidAccessKeyId",
+                  "The access key Id you provided does not exist in our records.",
+                  "", "",
+                  resp, 403);
+    } else {
+      resp->SetStatusCode(500);
+      LOG(ERROR) << "List objects name list failed: " << s.ToString();
+    }
+    return s;
+  }
+
+  return Status::OK();
+}
+
 void ZgwConn::DelObjectHandle(const pink::HttpRequest* req,
                               std::string &bucket_name,
                               std::string &object_name,
                               pink::HttpResponse* resp) {
-  std::string access_key = GetAccessKey(req);
-
-  if (!IsBucketExist(access_key, bucket_name, resp)) {
-    // Response has built in IsBucketExist()
+  libzgw::NameList *buckets_name;
+  Status s = BucketListRefHandle(&buckets_name, resp);
+  if (!s.ok()) {
+    // Response has built in BucketListRefHandle(...)
     return;
   }
-  LOG(INFO) << "DelObject: " << req->path << "bucket exist";
 
-  if (!IsObjectExist(access_key, bucket_name, object_name, resp)) {
-    // Response has built in IsObjectExist()
+  // Check whether bucket existed in namelist meta
+  if (!buckets_name->IsExist(bucket_name)) {
+    ErrorHandle("NoSuchBucket", "The specified bucket does not exist.",
+                bucket_name, "", resp, 404);
+    g_zgw_server->buckets_list()->Unref(access_key_, store_, access_key_);
     return;
   }
-  LOG(INFO) << "DelObject: " << req->path << "object exist";
+  LOG(INFO) << "DelObject: " << req->path << " confirm bucket exist";
+  // Need not check return value
+  g_zgw_server->buckets_list()->Unref(access_key_, store_, access_key_);
+
+  // Get objects namelist
+  libzgw::NameList *objects_name;
+  s = ObjectListRefHandle(bucket_name, &objects_name, resp);
+  if (!s.ok()) {
+    // Response has built in ObjectListRefHandle(...)
+    return;
+  }
+
+  // Check whether object existed in namelist meta
+  if (!objects_name->IsExist(object_name)) {
+    ErrorHandle("NoSuchKey", "The specified bucket does not exist.",
+                "", object_name, resp, 404);
+    g_zgw_server->objects_list()->Unref(access_key_, store_, bucket_name);
+    return;
+  }
+  LOG(INFO) << "DelObject: " << req->path << " confirm object exist";
 
   // Delete object
-  Status s = store_->DelObject(access_key, bucket_name, object_name);
+  s = store_->DelObject(access_key_, bucket_name, object_name);
   if (!s.ok()) {
     if (s.IsAuthFailed()) {
       ErrorHandle("InvalidAccessKeyId",
@@ -246,20 +312,22 @@ void ZgwConn::DelObjectHandle(const pink::HttpRequest* req,
     } else {
       resp->SetStatusCode(500);
       LOG(ERROR) << "Delete object data failed: " << s.ToString();
+      g_zgw_server->objects_list()->Unref(access_key_, store_, bucket_name);
       return;
     }
   }
-  LOG(INFO) << "DelObject: " << req->path << "delete object from zp success";
+  LOG(INFO) << "DelObject: " << req->path << " confirm delete object from zp success";
 
   // Delete from list meta
-  s = g_zgw_server->objects_list()->
-    Delete(access_key, bucket_name, object_name, store_);
+  objects_name->Delete(object_name);
+
+  s = g_zgw_server->objects_list()->Unref(access_key_, store_, bucket_name);
   if (!s.ok()) {
     resp->SetStatusCode(500);
     LOG(ERROR) << "Delete object list meta failed: " << s.ToString();
     return;
   }
-  LOG(INFO) << "DelObject: " << req->path << "delete object meta from namelist success";
+  LOG(INFO) << "DelObject: " << req->path << " confirm delete object meta from namelist success";
 
   // Success
   resp->SetStatusCode(204);
@@ -269,23 +337,45 @@ void ZgwConn::GetObjectHandle(const pink::HttpRequest* req,
                               std::string &bucket_name,
                               std::string &object_name,
                               pink::HttpResponse* resp) {
-  std::string access_key = GetAccessKey(req);
-
-  if (!IsBucketExist(access_key, bucket_name, resp)) {
-    // Response has built in IsBucketExist()
+  libzgw::NameList *buckets_name;
+  Status s = BucketListRefHandle(&buckets_name, resp);
+  if (!s.ok()) {
+    // Response has built in BucketListRefHandle(...)
     return;
   }
-  LOG(INFO) << "GetObject: " << req->path << "bucket exist";
 
-  if (!IsObjectExist(access_key, bucket_name, object_name, resp)) {
-    // Response has built in IsObjectExist()
+  // Check whether bucket existed in namelist meta
+  if (!buckets_name->IsExist(bucket_name)) {
+    ErrorHandle("NoSuchBucket", "The specified bucket does not exist.",
+                bucket_name, "", resp, 404);
+    g_zgw_server->buckets_list()->Unref(access_key_, store_, access_key_);
     return;
   }
-  LOG(INFO) << "GetObject: " << req->path << "object exist";
+  LOG(INFO) << "GetObject: " << req->path << " confirm bucket exist";
+  // Need not check return value
+  g_zgw_server->buckets_list()->Unref(access_key_, store_, access_key_);
+
+  libzgw::NameList *objects_name;
+  s = ObjectListRefHandle(bucket_name, &objects_name, resp);
+  if (!s.ok()) {
+    // Response has built in ObjectListRefHandle(...)
+    return;
+  }
+
+  // Check whether object existed in namelist meta
+  if (!objects_name->IsExist(object_name)) {
+    ErrorHandle("NoSuchKey", "The specified bucket does not exist.",
+                "", object_name, resp, 404);
+    g_zgw_server->objects_list()->Unref(access_key_, store_, bucket_name);
+    return;
+  }
+  // Need not check return value
+  g_zgw_server->objects_list()->Unref(access_key_, store_, bucket_name);
+  LOG(INFO) << "GetObject: " << req->path << " confirm object exist";
 
   // Get object
   libzgw::ZgwObject object(object_name);
-  Status s = store_->GetObject(access_key, bucket_name, object_name, &object);
+  s = store_->GetObject(access_key_, bucket_name, object_name, &object);
   if (!s.ok()) {
     if (s.IsAuthFailed()) {
       ErrorHandle("InvalidAccessKeyId",
@@ -298,7 +388,7 @@ void ZgwConn::GetObjectHandle(const pink::HttpRequest* req,
     }
     return;
   }
-  LOG(INFO) << "GetObject: " << req->path << "get object from zp success";
+  LOG(INFO) << "GetObject: " << req->path << " confirm get object from zp success";
 
   resp->SetStatusCode(200);
   resp->SetBody(object.content());
@@ -308,20 +398,38 @@ void ZgwConn::PutObjectHandle(const pink::HttpRequest *req,
                               std::string &bucket_name,
                               std::string &object_name,
                               pink::HttpResponse* resp) {
-  std::string access_key = GetAccessKey(req);
-
-  if (!IsBucketExist(access_key, bucket_name, resp)) {
-    // Response has built in IsBucketExist()
+  libzgw::NameList *buckets_name;
+  Status s = BucketListRefHandle(&buckets_name, resp);
+  if (!s.ok()) {
+    // Response has built in BucketListRefHandle(...)
     return;
   }
-  LOG(INFO) << "PutObject: " << req->path << "bucket exist";
+
+  // Check whether bucket existed in namelist meta
+  if (!buckets_name->IsExist(bucket_name)) {
+    ErrorHandle("NoSuchBucket", "The specified bucket does not exist.",
+                bucket_name, "", resp, 404);
+    g_zgw_server->buckets_list()->Unref(access_key_, store_, access_key_);
+    return;
+  }
+  LOG(INFO) << "GetObject: " << req->path << " confirm bucket exist";
+  // Need not check return value
+  g_zgw_server->buckets_list()->Unref(access_key_, store_, access_key_);
+
+  // Get objects namelist
+  libzgw::NameList *objects_name;
+  s = ObjectListRefHandle(bucket_name, &objects_name, resp);
+  if (!s.ok()) {
+    // Response has built in ObjectListRefHandle(...)
+    return;
+  }
 
   // Put object data
   libzgw::ZgwObjectInfo ob_info(time(NULL),
                                 slash::md5(req->content),
                                 req->content.size(),
                                 libzgw::kStandard);
-  Status s = store_->AddObject(access_key, bucket_name, object_name,
+  s = store_->AddObject(access_key_, bucket_name, object_name,
                                ob_info, req->content);
   if (!s.ok()) {
     if (s.IsAuthFailed()) {
@@ -336,19 +444,22 @@ void ZgwConn::PutObjectHandle(const pink::HttpRequest *req,
       resp->SetStatusCode(403);
       LOG(ERROR) << "Put object data failed: " << s.ToString();
     }
+    g_zgw_server->objects_list()->Unref(access_key_, store_, bucket_name);
     return;
   }
-  LOG(INFO) << "PutObject: " << req->path << "add to zp success";
+  LOG(INFO) << "PutObject: " << req->path << " confirm add to zp success";
 
   // Put object to list meta
-  s = g_zgw_server->objects_list()->
-    Insert(access_key, bucket_name, object_name, store_);
+  objects_name->Insert(object_name);
+
+  // Unref objects namelist
+  s = g_zgw_server->objects_list()->Unref(access_key_, store_, bucket_name);
   if (!s.ok()) {
     resp->SetStatusCode(500);
-    LOG(ERROR) << "Put object list meta failed: " << s.ToString();
+    LOG(ERROR) << "Unref object namelist failed: " << s.ToString();
     return;
   }
-  LOG(INFO) << "PutObject: " << req->path << "add to namelist success";
+  LOG(INFO) << "PutObject: " << req->path << " confirm add to namelist success";
 
   resp->SetStatusCode(200);
 }
@@ -356,35 +467,35 @@ void ZgwConn::PutObjectHandle(const pink::HttpRequest *req,
 void ZgwConn::ListObjectHandle(const pink::HttpRequest* req,
                                std::string &bucket_name,
                                pink::HttpResponse* resp) {
-  std::string access_key = GetAccessKey(req);
-
-  if (!IsBucketExist(access_key, bucket_name, resp)) {
-    // Response has built in IsBucketExist()
-    return;
-  }
-  LOG(INFO) << "ListObjects: " << req->path << "bucket exist";
-
-  // Get object list meta
-  libzgw::NameList *names;
-  Status s = g_zgw_server->objects_list()->
-    ListNames(access_key, bucket_name, &names, store_);
+  libzgw::NameList *buckets_name;
+  Status s = BucketListRefHandle(&buckets_name, resp);
   if (!s.ok()) {
-    if (s.IsAuthFailed()) {
-      ErrorHandle("InvalidAccessKeyId",
-                  "The access key Id you provided does not exist in our records.",
-                  "", "",
-                  resp, 403);
-    } else {
-      resp->SetStatusCode(500);
-      LOG(ERROR) << "Get object list meta Error: " << s.ToString();
-    }
+    // Response has built in BucketListRefHandle(...)
     return;
   }
-  LOG(INFO) << "ListObjects: " << req->path << "get objects' namelist success";
+
+  // Check whether bucket existed in namelist meta
+  if (!buckets_name->IsExist(bucket_name)) {
+    ErrorHandle("NoSuchBucket", "The specified bucket does not exist.",
+                bucket_name, "", resp, 404);
+    g_zgw_server->buckets_list()->Unref(access_key_, store_, access_key_);
+    return;
+  }
+  LOG(INFO) << "ListObjects: " << req->path << " confirm bucket exist";
+  // Need not check return value
+  g_zgw_server->buckets_list()->Unref(access_key_, store_, access_key_);
+
+  libzgw::NameList *objects_name;
+  s = ObjectListRefHandle(bucket_name, &objects_name, resp);
+  if (!s.ok()) {
+    // Response has built in ObjectListRefHandle(...)
+    return;
+  }
+  LOG(INFO) << "ListObjects: " << req->path << " confirm get objects' namelist success";
 
   // Get objects meta from zp
   std::vector<libzgw::ZgwObject> objects;
-  s = store_->ListObjects(access_key, bucket_name, names, &objects);
+  s = store_->ListObjects(access_key_, bucket_name, objects_name, &objects);
   if (!s.ok()) {
     if (s.IsAuthFailed()) {
       ErrorHandle("InvalidAccessKeyId",
@@ -395,6 +506,7 @@ void ZgwConn::ListObjectHandle(const pink::HttpRequest* req,
       resp->SetStatusCode(500);
       LOG(ERROR) << "ListBuckets Error: " << s.ToString();
     }
+    g_zgw_server->objects_list()->Unref(access_key_, store_, bucket_name);
     return;
   }
   LOG(INFO) << "ListObjects: " << req->path << "get objects' meta from zp success";
@@ -471,24 +583,33 @@ void ZgwConn::ListObjectHandle(const pink::HttpRequest* req,
   // Http response
   resp->SetStatusCode(200);
   resp->SetBody(res_xml);
+  g_zgw_server->objects_list()->Unref(access_key_, store_, bucket_name);
 }
 
 // TODO (gaodq) Unsupport
 void ZgwConn::DelBucketHandle(const pink::HttpRequest* req,
                               std::string &bucket_name,
                               pink::HttpResponse* resp) {
-  std::string access_key = GetAccessKey(req);
+  libzgw::NameList *buckets_name;
+  Status s = BucketListRefHandle(&buckets_name, resp);
+  if (!s.ok()) {
+    // Response has built in BucketListRefHandle(...)
+    return;
+  }
 
-  Status s = store_->DelBucket(access_key, bucket_name);
+  // Check whether bucket existed in namelist meta
+  if (!buckets_name->IsExist(bucket_name)) {
+    ErrorHandle("NoSuchBucket", "The specified bucket does not exist.",
+                bucket_name, "", resp, 404);
+    g_zgw_server->buckets_list()->Unref(access_key_, store_, access_key_);
+    return;
+  }
+  LOG(INFO) << "ListObjects: " << req->path << " confirm bucket exist";
+  // Need not check return value
+
+  s = store_->DelBucket(access_key_, bucket_name);
   if (s.ok()) {
-    // TODO (gaodq) s = buckets_list_->Delete(access_key, access_key, );
-    s = g_zgw_server->buckets_list()->
-      Delete(access_key, access_key, bucket_name, store_);
-    if (!s.ok()) {
-      resp->SetStatusCode(500);
-      LOG(ERROR) << "Delete bucket meta failed: " << s.ToString();
-      return;
-    }
+    buckets_name->Delete(bucket_name);
     resp->SetStatusCode(204);
   } else if (s.IsAuthFailed()) {
     ErrorHandle("InvalidAccessKeyId",
@@ -528,24 +649,36 @@ void ZgwConn::DelBucketHandle(const pink::HttpRequest* req,
     resp->SetBody(res_xml);
     LOG(ERROR) << "Delete bucket failed: " << s.ToString();
   }
+  s = g_zgw_server->buckets_list()->Unref(access_key_, store_, access_key_);
+  if (!s.ok()) {
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "Delete bucket from namelist failed: " << s.ToString();
+    return;
+  }
+  LOG(INFO) << "DelBucket: " << req->path << " confirm delete from namelist success";
 }
 
 void ZgwConn::PutBucketHandle(const pink::HttpRequest* req,
                               std::string &bucket_name,
                               pink::HttpResponse* resp) {
-  std::string access_key = GetAccessKey(req);
-
-  if (IsBucketExist(access_key, bucket_name, resp)) {
-    resp->SetStatusCode(409);
+  libzgw::NameList *buckets_name;
+  Status s = BucketListRefHandle(&buckets_name, resp);
+  if (!s.ok()) {
+    // Response has built in BucketListRefHandle(...)
     return;
-  } else {
-    // Clean error info in body
-    resp->SetBody("");
-    LOG(INFO) << "PutBucket: " << req->path << "bucket does not exist, create it";
   }
 
+  // Check whether bucket existed in namelist meta
+  if (buckets_name->IsExist(bucket_name)) {
+    resp->SetStatusCode(409);
+    resp->SetBody("");
+    g_zgw_server->buckets_list()->Unref(access_key_, store_, access_key_);
+    return;
+  }
+  LOG(INFO) << "ListObjects: " << req->path << " confirm bucket exist";
+
   // Create bucket in zp
-  Status s = store_->AddBucket(access_key, bucket_name);
+  s = store_->AddBucket(access_key_, bucket_name);
   if (!s.ok()) {
     if (s.IsAuthFailed()) {
       ErrorHandle("InvalidAccessKeyId",
@@ -559,48 +692,38 @@ void ZgwConn::PutBucketHandle(const pink::HttpRequest* req,
       resp->SetStatusCode(409);
       LOG(ERROR) << "Create bucket failed: " << s.ToString();
     }
+    s = g_zgw_server->buckets_list()->Unref(access_key_, store_, access_key_);
     return;
   }
-  LOG(INFO) << "PutBucket: " << req->path << "add bucket to zp success";
+  LOG(INFO) << "PutBucket: " << req->path << " confirm add bucket to zp success";
 
   // Create list meta info
-  s = g_zgw_server->buckets_list()->
-    Insert(access_key, access_key, bucket_name, store_);
+  buckets_name->Insert(bucket_name);
+
+  s = g_zgw_server->buckets_list()->Unref(access_key_, store_, access_key_);
   if (!s.ok()) {
     resp->SetStatusCode(500);
-    LOG(ERROR) << "Create bucket list meta failed: " << s.ToString();
-    return;
+    LOG(ERROR) << "Insert bucket namelist failed: " << s.ToString();
   }
-  LOG(INFO) << "PutBucket: " << req->path << "add bucket to namelist success";
+  LOG(INFO) << "PutBucket: " << req->path << " confirm add bucket to namelist success";
 
   // Success
   resp->SetStatusCode(200);
 }
 
 void ZgwConn::ListBucketHandle(const pink::HttpRequest* req, pink::HttpResponse* resp) {
-  std::string access_key = GetAccessKey(req);
-
   // Find object list meta
-  libzgw::NameList *names;
-  Status s = g_zgw_server->buckets_list()->
-    ListNames(access_key, access_key, &names, store_);
+  libzgw::NameList *buckets_name;
+  Status s = BucketListRefHandle(&buckets_name, resp);
   if (!s.ok()) {
-    if (s.IsAuthFailed()) {
-      ErrorHandle("InvalidAccessKeyId",
-                  "The access key Id you provided does not exist in our records.",
-                  "", "",
-                  resp, 403);
-    } else {
-      resp->SetStatusCode(500);
-      LOG(ERROR) << "Get bucket list meta Error: " << s.ToString();
-    }
+    // Response has built in BucketListRefHandle(...)
     return;
   }
-  LOG(INFO) << "ListAllBucket: " << req->path << "get bucket namelist success";
+  LOG(INFO) << "ListAllBucket: " << req->path << " confirm get bucket namelist success";
 
   // Load bucket info from zp
   std::vector<libzgw::ZgwBucket> buckets;
-  s = store_->ListBuckets(access_key, names, &buckets);
+  s = store_->ListBuckets(access_key_, buckets_name, &buckets);
   if (!s.ok()) {
     if (s.IsAuthFailed()) {
       ErrorHandle("InvalidAccessKeyId",
@@ -611,15 +734,16 @@ void ZgwConn::ListBucketHandle(const pink::HttpRequest* req, pink::HttpResponse*
       resp->SetStatusCode(500);
       LOG(ERROR) << "ListBuckets Error: " << s.ToString();
     }
+    s = g_zgw_server->buckets_list()->Unref(access_key_, store_, access_key_);
     return;
   }
-  LOG(INFO) << "ListAllBucket: " << req->path << "get bucket meta from zp success";
+  LOG(INFO) << "ListAllBucket: " << req->path << " confirm get bucket meta from zp success";
 
   // Zeppelin success, then build http body
 
   libzgw::ZgwUser *user = NULL;
   // Will return previously if error occured
-  s = store_->GetUser(access_key, &user);
+  s = store_->GetUser(access_key_, &user);
   assert(user);
 
   //    * Build xml Response
@@ -667,66 +791,7 @@ void ZgwConn::ListBucketHandle(const pink::HttpRequest* req, pink::HttpResponse*
   std::string res_xml;
   print(std::back_inserter(res_xml), doc, 0);
 
+  s = g_zgw_server->buckets_list()->Unref(access_key_, store_, access_key_);
   resp->SetStatusCode(200);
   resp->SetBody(res_xml);
-}
-
-bool ZgwConn::IsBucketExist(std::string &access_key,
-                          std::string &bucket_name,
-                          pink::HttpResponse* resp) {
-  // Find in bucket list meta
-  libzgw::NameList *names;
-  Status s = g_zgw_server->buckets_list()->
-    ListNames(access_key, access_key, &names, store_);
-  if (!s.ok()) {
-    if (s.IsAuthFailed()) {
-      ErrorHandle("InvalidAccessKeyId",
-                  "The access key Id you provided does not exist in our records.",
-                  "", "",
-                  resp, 403);
-    } else {
-      resp->SetStatusCode(500);
-      LOG(ERROR) << "List buckets name list failed: " << s.ToString();
-    }
-    return false;
-  }
-  auto &bnlist = names->name_list();
-  if (bnlist.find(bucket_name) == bnlist.end()) {
-    // Not found bucket
-    ErrorHandle("NoSuchBucket", "The specified bucket does not exist.",
-                bucket_name, "", resp, 404);
-    return false;
-  }
-
-  return true;
-}
-
-bool ZgwConn::IsObjectExist(std::string &access_key,
-                            std::string &bucket_name,
-                            std::string &object_name,
-                            pink::HttpResponse* resp) {
-  // Check list meta
-  libzgw::NameList *names;
-  Status s = g_zgw_server->objects_list()->
-    ListNames(access_key, bucket_name, &names, store_);
-  if (!s.ok()) {
-    if (s.IsAuthFailed()) {
-      ErrorHandle("InvalidAccessKeyId",
-                  "The access key Id you provided does not exist in our records.",
-                  "", "",
-                  resp, 403);
-    } else {
-      resp->SetStatusCode(500);
-      LOG(ERROR) << "List objects name list failed: " << s.ToString();
-    }
-    return false;
-  }
-  auto &onlist = names->name_list();
-  if (onlist.find(object_name) == onlist.end()) {
-    ErrorHandle("NoSuchKey", "The specified bucket does not exist.",
-                "", object_name, resp, 404);
-    return false;
-  }
-
-  return true;
 }
