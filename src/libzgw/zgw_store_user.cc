@@ -42,8 +42,7 @@ Status ZgwStore::LoadAllUsers() {
 
   // Create user infomation table if not exist
   s = zp_->CreateTable(kUserTableName, kUserTablePartionNum);
-  if (!s.ok() &&  // TODO (gaodq) more reasonable implement
-      !s.IsNotSupported()) {
+  if (s.IsIOError()) {
     // Can not create user infomation table
     return s;
   }

@@ -26,7 +26,7 @@ Status ZgwStore::AddBucket(const std::string &access_key,
 
   // Create Bucket
   s = zp_->CreateTable(bucket.name(), partition_num);
-  if (!s.ok() && !s.IsNotSupported()) {
+  if (s.IsIOError()) {
     return s;
   } else {
     // Alread create, but not found in user meta, continue
@@ -41,7 +41,7 @@ Status ZgwStore::AddBucket(const std::string &access_key,
     if (s.ok()) {
       break;
     }
-  } while (retry-- && s.IsNotSupported());
+  } while (retry--);
 
   return s;
 }
