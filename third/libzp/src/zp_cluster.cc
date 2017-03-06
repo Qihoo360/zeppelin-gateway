@@ -3,10 +3,11 @@
  * "Author <hrxwwd@163.com>"
  */
 #include "include/zp_cluster.h"
+#include "zp_const.h"
 
 #include <google/protobuf/text_format.h>
-#include<iostream>
-#include<string>
+#include <iostream>
+#include <string>
 
 
 namespace libzp {
