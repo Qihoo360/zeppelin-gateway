@@ -2,6 +2,7 @@
 #define ZGW_USER_H
 #include <string>
 #include <set>
+#include <map>
 #include "time.h"
 
 #include "include/slash_status.h"
@@ -52,16 +53,14 @@ class ZgwUser {
     return info_;
   }
 
-  Status GenAccessKey(std::string *access_key);
+  Status GenKeyPair(std::string *access_key, std::string *secret_key);
 
-  std::set<std::string> &access_keys() {
-    return access_keys_;
+  std::map<std::string, std::string> &access_keys() {
+    return key_pairs_;
   }
 
-  Status GenSecretKey(std::string *secret_key);
-
-  std::set<std::string> &secret_keys() {
-    return secret_keys_;
+  std::string secret_key(std::string access_key) {
+    return key_pairs_[access_key];
   }
 
   // Serialization
@@ -74,10 +73,10 @@ class ZgwUser {
 
  private:
   ZgwUserInfo info_;
-  std::set<std::string> access_keys_;
-  std::set<std::string> secret_keys_;
+  //       access key,  secret key
+  std::map<std::string, std::string> key_pairs_;
 
-  std::string GenRandomKey(int width);
+  std::string GenRandomStr(int width);
 };
 
 }  // namespace libzgw

@@ -54,16 +54,15 @@ std::string ZgwUser::MetaValue() const {
   std::string result;
   // user info
   slash::PutLengthPrefixedString(&result, info_.MetaValue());
-  // access keys
-  slash::PutFixed32(&result, access_keys_.size());
-  for (auto &access_key : access_keys_) {
-    slash::PutLengthPrefixedString(&result, access_key);
+
+  slash::PutFixed32(&result, key_pairs_.size());
+  for (auto &key_pair : key_pairs_) {
+    // access key
+    slash::PutLengthPrefixedString(&result, key_pair.first);
+    // secret key
+    slash::PutLengthPrefixedString(&result, key_pair.second);
   }
-  // secret keys
-  slash::PutFixed32(&result, secret_keys_.size());
-  for (auto &secret_key : secret_keys_) {
-    slash::PutLengthPrefixedString(&result, secret_key);
-  }
+
   return result;
 }
 
@@ -72,61 +71,44 @@ Status ZgwUser::ParseMetaValue(std::string* value) {
   std::string user_info;
   slash::GetLengthPrefixedString(value, &user_info);
   info_.ParseMetaValue(&user_info);
-  // access keys
-  std::string tmp_str;
-  uint32_t access_key_count_;
-  slash::GetFixed32(value, &access_key_count_);
-  for (size_t i = 0; i < access_key_count_; ++i) {
-    slash::GetLengthPrefixedString(value, &tmp_str);
-    access_keys_.insert(tmp_str);
-  }
-  if (access_keys_.size() != access_key_count_) {
-    return Status::Corruption("Parse access keys failed");
-  }
 
-  // secret keys
-  uint32_t secret_key_count_;
-  slash::GetFixed32(value, &secret_key_count_);
-  for (size_t i = 0; i < secret_key_count_; ++i) {
-    slash::GetLengthPrefixedString(value, &tmp_str);
-    secret_keys_.insert(tmp_str);
-  }
-  if (secret_keys_.size() != secret_key_count_) {
-    return Status::Corruption("Parse access keys failed");
+  std::string tmp_str1;
+  std::string tmp_str2;
+  bool res;
+  uint32_t key_pairs_count;
+  slash::GetFixed32(value, &key_pairs_count);
+  for (size_t i = 0; i < key_pairs_count; ++i) {
+    // access key
+    if (!slash::GetLengthPrefixedString(value, &tmp_str1)) {
+      return Status::Corruption("Parse access key failed");
+    }
+    // secret key
+    if (!slash::GetLengthPrefixedString(value, &tmp_str2)) {
+      return Status::Corruption("Parse secret key failed");
+    }
+    key_pairs_.insert(std::make_pair(tmp_str1, tmp_str2));
   }
 
   return Status::OK();
 }
 
-Status ZgwUser::GenAccessKey(std::string *access_key) {
-  std::string key;
-  int retry = 3;
+Status ZgwUser::GenKeyPair(std::string *access_key, std::string *secret_key) {
+  std::string key1, key2;
+  int retry = 10;
   while (retry--) {
-    key = GenRandomKey(20);
-    if (access_keys_.find(key) == access_keys_.end()) {
-      access_keys_.insert(key);
-      access_key->assign(key);
+    key1 = GenRandomStr(20);
+    key2 = GenRandomStr(40);
+    if (key_pairs_.find(key1) == key_pairs_.end()) {
+      access_key->assign(key1);
+      secret_key->assign(key2);
+      key_pairs_[key1] = key2;
       return Status::OK();
     }
   }
-  return Status::Corruption("Generate access key failed");
+  return Status::Corruption("Generate access key pair failed");
 }
 
-Status ZgwUser::GenSecretKey(std::string *secret_key) {
-  std::string key;
-  int retry = 3;
-  while (retry--) {
-    key = GenRandomKey(40);
-    if (secret_keys_.find(key) == secret_keys_.end()) {
-      secret_keys_.insert(key);
-      secret_key->assign(key);
-      return Status::OK();
-    }
-  }
-  return Status::Corruption("Generate secret key failed");
-}
-
-std::string ZgwUser::GenRandomKey(int width) {
+std::string ZgwUser::GenRandomStr(int width) {
   timeval now;
   gettimeofday(&now, NULL);
   srand(now.tv_usec);

@@ -203,15 +203,10 @@ void ZgwConn::ListUsersHandle(pink::HttpResponse* resp) {
     for (auto &user : user_list) {
       const auto &info = user->user_info();
       body.append("disply_name: " + info.disply_name + "\r\n");
-      body.append("access_keys and secret_keys: \r\n");
-      // TODO (gaodq) should be std::map
-      for (auto &akey : user->access_keys()) {
-        std::string k = akey + "\r\n";
-        body.append(k);
-      }
-      for (auto &skey : user->secret_keys()) {
-        std::string k = skey + "\r\n";
-        body.append(k);
+
+      for (auto &key_pair : user->access_keys()) {
+        body.append(key_pair.first + "\r\n"); // access key
+        body.append(key_pair.second + "\r\n"); // secret key
       }
       body.append("\r\n");
     }
@@ -509,7 +504,7 @@ void ZgwConn::ListObjectHandle(const pink::HttpRequest* req,
     g_zgw_server->objects_list()->Unref(access_key_, store_, bucket_name);
     return;
   }
-  LOG(INFO) << "ListObjects: " << req->path << "get objects' meta from zp success";
+  LOG(INFO) << "ListObjects: " << req->path << " confirm get objects' meta from zp success";
 
   // Zeppelin success, then build body
 

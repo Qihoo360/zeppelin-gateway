@@ -25,8 +25,9 @@ Status ZgwStore::BuildMap() {
       return s;
     }
 
-    for (auto &ac_key : user->access_keys()) {
-      access_key_user_map_[ac_key] = user;
+    for (auto &key_pair : user->access_keys()) {
+      //                    access key
+      access_key_user_map_[key_pair.first] = user;
     }
   }
 
@@ -86,11 +87,7 @@ Status ZgwStore::AddUser(const std::string &user_name,
 
   // Create user
   ZgwUser *user = new ZgwUser(user_name);
-  s = user->GenAccessKey(access_key);
-  if (!s.ok()) {
-    return s;
-  }
-  s = user->GenSecretKey(secret_key);
+  s = user->GenKeyPair(access_key, secret_key);
   if (!s.ok()) {
     return s;
   }
