@@ -7,8 +7,7 @@
 
 namespace libzgw {
 
-Status ZgwStore::AddObject(const std::string &access_key,
-                           const std::string &bucket_name,
+Status ZgwStore::AddObject(const std::string &bucket_name,
                            const std::string &object_name,
                            const ZgwObjectInfo& info,
                            const std::string &content) {
@@ -17,15 +16,7 @@ Status ZgwStore::AddObject(const std::string &access_key,
     return s;
   }
 
-  // Auth
-  ZgwUser *user;
-  s = GetUser(access_key, &user);
-  if (!s.ok()) {
-    return s;
-  }
-
   libzgw::ZgwObject object(object_name, content, info);
-  object.SetUserInfo(user->user_info());
 
   // Set Object Data
   std::string dvalue;
@@ -57,17 +48,9 @@ Status ZgwStore::AddObject(const std::string &access_key,
   return s;
 }
 
-Status ZgwStore::DelObject(const std::string &access_key,
-                           const std::string &bucket_name,
+Status ZgwStore::DelObject(const std::string &bucket_name,
                            const std::string &object_name) {
   Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
-  // Auth
-  ZgwUser *user;
-  s = GetUser(access_key, &user);
   if (!s.ok()) {
     return s;
   }
@@ -100,21 +83,13 @@ Status ZgwStore::DelObject(const std::string &access_key,
   return Status::OK();
 }
 
-Status ZgwStore::GetObject(const std::string &access_key,
-                           const std::string &bucket_name,
+Status ZgwStore::GetObject(const std::string &bucket_name,
                            const std::string& object_name, ZgwObject* object) {
   Status s = zp_->Connect();
   if (!s.ok()) {
     return s;
   }
   object->SetName(object_name);
-
-  // Auth
-  ZgwUser *user;
-  s = GetUser(access_key, &user);
-  if (!s.ok()) {
-    return s;
-  }
 
   // Get Object
   std::string meta_value;

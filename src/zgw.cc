@@ -141,7 +141,10 @@ int main(int argc, char** argv) {
     ": " << zgw_conf->server_port;
 
   g_zgw_server = new ZgwServer(zgw_conf);
-  g_zgw_server->Start();
+  Status s = g_zgw_server->Start();
+  if (!s.ok()) {
+    LOG(ERROR) << "Start Server failed: " << s.ToString();
+  }
 
   delete g_zgw_server;
   delete zgw_conf;

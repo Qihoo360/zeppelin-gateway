@@ -23,6 +23,7 @@ LIBS = -lzp \
 			 -lpink \
 			 -lglog \
 			 -lprotobuf \
+			 -lcrypto \
 			 -lpthread
 
 INCLUDE_PATH = -I$(LIBZGW_DIR)/\

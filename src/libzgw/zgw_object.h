@@ -23,9 +23,9 @@ struct ZgwObjectInfo {
   ZgwUserInfo user;
 
   ZgwObjectInfo(time_t t, const std::string& et,
-      uint64_t s, ObjectStorageClass c)
+      uint64_t s, ObjectStorageClass c, ZgwUserInfo i)
     : mtime(t), etag(et), size(s),
-    storage_class(c) {
+    storage_class(c), user(i) {
   }
   ZgwObjectInfo()
     : mtime(0), size(0),
@@ -48,10 +48,6 @@ class ZgwObject {
 
   void SetName(const std::string& name) {
     name_ = name;
-  }
-
-  void SetUserInfo(const ZgwUserInfo &user) {
-    info_.user = user;
   }
 
   const ZgwObjectInfo &info() const {

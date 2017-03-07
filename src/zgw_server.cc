@@ -57,7 +57,10 @@ Status ZgwServer::Start() {
     }
   }
   
-  zgw_dispatch_thread_->StartThread();
+  int ret = zgw_dispatch_thread_->StartThread();
+  if (ret != 0) {
+    return Status::Corruption("Launch DispatchThread failed");
+  }
 
   while (!should_exit_) {
     DoTimingTask();

@@ -7,17 +7,9 @@
 
 namespace libzgw {
  
-Status ZgwStore::AddBucket(const std::string &access_key,
-                           const std::string &bucket_name,
-                           int partition_num) {
+Status ZgwStore::AddBucket(const std::string &bucket_name,
+                           ZgwUserInfo user_info, int partition_num) {
   Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
-  // Auth
-  ZgwUser *user;
-  s = GetUser(access_key, &user);
   if (!s.ok()) {
     return s;
   }
@@ -34,7 +26,7 @@ Status ZgwStore::AddBucket(const std::string &access_key,
 
   // Add Bucket Meta
   int retry = 3;
-  bucket.SetUserInfo(user->user_info());
+  bucket.SetUserInfo(user_info);
   do {
     sleep(2); // waiting zeppelin create partitions
     s = zp_->Set(bucket.name(), bucket.MetaKey(), bucket.MetaValue());
@@ -46,18 +38,10 @@ Status ZgwStore::AddBucket(const std::string &access_key,
   return s;
 }
 
-Status ZgwStore::SaveNameList(const std::string &access_key,
-                              const std::string &table_name,
+Status ZgwStore::SaveNameList(const std::string &table_name,
                               const std::string &meta_key,
                               const std::string &meta_value) {
   Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
-  // Auth
-  ZgwUser *user;
-  s = GetUser(access_key, &user);
   if (!s.ok()) {
     return s;
   }
@@ -70,18 +54,10 @@ Status ZgwStore::SaveNameList(const std::string &access_key,
   return Status::OK();
 }
 
-Status ZgwStore::GetNameList(const std::string &access_key,
-                             const std::string &table_name,
+Status ZgwStore::GetNameList(const std::string &table_name,
                              const std::string &meta_key,
                              std::string *meta_value) {
   Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
-  // Auth
-  ZgwUser *user;
-  s = GetUser(access_key, &user);
   if (!s.ok()) {
     return s;
   }
@@ -95,16 +71,8 @@ Status ZgwStore::GetNameList(const std::string &access_key,
   return Status::OK();
 }
 
-Status ZgwStore::DelBucket(const std::string &access_key,
-                           const std::string &name) {
+Status ZgwStore::DelBucket(const std::string &name) {
   Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
-  // Auth
-  ZgwUser *user;
-  s = GetUser(access_key, &user);
   if (!s.ok()) {
     return s;
   }
@@ -116,17 +84,9 @@ Status ZgwStore::DelBucket(const std::string &access_key,
   return Status::OK();
 }
 
-Status ZgwStore::ListBuckets(const std::string &access_key,
-                             NameList *names,
+Status ZgwStore::ListBuckets(NameList *names,
                              std::vector<ZgwBucket> *buckets) {
   Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
-  // Auth
-  ZgwUser *user;
-  s = GetUser(access_key, &user);
   if (!s.ok()) {
     return s;
   }
@@ -148,18 +108,10 @@ Status ZgwStore::ListBuckets(const std::string &access_key,
   return Status::OK();
 }
 
-Status ZgwStore::ListObjects(const std::string &access_key,
-                             const std::string &bucket_name,
+Status ZgwStore::ListObjects(const std::string &bucket_name,
                              NameList *names,
                              std::vector<ZgwObject> *objects) {
   Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
-  // Auth
-  ZgwUser *user;
-  s = GetUser(access_key, &user);
   if (!s.ok()) {
     return s;
   }

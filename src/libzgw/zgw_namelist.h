@@ -23,8 +23,8 @@ public:
         table_name(table_name) {
   }
 
-  Status Load(const std::string &access_key, ZgwStore *store);
-  Status Save(const std::string &access_key, ZgwStore *store);
+  Status Load(ZgwStore *store);
+  Status Save(ZgwStore *store);
 
   void Insert(std::string &value);
 
@@ -56,14 +56,12 @@ class ListMap {
       : key_type_(key_type) {
   }
 
-  Status Ref(const std::string &access_key, ZgwStore *store,
-             const std::string key, NameList **names);
+  Status Ref(ZgwStore *store, const std::string key, NameList **names);
 
-  Status Unref(const std::string &access_key, ZgwStore *store,
-               const std::string &key);
+  Status Unref(ZgwStore *store, const std::string &key);
 
-  Status InitNameList(const std::string &access_key, const std::string &key,
-                      ZgwStore *store, NameList **names);
+  Status InitNameList(const std::string &key, ZgwStore *store, NameList **names);
+
  private:
   std::mutex ref_lock_;
   //           key                ref    namelist

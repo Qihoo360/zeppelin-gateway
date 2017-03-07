@@ -32,13 +32,12 @@ Status NameList::ParseMetaValue(std::string *value) {
   return Status::OK();
 }
 
-Status ListMap::Ref(const std::string &access_key, ZgwStore *store,
-                    const std::string key, NameList **names) {
+Status ListMap::Ref(ZgwStore *store, const std::string key, NameList **names) {
   std::lock_guard<std::mutex> lock(ref_lock_);
   Status s;
   NameList *l_names;
   if (map_list_.find(key) == map_list_.end()) {
-    s = InitNameList(access_key, key, store, &l_names);
+    s = InitNameList(key, store, &l_names);
     if (!s.ok()) {
       *names = NULL;
       return s;
@@ -52,8 +51,7 @@ Status ListMap::Ref(const std::string &access_key, ZgwStore *store,
   return Status::OK();
 }
 
-Status ListMap::Unref(const std::string &access_key, ZgwStore *store,
-                      const std::string &key) {
+Status ListMap::Unref(ZgwStore *store, const std::string &key) {
   ref_lock_.lock();
   if (map_list_.find(key) == map_list_.end()) {
     return Status::Corruption("Have not call ref on this key");
@@ -65,14 +63,14 @@ Status ListMap::Unref(const std::string &access_key, ZgwStore *store,
   if (nl->ref <= 0) {
     nl->ref = 0; // Avoid multi unref
     ref_lock_.unlock();
-    return nl->Save(access_key, store);
+    return nl->Save(store);
   }
   ref_lock_.unlock();
   return Status::OK();
 }
 
-Status ListMap::InitNameList(const std::string &access_key, const std::string &key,
-                             ZgwStore *store, NameList **names) {
+Status ListMap::InitNameList(const std::string &key, ZgwStore *store,
+                             NameList **names) {
   // Read from zp to new list
   NameList *new_list;
   if (key_type_ == kBuckets) {
@@ -86,7 +84,7 @@ Status ListMap::InitNameList(const std::string &access_key, const std::string &k
   } else {
     return Status::NotSupported("Unknow key type");
   }
-  Status s = new_list->Load(access_key, store);
+  Status s = new_list->Load(store);
   if (!s.ok()) {
     return s;
   }
@@ -97,10 +95,10 @@ Status ListMap::InitNameList(const std::string &access_key, const std::string &k
   return Status::OK();
 }
 
-Status NameList::Load(const std::string &access_key, ZgwStore *store) {
+Status NameList::Load(ZgwStore *store) {
   std::lock_guard<std::mutex> lock(list_lock);
   std::string meta_value;
-  Status s = store->GetNameList(access_key, table_name, meta_key, &meta_value);
+  Status s = store->GetNameList(table_name, meta_key, &meta_value);
   if (s.ok()) {
     return ParseMetaValue(&meta_value);
   } else if (s.IsNotFound()) {
@@ -109,10 +107,10 @@ Status NameList::Load(const std::string &access_key, ZgwStore *store) {
   return s;
 }
 
-Status NameList::Save(const std::string &access_key, ZgwStore *store) {
+Status NameList::Save(ZgwStore *store) {
   std::lock_guard<std::mutex> lock(list_lock);
   if (dirty) {
-    Status s = store->SaveNameList(access_key, table_name, meta_key, MetaValue());
+    Status s = store->SaveNameList(table_name, meta_key, MetaValue());
     if (!s.ok()) {
       return s;
     }
