@@ -12,6 +12,8 @@ SRC_DIR = ./src
 LIBZGW_DIR = ./src/libzgw
 THIRD_DIR = ./third
 OUTPUT = ./output
+VERSION = -D_GITVER_=$(shell git rev-list master | head -n1) \
+					-D_COMPILEDATE_=$(shell date +%FT%T%z)
 
 LIB_PATH = -L$(THIRD_DIR)/slash/output/lib/ \
 					 -L$(THIRD_DIR)/pink/output/lib/ \
@@ -67,7 +69,7 @@ $(OBJECT): $(SLASH) $(PINK) $(LIBZP) $(GLOG) $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(INCLUDE_PATH) $(LIB_PATH) $(LIBS)
 
 $(OBJS): %.o : %.cc
-	$(CXX) $(CXXFLAGS) -c $< -o $@ $(INCLUDE_PATH) 
+	$(CXX) $(CXXFLAGS) -c $< -o $@ $(INCLUDE_PATH) $(VERSION)
 
 $(SLASH):
 	make -C $(THIRD_DIR)/slash/ __PERF=$(__PERF)

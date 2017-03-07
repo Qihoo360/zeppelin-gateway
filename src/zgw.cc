@@ -46,7 +46,8 @@ static void ZgwSignalSetup() {
 
 void Usage() {
   printf("Usage:\n"
-          "  zgw_server -c [config file]\n");
+          "  zgw_server -c [config file]\n"
+          "  zgw_server -v\n");
 }
 
 void ZgwConfigInit(ZgwConfig **zgw_conf, int argc, char* argv[]) {
@@ -67,7 +68,9 @@ void ZgwConfigInit(ZgwConfig **zgw_conf, int argc, char* argv[]) {
         Usage();
         exit(0);
       case 'v':
-        std::cout << "Zeppelin gateway " << kZgwVersion << std::endl;
+        std::cout << "Zeppelin gateway " << std::endl;
+        std::cout << "Git ver: " << kZgwVersion << std::endl;
+        std::cout << "Date:    " << kZgwCompileDate << std::endl;
         exit(0);
       default:
         Usage();
@@ -115,7 +118,7 @@ static void daemonize() {
 }
 
 int main(int argc, char** argv) {
-  if (argc < 3) {
+  if (argc < 2) {
     Usage();
     return 1;
   }

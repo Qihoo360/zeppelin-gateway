@@ -5,7 +5,10 @@
 
 const int kMaxWorkerThread = 100;
 
-const std::string kZgwVersion = "0.0.1";
+#define str(a) #a
+#define xstr(a) str(a)
+const std::string kZgwVersion = xstr(_GITVER_);
+const std::string kZgwCompileDate = xstr(_COMPILEDATE_);
 const std::string kZgwPidFile = "zgw.pid";
 const std::string kZgwLockFile = "zgw.lock";
 
@@ -13,4 +16,5 @@ const std::string kZgwLockFile = "zgw.lock";
 // const int kZgwCronCount = 30;
 const int kZgwCronInterval = 1000;
 const int kDispatchCronInterval = 5000;
+
 #endif
