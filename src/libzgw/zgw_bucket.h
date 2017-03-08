@@ -21,7 +21,7 @@ class ZgwBucket {
     return name_;
   }
 
-  timeval ctime() {
+  const timeval ctime() const {
     return ctime_;
   }
 

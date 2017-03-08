@@ -3,11 +3,9 @@
 #include "zgw_conn.h"
 #include "zgw_server.h"
 #include "zgw_auth.h"
+#include "zgw_xmlbuilder.h"
 #include "libzgw/zgw_namelist.h"
 
-#include "rapidxml.hpp"
-#include "rapidxml_print.hpp"
-#include "rapidxml_utils.hpp"
 #include "slash_hash.h"
 
 extern ZgwServer* g_zgw_server;
@@ -44,14 +42,6 @@ ZgwConn::ZgwConn(const int fd,
   store_ = worker_->GetStore();
 }
 
-std::string ZgwConn::iso8601_time(time_t sec, suseconds_t usec) {
-  int milli = usec / 1000;
-  char buf[128];
-  strftime(buf, sizeof buf, "%FT%T", localtime(&sec));
-  sprintf(buf, "%s.%03dZ", buf, milli);
-  return std::string(buf);
-}
-
 std::string ZgwConn::GetAccessKey(const pink::HttpRequest* req) {
   std::string auth_str;
   auto iter = req->headers.find("authorization");
@@ -64,44 +54,6 @@ std::string ZgwConn::GetAccessKey(const pink::HttpRequest* req) {
   size_t slash_pos = auth_str.find('/');
   // e.g. auth_str: "...Credential=f3oiCCuyE7v3dOZgeEBsa/20170225/us..."
   return auth_str.substr(pos + 11, slash_pos - pos - 11);
-}
-
-void ZgwConn::ErrorHandle(std::string code, std::string message,
-                          std::string bucket_name, std::string object_name,
-                          pink::HttpResponse* resp, int resp_code) {
-  // Builid failed Info
-  using namespace rapidxml;
-  xml_document<> doc;
-  xml_node<> *rot =
-    doc.allocate_node(node_pi, doc.allocate_string("xml version='1.0' encoding='utf-8'"));
-  doc.append_node(rot);
-
-  // <Error>
-  xml_node<> *error =
-    doc.allocate_node(node_element, "Error");
-  doc.append_node(error);
-  //  <Code>
-  error->append_node(doc.allocate_node(node_element, "Code", code.c_str()));
-  //  <Message>
-  error->append_node(doc.allocate_node(node_element, "Message", message.c_str()));
-  //  <BucketName> or <Key>
-  if (!bucket_name.empty()) {
-    error->append_node(doc.allocate_node(node_element, "BucketName", bucket_name.c_str()));
-  } else if (!object_name.empty()) {
-    error->append_node(doc.allocate_node(node_element, "Key", object_name.c_str()));
-  }
-  //  <RequestId> TODO gaodq
-  error->append_node(doc.allocate_node(node_element, "RequestId",
-                                       "tx00000000000000000113c-0058a43a07-7deaf-sh-bt-1"));
-  //  <HostId> TODO gaodq
-  error->append_node(doc.allocate_node(node_element, "HostId" "7deaf-sh-bt-1-sh"));
-
-  std::string res_xml;
-  print(std::back_inserter(res_xml), doc, 0);
-
-  resp->SetStatusCode(resp_code);
-  resp->SetBody(res_xml);
-  LOG(ERROR) << message;
 }
 
 void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp) {
@@ -146,56 +98,45 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   
   // Get access key
   access_key_ = GetAccessKey(req);
-  // Authorize request
+  // Authorize access key
   libzgw::ZgwUser *user;
   Status s = store_->GetUser(access_key_, &user);
   ZgwAuth zgw_auth;
   if (!s.ok()) {
-    ErrorHandle("InvalidAccessKeyId",
-                "The access key Id you provided does not exist in our records.",
-                "", "",
-                resp, 403);
+    resp->SetStatusCode(403);
+    resp->SetBody(XmlParser(InvalidAccessKeyId, ""));
     return;
   }
 
   // TODO (gaodq) disable request authorization
+  // Authorize request
   // if (!zgw_auth.Auth(req, user->secret_key(access_key_))) {
-  //   ErrorHandle("SignatureDoesNotMatch",
-  //               "The request signature we calculated does not match the signature you provided. Check your key and signing method.",
-  //               "", "",
-  //               resp, 403);
+  //   resp->SetStatusCode(403);
+  //   resp->SetBody(XmlParser(SignatureDoesNotMatch, ""));
   //   return;
   // }
 
   if (req->method == "GET") {
     if (bucket_name.empty()) {
-      LOG(INFO) << "ListBuckets: ";
       ListBucketHandle(req, resp);
     } else if (!bucket_name.empty() && object_name.empty()) {
-      LOG(INFO) << "ListObjects: " << bucket_name;
       ListObjectHandle(req, bucket_name, resp);
     } else if (!bucket_name.empty() && !object_name.empty()){
-      LOG(INFO) << "GetObjects: " << bucket_name << "/" << object_name;
       GetObjectHandle(req, bucket_name, object_name, resp);
     }
   } else if (req->method == "PUT") {
     if (!bucket_name.empty() && object_name.empty()) {
-      LOG(INFO) << "CreateBucket: " << bucket_name;
       PutBucketHandle(req, bucket_name, resp);
     } else if (!bucket_name.empty() && !object_name.empty()) {
       // if (req->headers.find("Expect") != req->headers.end()) {
       //   resp->SetStatusCode(100);
       // }
-      LOG(INFO) << "PutObjcet: " << bucket_name << "/" << object_name;
       PutObjectHandle(req, bucket_name, object_name, resp);
     }
   } else if (req->method == "DELETE") {
     if (!bucket_name.empty() && object_name.empty()) {
-      LOG(INFO) << "DeleteBucket: " << bucket_name;
-      // TODO (gaodq) DelBucketHandle(req, bucket_name, resp);
-      resp->SetStatusCode(204);
+      DelBucketHandle(req, bucket_name, resp);
     } else if (!bucket_name.empty() && !object_name.empty()) {
-      LOG(INFO) << "DeleteObject: " << bucket_name << "/" << object_name;
       DelObjectHandle(req, bucket_name, object_name, resp);
     }
   } else if (req->method == "HEAD") {
@@ -236,60 +177,22 @@ void ZgwConn::ListUsersHandle(pink::HttpResponse* resp) {
   }
 }
 
-Status ZgwConn::BucketListRefHandle(libzgw::NameList **buckets_name,
-                                    pink::HttpResponse *resp) {
-  Status s = g_zgw_server->buckets_list()->Ref(store_, access_key_, buckets_name);
-  if (!s.ok()) {
-    if (s.IsAuthFailed()) {
-      ErrorHandle("InvalidAccessKeyId",
-                  "The access key Id you provided does not exist in our records.",
-                  "", "",
-                  resp, 403);
-    } else {
-      resp->SetStatusCode(500);
-      LOG(ERROR) << "List buckets name list failed: " << s.ToString();
-    }
-    return s;
-  }
-
-  return Status::OK();
-}
-
-Status ZgwConn::ObjectListRefHandle(std::string &bucket_name,
-                                    libzgw::NameList **objects_name,
-                                    pink::HttpResponse *resp) {
-  Status s = g_zgw_server->objects_list()->
-    Ref(store_, bucket_name, objects_name);
-  if (!s.ok()) {
-    if (s.IsAuthFailed()) {
-      ErrorHandle("InvalidAccessKeyId",
-                  "The access key Id you provided does not exist in our records.",
-                  "", "",
-                  resp, 403);
-    } else {
-      resp->SetStatusCode(500);
-      LOG(ERROR) << "List objects name list failed: " << s.ToString();
-    }
-    return s;
-  }
-
-  return Status::OK();
-}
-
 void ZgwConn::DelObjectHandle(const pink::HttpRequest* req,
                               std::string &bucket_name, std::string &object_name,
                               pink::HttpResponse* resp) {
+  LOG(INFO) << "DeleteObject: " << bucket_name << "/" << object_name;
   libzgw::NameList *buckets_name;
-  Status s = BucketListRefHandle(&buckets_name, resp);
+  Status s = g_zgw_server->buckets_list()->Ref(store_, access_key_, &buckets_name);
   if (!s.ok()) {
-    // Response has built in BucketListRefHandle(...)
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "List buckets name list failed: " << s.ToString();
     return;
   }
 
   // Check whether bucket existed in namelist meta
   if (!buckets_name->IsExist(bucket_name)) {
-    ErrorHandle("NoSuchBucket", "The specified bucket does not exist.",
-                bucket_name, "", resp, 404);
+    resp->SetStatusCode(404);
+    resp->SetBody(XmlParser(NoSuchBucket, bucket_name));
     g_zgw_server->buckets_list()->Unref(store_, access_key_);
     return;
   }
@@ -299,16 +202,16 @@ void ZgwConn::DelObjectHandle(const pink::HttpRequest* req,
 
   // Get objects namelist
   libzgw::NameList *objects_name;
-  s = ObjectListRefHandle(bucket_name, &objects_name, resp);
+  s = g_zgw_server->objects_list()->Ref(store_, bucket_name, &objects_name);
   if (!s.ok()) {
-    // Response has built in ObjectListRefHandle(...)
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "List buckets name list failed: " << s.ToString();
     return;
   }
 
   // Check whether object existed in namelist meta
   if (!objects_name->IsExist(object_name)) {
-    ErrorHandle("NoSuchKey", "The specified bucket does not exist.",
-                "", object_name, resp, 404);
+    resp->SetStatusCode(204);
     g_zgw_server->objects_list()->Unref(store_, bucket_name);
     return;
   }
@@ -317,12 +220,7 @@ void ZgwConn::DelObjectHandle(const pink::HttpRequest* req,
   // Delete object
   s = store_->DelObject(bucket_name, object_name);
   if (!s.ok()) {
-    if (s.IsAuthFailed()) {
-      ErrorHandle("InvalidAccessKeyId",
-                  "The access key Id you provided does not exist in our records.",
-                  "", "",
-                  resp, 403);
-    } else if (s.IsNotFound()) {
+    if (s.IsNotFound()) {
       // But founded in list meta, continue to delete from list meta
     } else {
       resp->SetStatusCode(500);
@@ -352,17 +250,19 @@ void ZgwConn::GetObjectHandle(const pink::HttpRequest* req,
                               std::string &bucket_name,
                               std::string &object_name,
                               pink::HttpResponse* resp) {
+  LOG(INFO) << "GetObjects: " << bucket_name << "/" << object_name;
   libzgw::NameList *buckets_name;
-  Status s = BucketListRefHandle(&buckets_name, resp);
+  Status s = g_zgw_server->buckets_list()->Ref(store_, access_key_, &buckets_name);
   if (!s.ok()) {
-    // Response has built in BucketListRefHandle(...)
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "List buckets name list failed: " << s.ToString();
     return;
   }
 
   // Check whether bucket existed in namelist meta
   if (!buckets_name->IsExist(bucket_name)) {
-    ErrorHandle("NoSuchBucket", "The specified bucket does not exist.",
-                bucket_name, "", resp, 404);
+    resp->SetStatusCode(404);
+    resp->SetBody(XmlParser(NoSuchBucket, bucket_name));
     g_zgw_server->buckets_list()->Unref(store_, access_key_);
     return;
   }
@@ -371,16 +271,17 @@ void ZgwConn::GetObjectHandle(const pink::HttpRequest* req,
   g_zgw_server->buckets_list()->Unref(store_, access_key_);
 
   libzgw::NameList *objects_name;
-  s = ObjectListRefHandle(bucket_name, &objects_name, resp);
+  s = g_zgw_server->objects_list()->Ref(store_, bucket_name, &objects_name);
   if (!s.ok()) {
-    // Response has built in ObjectListRefHandle(...)
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "List objects name list failed: " << s.ToString();
     return;
   }
 
   // Check whether object existed in namelist meta
   if (!objects_name->IsExist(object_name)) {
-    ErrorHandle("NoSuchKey", "The specified bucket does not exist.",
-                "", object_name, resp, 404);
+    resp->SetStatusCode(404);
+    resp->SetBody(XmlParser(NoSuchKey, object_name));
     g_zgw_server->objects_list()->Unref(store_, bucket_name);
     return;
   }
@@ -392,15 +293,8 @@ void ZgwConn::GetObjectHandle(const pink::HttpRequest* req,
   libzgw::ZgwObject object(object_name);
   s = store_->GetObject(bucket_name, object_name, &object);
   if (!s.ok()) {
-    if (s.IsAuthFailed()) {
-      ErrorHandle("InvalidAccessKeyId",
-                  "The access key Id you provided does not exist in our records.",
-                  "", "",
-                  resp, 403);
-    } else {
-      resp->SetStatusCode(500);
-      LOG(ERROR) << "Get object data failed: " << s.ToString();
-    }
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "Get object data failed: " << s.ToString();
     return;
   }
   LOG(INFO) << "GetObject: " << req->path << " confirm get object from zp success";
@@ -413,17 +307,19 @@ void ZgwConn::PutObjectHandle(const pink::HttpRequest *req,
                               std::string &bucket_name,
                               std::string &object_name,
                               pink::HttpResponse* resp) {
+  LOG(INFO) << "PutObjcet: " << bucket_name << "/" << object_name;
   libzgw::NameList *buckets_name;
-  Status s = BucketListRefHandle(&buckets_name, resp);
+  Status s = g_zgw_server->buckets_list()->Ref(store_, access_key_, &buckets_name);
   if (!s.ok()) {
-    // Response has built in BucketListRefHandle(...)
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "List buckets name list failed: " << s.ToString();
     return;
   }
 
   // Check whether bucket existed in namelist meta
   if (!buckets_name->IsExist(bucket_name)) {
-    ErrorHandle("NoSuchBucket", "The specified bucket does not exist.",
-                bucket_name, "", resp, 404);
+    resp->SetStatusCode(404);
+    resp->SetBody(XmlParser(NoSuchBucket, bucket_name));
     g_zgw_server->buckets_list()->Unref(store_, access_key_);
     return;
   }
@@ -433,9 +329,10 @@ void ZgwConn::PutObjectHandle(const pink::HttpRequest *req,
 
   // Get objects namelist
   libzgw::NameList *objects_name;
-  s = ObjectListRefHandle(bucket_name, &objects_name, resp);
+  s = g_zgw_server->objects_list()->Ref(store_, bucket_name, &objects_name);
   if (!s.ok()) {
-    // Response has built in ObjectListRefHandle(...)
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "List objects name list failed: " << s.ToString();
     return;
   }
 
@@ -449,18 +346,8 @@ void ZgwConn::PutObjectHandle(const pink::HttpRequest *req,
                                 user->user_info());
   s = store_->AddObject(bucket_name, object_name, ob_info, req->content);
   if (!s.ok()) {
-    if (s.IsAuthFailed()) {
-      ErrorHandle("InvalidAccessKeyId",
-                  "The access key Id you provided does not exist in our records.",
-                  "", "",
-                  resp, 403);
-    } else if (s.IsIOError()) {
-      resp->SetStatusCode(500);
-      LOG(ERROR) << "Put object data failed: " << s.ToString();
-    } else {
-      resp->SetStatusCode(403);
-      LOG(ERROR) << "Put object data failed: " << s.ToString();
-    }
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "Put object data failed: " << s.ToString();
     g_zgw_server->objects_list()->Unref(store_, bucket_name);
     return;
   }
@@ -484,17 +371,19 @@ void ZgwConn::PutObjectHandle(const pink::HttpRequest *req,
 void ZgwConn::ListObjectHandle(const pink::HttpRequest* req,
                                std::string &bucket_name,
                                pink::HttpResponse* resp) {
+  LOG(INFO) << "ListObjects: " << bucket_name;
   libzgw::NameList *buckets_name;
-  Status s = BucketListRefHandle(&buckets_name, resp);
+  Status s = g_zgw_server->buckets_list()->Ref(store_, access_key_, &buckets_name);
   if (!s.ok()) {
-    // Response has built in BucketListRefHandle(...)
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "List buckets name list failed: " << s.ToString();
     return;
   }
 
   // Check whether bucket existed in namelist meta
   if (!buckets_name->IsExist(bucket_name)) {
-    ErrorHandle("NoSuchBucket", "The specified bucket does not exist.",
-                bucket_name, "", resp, 404);
+    resp->SetStatusCode(404);
+    resp->SetBody(XmlParser(NoSuchBucket, bucket_name));
     g_zgw_server->buckets_list()->Unref(store_, access_key_);
     return;
   }
@@ -503,9 +392,10 @@ void ZgwConn::ListObjectHandle(const pink::HttpRequest* req,
   g_zgw_server->buckets_list()->Unref(store_, access_key_);
 
   libzgw::NameList *objects_name;
-  s = ObjectListRefHandle(bucket_name, &objects_name, resp);
+  s = g_zgw_server->objects_list()->Ref(store_, bucket_name, &objects_name);
   if (!s.ok()) {
-    // Response has built in ObjectListRefHandle(...)
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "List objects name list failed: " << s.ToString();
     return;
   }
   LOG(INFO) << "ListObjects: " << req->path << " confirm get objects' namelist success";
@@ -514,110 +404,39 @@ void ZgwConn::ListObjectHandle(const pink::HttpRequest* req,
   std::vector<libzgw::ZgwObject> objects;
   s = store_->ListObjects(bucket_name, objects_name, &objects);
   if (!s.ok()) {
-    if (s.IsAuthFailed()) {
-      ErrorHandle("InvalidAccessKeyId",
-                  "The access key Id you provided does not exist in our records.",
-                  "", "",
-                  resp, 403);
-    } else {
-      resp->SetStatusCode(500);
-      LOG(ERROR) << "ListBuckets Error: " << s.ToString();
-    }
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "ListBuckets Error: " << s.ToString();
     g_zgw_server->objects_list()->Unref(store_, bucket_name);
     return;
   }
   LOG(INFO) << "ListObjects: " << req->path << " confirm get objects' meta from zp success";
 
-  // Zeppelin success, then build body
-
-  //    * Build xml Response
-  // <root>
-  using namespace rapidxml;
-  xml_document<> doc;
-  xml_node<> *rot =
-    doc.allocate_node(node_pi, doc.allocate_string("xml version='1.0' encoding='utf-8'"));
-  doc.append_node(rot);
-  // <ListBucketResult>
-  xml_node<> *rnode =
-    doc.allocate_node(node_element, "ListBucketResult");
-  xml_attribute<> *attr =
-    doc.allocate_attribute("xmlns", "http://s3.amazonaws.com/doc/2006-03-01/");
-  rnode->append_attribute(attr);
-  doc.append_node(rnode);
-  //    <Name>
-  rnode->append_node(doc.allocate_node(node_element, "Name", bucket_name.c_str()));
-  //    <Prefix>
-  rnode->append_node(doc.allocate_node(node_element, "Prefix", ""));
-  //    <Marker>
-  rnode->append_node(doc.allocate_node(node_element, "Marker", ""));
-  //    <MaxKeys>
-  rnode->append_node(doc.allocate_node(node_element, "MaxKeys", "1000"));
-  //    <IsTruncated>
-  rnode->append_node(doc.allocate_node(node_element, "IsTruncated", "false"));
-
-  // Save for xml parser
-  std::vector<std::string> cdates;
-  std::vector<std::string> sizes;
-  for (auto &object : objects) {
-    const libzgw::ZgwObjectInfo &info = object.info();
-    const libzgw::ZgwUserInfo &user = info.user;
-    //  <Contents>
-    xml_node<> *content =
-      doc.allocate_node(node_element, "Contents", bucket_name.data());
-    rnode->append_node(content);
-    //    <Key>
-    content->append_node(doc.allocate_node(node_element, "Key",
-                                           object.name().data()));
-    //    <LastModified>
-    cdates.push_back(iso8601_time(info.mtime));
-    content->append_node(doc.allocate_node(node_element, "LastModified", 
-                                           cdates.back().data()));
-    //    <ETag>
-    content->append_node(doc.allocate_node(node_element, "ETag",
-                                           info.etag.data()));
-    //    <Size>
-    sizes.push_back(std::to_string(info.size));
-    content->append_node(doc.allocate_node(node_element, "Size",
-                                           sizes.back().data()));
-    //    <StorageClass>
-    content->append_node(doc.allocate_node(node_element, "StorageClass",
-                                           "STANDARD"));
-    //    <Owner>
-    xml_node<> *owner =
-      doc.allocate_node(node_element, "Owner");
-    content->append_node(owner);
-    //      <ID>
-    owner->append_node(doc.allocate_node(node_element, "ID",
-                                         user.user_id.data()));
-    //      <DisplayName>
-    owner->append_node(doc.allocate_node(node_element, "DisplayName",
-                                         user.disply_name.data()));
-  }
-
-  std::string res_xml;
-  print(std::back_inserter(res_xml), doc, 0);
-
-  // Http response
+  // Success Http response
+  std::map<std::string, std::string> args;
+  args["Name"] = bucket_name;
+  args["MaxKeys"] = "1000";
+  args["IsTruncated"] = "false";
   resp->SetStatusCode(200);
-  resp->SetBody(res_xml);
+  resp->SetBody(XmlParser(objects, args));
   g_zgw_server->objects_list()->Unref(store_, bucket_name);
 }
 
-// TODO (gaodq) Unsupport
+// TODO (gaodq) just delete namelist info
 void ZgwConn::DelBucketHandle(const pink::HttpRequest* req,
                               std::string &bucket_name,
                               pink::HttpResponse* resp) {
+  LOG(INFO) << "DeleteBucket: " << bucket_name;
   libzgw::NameList *buckets_name;
-  Status s = BucketListRefHandle(&buckets_name, resp);
+  Status s = g_zgw_server->buckets_list()->Ref(store_, access_key_, &buckets_name);
   if (!s.ok()) {
-    // Response has built in BucketListRefHandle(...)
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "List buckets name list failed: " << s.ToString();
     return;
   }
 
   // Check whether bucket existed in namelist meta
   if (!buckets_name->IsExist(bucket_name)) {
-    ErrorHandle("NoSuchBucket", "The specified bucket does not exist.",
-                bucket_name, "", resp, 404);
+    resp->SetStatusCode(204);
     g_zgw_server->buckets_list()->Unref(store_, access_key_);
     return;
   }
@@ -628,44 +447,16 @@ void ZgwConn::DelBucketHandle(const pink::HttpRequest* req,
   if (s.ok()) {
     buckets_name->Delete(bucket_name);
     resp->SetStatusCode(204);
-  } else if (s.IsAuthFailed()) {
-    ErrorHandle("InvalidAccessKeyId",
-                "The access key Id you provided does not exist in our records.",
-                "", "",
-                resp, 403);
   } else if (s.IsIOError()) {
     resp->SetStatusCode(500);
     LOG(ERROR) << "Delete bucket failed: " << s.ToString();
   } else {
-    //    * Build xml Response
-    // <root>
-    using namespace rapidxml;
-    xml_document<> doc;
-    xml_node<> *rot =
-      doc.allocate_node(node_pi, doc.allocate_string("xml version='1.0' encoding='utf-8'"));
-    doc.append_node(rot);
-
-    // <Error>
-    xml_node<> *error =
-      doc.allocate_node(node_element, "Error");
-    doc.append_node(error);
-    //  <Code>
-    error->append_node(doc.allocate_node(node_element, "Code", "BucketNotEmpty"));
-    //  <BucketName>
-    error->append_node(doc.allocate_node(node_element, "BucketName", bucket_name.data()));
-    //  <RequestId> TODO gaodq
-    error->append_node(doc.allocate_node(node_element, "RequestId",
-                                         "tx00000000000000000113c-0058a43a07-7deaf-sh-bt-1"));
-    //  <HostId> TODO gaodq
-    error->append_node(doc.allocate_node(node_element, "HostId" "7deaf-sh-bt-1-sh"));
-
-    std::string res_xml;
-    print(std::back_inserter(res_xml), doc, 0);
-
+    // TODO (gaodq)
     resp->SetStatusCode(409);
-    resp->SetBody(res_xml);
+    resp->SetBody(XmlParser(BucketNotEmpty, bucket_name));
     LOG(ERROR) << "Delete bucket failed: " << s.ToString();
   }
+
   s = g_zgw_server->buckets_list()->Unref(store_, access_key_);
   if (!s.ok()) {
     resp->SetStatusCode(500);
@@ -678,17 +469,18 @@ void ZgwConn::DelBucketHandle(const pink::HttpRequest* req,
 void ZgwConn::PutBucketHandle(const pink::HttpRequest* req,
                               std::string &bucket_name,
                               pink::HttpResponse* resp) {
+  LOG(INFO) << "CreateBucket: " << bucket_name;
   libzgw::NameList *buckets_name;
-  Status s = BucketListRefHandle(&buckets_name, resp);
+  Status s = g_zgw_server->buckets_list()->Ref(store_, access_key_, &buckets_name);
   if (!s.ok()) {
-    // Response has built in BucketListRefHandle(...)
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "List buckets name list failed: " << s.ToString();
     return;
   }
 
   // Check whether bucket existed in namelist meta
   if (buckets_name->IsExist(bucket_name)) {
     resp->SetStatusCode(409);
-    resp->SetBody("");
     g_zgw_server->buckets_list()->Unref(store_, access_key_);
     return;
   }
@@ -699,18 +491,8 @@ void ZgwConn::PutBucketHandle(const pink::HttpRequest* req,
   store_->GetUser(access_key_, &user);
   s = store_->AddBucket(bucket_name, user->user_info());
   if (!s.ok()) {
-    if (s.IsAuthFailed()) {
-      ErrorHandle("InvalidAccessKeyId",
-                  "The access key Id you provided does not exist in our records.",
-                  "", "",
-                  resp, 403);
-    } else if (s.IsIOError()) {
-      resp->SetStatusCode(500);
-      LOG(ERROR) << "Create bucket failed: " << s.ToString();
-    } else {
-      resp->SetStatusCode(409);
-      LOG(ERROR) << "Create bucket failed: " << s.ToString();
-    }
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "Create bucket failed: " << s.ToString();
     s = g_zgw_server->buckets_list()->Unref(store_, access_key_);
     return;
   }
@@ -731,11 +513,13 @@ void ZgwConn::PutBucketHandle(const pink::HttpRequest* req,
 }
 
 void ZgwConn::ListBucketHandle(const pink::HttpRequest* req, pink::HttpResponse* resp) {
+  LOG(INFO) << "ListBuckets: ";
   // Find object list meta
   libzgw::NameList *buckets_name;
-  Status s = BucketListRefHandle(&buckets_name, resp);
+  Status s = g_zgw_server->buckets_list()->Ref(store_, access_key_, &buckets_name);
   if (!s.ok()) {
-    // Response has built in BucketListRefHandle(...)
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "List buckets name list failed: " << s.ToString();
     return;
   }
   LOG(INFO) << "ListAllBucket: " << req->path << " confirm get bucket namelist success";
@@ -744,15 +528,8 @@ void ZgwConn::ListBucketHandle(const pink::HttpRequest* req, pink::HttpResponse*
   std::vector<libzgw::ZgwBucket> buckets;
   s = store_->ListBuckets(buckets_name, &buckets);
   if (!s.ok()) {
-    if (s.IsAuthFailed()) {
-      ErrorHandle("InvalidAccessKeyId",
-                  "The access key Id you provided does not exist in our records.",
-                  "", "",
-                  resp, 403);
-    } else {
-      resp->SetStatusCode(500);
-      LOG(ERROR) << "ListBuckets Error: " << s.ToString();
-    }
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "ListBuckets Error: " << s.ToString();
     s = g_zgw_server->buckets_list()->Unref(store_, access_key_);
     return;
   }
@@ -764,53 +541,9 @@ void ZgwConn::ListBucketHandle(const pink::HttpRequest* req, pink::HttpResponse*
   // Will return previously if error occured
   s = store_->GetUser(access_key_, &user);
   assert(user);
-
-  //    * Build xml Response
-  // <root>
-  using namespace rapidxml;
-  xml_document<> doc;
-  xml_node<> *rot =
-    doc.allocate_node(node_pi, doc.allocate_string("xml version='1.0' encoding='utf-8'"));
-  doc.append_node(rot);
-  // <ListAllMyBucketsResult>
-  xml_node<> *rnode =
-    doc.allocate_node(node_element, "ListAllMyBucketsResult");
-  xml_attribute<> *attr =
-    doc.allocate_attribute("xmlns", "http://s3.amazonaws.com/doc/2006-03-01/");
-  rnode->append_attribute(attr);
-  doc.append_node(rnode);
-
-  // <Owner>
   const libzgw::ZgwUserInfo &info = user->user_info();
-  xml_node<> *owner = doc.allocate_node(node_element, "Owner");
-  owner->append_node(doc.allocate_node(node_element, "ID",
-                                       info.user_id.data()));
-  owner->append_node(doc.allocate_node(node_element, "DisplayName",
-                                       info.disply_name.data()));
-  rnode->append_node(owner);
-
-  // <Buckets>
-  xml_node<> *buckets_node = doc.allocate_node(node_element, "Buckets");
-  rnode->append_node(buckets_node);
-
-  // Save data for xml parser
-  std::vector<std::string> cdates;
-
-  for (auto &bucket : buckets) {
-    // <Bucket>
-    xml_node<> *bucket_node = doc.allocate_node(node_element, "Bucket");
-    bucket_node->append_node(doc.allocate_node(node_element, "Name",
-                                               bucket.name().data()));
-    cdates.push_back(iso8601_time(bucket.ctime().tv_sec, bucket.ctime().tv_usec));
-    bucket_node->append_node(doc.allocate_node(node_element, "CreationDate",
-                                               cdates.back().data()));
-    buckets_node->append_node(bucket_node);
-  }
-
-  std::string res_xml;
-  print(std::back_inserter(res_xml), doc, 0);
+  resp->SetStatusCode(200);
+  resp->SetBody(XmlParser(info, buckets));
 
   s = g_zgw_server->buckets_list()->Unref(store_, access_key_);
-  resp->SetStatusCode(200);
-  resp->SetBody(res_xml);
 }

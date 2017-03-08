@@ -46,15 +46,6 @@ class ZgwConn : public pink::HttpConn {
   libzgw::ZgwStore *store_;
   std::string access_key_;
 
-  Status BucketListRefHandle(libzgw::NameList **buckets_name,
-                             pink::HttpResponse *resp);
-  Status ObjectListRefHandle(std::string &bucket_name,
-                             libzgw::NameList **objects_name,
-                             pink::HttpResponse *resp);
-  void ErrorHandle(std::string code, std::string message,
-                   std::string bucket_name, std::string object_name,
-                   pink::HttpResponse* resp, int resp_code);
-  std::string iso8601_time(time_t sec, suseconds_t usec = 0);
   std::string GetAccessKey(const pink::HttpRequest* req);
 };
 
