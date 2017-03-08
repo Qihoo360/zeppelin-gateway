@@ -157,13 +157,15 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
                 resp, 403);
     return;
   }
-  if (!zgw_auth.Auth(req, user->secret_key(access_key_))) {
-    ErrorHandle("SignatureDoesNotMatch",
-                "The request signature we calculated does not match the signature you provided. Check your key and signing method.",
-                "", "",
-                resp, 403);
-    return;
-  }
+
+  // TODO (gaodq) disable request authorization
+  // if (!zgw_auth.Auth(req, user->secret_key(access_key_))) {
+  //   ErrorHandle("SignatureDoesNotMatch",
+  //               "The request signature we calculated does not match the signature you provided. Check your key and signing method.",
+  //               "", "",
+  //               resp, 403);
+  //   return;
+  // }
 
   if (req->method == "GET") {
     if (bucket_name.empty()) {
