@@ -78,6 +78,11 @@ class ZgwObject {
   ZgwObjectInfo info_;
   uint32_t strip_len_;
   uint32_t strip_count_;
+
+  // Multipart Upload
+  bool is_partial_;
+  std::string upload_id_; // md5(object_name) + timestamp
+  int part_num_;
 };
 
 }  // namespace libzgw

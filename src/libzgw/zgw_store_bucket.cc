@@ -84,8 +84,7 @@ Status ZgwStore::DelBucket(const std::string &name) {
   return Status::OK();
 }
 
-Status ZgwStore::ListBuckets(NameList *names,
-                             std::vector<ZgwBucket> *buckets) {
+Status ZgwStore::ListBuckets(NameList *names, std::vector<ZgwBucket> *buckets) {
   Status s = zp_->Connect();
   if (!s.ok()) {
     return s;
@@ -108,8 +107,7 @@ Status ZgwStore::ListBuckets(NameList *names,
   return Status::OK();
 }
 
-Status ZgwStore::ListObjects(const std::string &bucket_name,
-                             NameList *names,
+Status ZgwStore::ListObjects(const std::string &bucket_name, NameList *names,
                              std::vector<ZgwObject> *objects) {
   Status s = zp_->Connect();
   if (!s.ok()) {

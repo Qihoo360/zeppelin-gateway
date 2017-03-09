@@ -8,17 +8,20 @@ static const std::string kObjectDataPrefix = "__o";
 static const std::string kObjectDataSep = "__";
 
 ZgwObject::ZgwObject(const std::string& name)
-  :name_(name) {
-  }
+      : name_(name),
+        strip_len_(0),
+        strip_count_(0),
+        is_partial_(false) {
+}
 
 ZgwObject::ZgwObject(const std::string& name, const std::string& content,
-      const ZgwObjectInfo& i, uint32_t strip_len)
-  :name_(name),
-  content_(content),
-  info_(i),
-  strip_len_(strip_len) {
-    strip_count_ = content_.size() / strip_len_ + 1;
-  }
+                     const ZgwObjectInfo& i, uint32_t strip_len)
+      : name_(name),
+        content_(content),
+        info_(i),
+        strip_len_(strip_len) {
+  strip_count_ = content_.size() / strip_len_ + 1;
+}
 
 ZgwObject::~ZgwObject() {
 }
@@ -53,7 +56,9 @@ Status ZgwObjectInfo::ParseMetaValue(std::string *value) {
 }
 
 std::string ZgwObject::MetaKey() const {
-  return kObjectMetaPrefix + name_;
+  std::string multipart_sign = is_partial_ ?
+    (upload_id_ + std::to_string(part_num_)) : "";
+  return kObjectMetaPrefix + name_ + multipart_sign;
 }
 
 std::string ZgwObject::MetaValue() const {
