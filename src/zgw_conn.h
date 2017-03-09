@@ -19,7 +19,8 @@ class ZgwConn : public pink::HttpConn {
   void GetObjectHandle(const pink::HttpRequest* req,
                        std::string &bucket_name,
                        std::string &object_name,
-                       pink::HttpResponse* resp);
+                       pink::HttpResponse* resp,
+                       bool is_head_op = false);
   void PutObjectHandle(const pink::HttpRequest *req,
                        std::string &bucket_name,
                        std::string &object_name,
@@ -30,7 +31,8 @@ class ZgwConn : public pink::HttpConn {
                        pink::HttpResponse* resp);
   void ListObjectHandle(const pink::HttpRequest* req,
                         std::string &bucket_name,
-                        pink::HttpResponse* resp);
+                        pink::HttpResponse* resp,
+                        bool is_head_op = false);
 
   void PutBucketHandle(const pink::HttpRequest* req,
                        std::string &bucket_name,
