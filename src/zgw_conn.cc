@@ -698,19 +698,16 @@ void ZgwConn::PutBucketHandle(const pink::HttpRequest* req,
   libzgw::ZgwUser *user;
   store_->GetUser(access_key_, &user);
   s = store_->AddBucket(bucket_name, user->user_info());
-  if (!s.ok()) {
-    if (s.IsAuthFailed()) {
-      ErrorHandle("InvalidAccessKeyId",
-                  "The access key Id you provided does not exist in our records.",
-                  "", "",
-                  resp, 403);
-    } else if (s.IsIOError()) {
-      resp->SetStatusCode(500);
-      LOG(ERROR) << "Create bucket failed: " << s.ToString();
-    } else {
-      resp->SetStatusCode(409);
-      LOG(ERROR) << "Create bucket failed: " << s.ToString();
-    }
+  if (s.IsAuthFailed()) {
+    ErrorHandle("InvalidAccessKeyId",
+                "The access key Id you provided does not exist in our records.",
+                "", "",
+                resp, 403);
+    s = g_zgw_server->buckets_list()->Unref(store_, access_key_);
+    return;
+  } else if (s.IsIOError()) {
+    resp->SetStatusCode(500);
+    LOG(ERROR) << "Create bucket failed: " << s.ToString();
     s = g_zgw_server->buckets_list()->Unref(store_, access_key_);
     return;
   }
