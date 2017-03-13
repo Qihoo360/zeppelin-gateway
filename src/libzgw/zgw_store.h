@@ -40,7 +40,7 @@ public:
   Status ListBuckets(NameList *names, std::vector<ZgwBucket> *buckets);
   Status DelBucket(const std::string &bucket_name);
   Status ListObjects(const std::string &bucket_name, NameList *names,
-                     std::vector<ZgwObject> *objects);
+                     std::vector<ZgwObject> *objects, bool list_multiupload = false);
   
   // Operation On Objects
   Status AddObject(const std::string &bucket_name, const std::string &object_name,
@@ -48,6 +48,9 @@ public:
   Status GetObject(const std::string &bucket_name, const std::string& object_name,
                    ZgwObject* object);
   Status DelObject(const std::string &bucket_name, const std::string &object_name);
+  Status InitMultiUpload(std::string &bucket_name, std::string &object_name,
+                         std::string *upload_id, std::string *internal_obname,
+                         ZgwUser *user);
 
 private:
   ZgwStore();

@@ -20,8 +20,10 @@ class ZgwConn : public pink::HttpConn {
   void GetObjectHandle(bool is_head_op = false);
   void PutObjectHandle();
   void DelObjectHandle();
+
   void InitialMultiUpload();
   void UploadPartHandle();
+  void ListParts();
   void CompleteMultiUpload();
   void AbortMultiUpload();
 
@@ -29,6 +31,7 @@ class ZgwConn : public pink::HttpConn {
   void PutBucketHandle();
   void DelBucketHandle();
   void ListObjectHandle(bool is_head_op = false);
+  void ListMultiPartsUpload();
 
   // Operation On Service
   void ListBucketHandle();
