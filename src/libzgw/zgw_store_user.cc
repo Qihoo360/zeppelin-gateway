@@ -49,14 +49,14 @@ Status ZgwStore::LoadAllUsers() {
 
   // Load all users
   std::string meta_value;
-  int retry = 10;
+  int retry = 3;
   do {
     sleep(2);
     s = zp_->Get(kUserTableName, user_list_.MetaKey(), &meta_value);
     if (s.ok()) {
       break;
     }
-  } while (retry-- && (s.IsIOError() || s.IsNotSupported()));
+  } while (retry--);
 
   if (!s.ok() && !s.IsNotFound()) {
     return s;

@@ -14,6 +14,7 @@ enum ErrorType {
   BucketNotEmpty,
   NoSuchUpload,
   NotImplemented,
+  BucketAlreadyOwnedByYou,
 };
 
 enum MutilUploadOp {

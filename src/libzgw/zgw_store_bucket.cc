@@ -28,7 +28,7 @@ Status ZgwStore::AddBucket(const std::string &bucket_name,
   int retry = 3;
   bucket.SetUserInfo(user_info);
   do {
-    sleep(2); // waiting zeppelin create partitions
+    sleep(3); // waiting zeppelin create partitions
     s = zp_->Set(bucket.name(), bucket.MetaKey(), bucket.MetaValue());
     if (s.ok()) {
       break;

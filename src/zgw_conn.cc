@@ -43,17 +43,23 @@ ZgwConn::ZgwConn(const int fd,
 }
 
 std::string ZgwConn::GetAccessKey() {
-  std::string auth_str;
-  auto iter = req_->headers.find("authorization");
-  if (iter != req_->headers.end())
-    auth_str.assign(iter->second);
-  else return "";
-  size_t pos = auth_str.find("Credential");
-  if (pos == std::string::npos)
-    return "";
-  size_t slash_pos = auth_str.find('/');
-  // e.g. auth_str: "...Credential=f3oiCCuyE7v3dOZgeEBsa/20170225/us..."
-  return auth_str.substr(pos + 11, slash_pos - pos - 11);
+  if (!req_->query_params["X-Amz-Credential"].empty()) {
+    std::string credential_str = req_->query_params["X-Amz-Credential"];
+    return credential_str.substr(0, 20);
+  } else {
+    std::string auth_str;
+    auto iter = req_->headers.find("authorization");
+    if (iter != req_->headers.end())
+      auth_str.assign(iter->second);
+    else return "";
+    size_t pos = auth_str.find("Credential");
+    if (pos == std::string::npos)
+      return "";
+    size_t slash_pos = auth_str.find('/');
+    // e.g. auth_str: "...Credential=f3oiCCuyE7v3dOZgeEBsa/20170225/us..."
+    return auth_str.substr(pos + 11, slash_pos - pos - 11);
+  }
+  return "";
 }
 
 void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp) {
@@ -85,6 +91,10 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     return;
   } else if (req_->method == "PUT" &&
              bucket_name_ == "admin_put_user") {
+    if (object_name_.empty()) {
+      resp_->SetStatusCode(400);
+      return;
+    }
     std::string access_key;
     std::string secret_key;
     Status s = store_->AddUser(object_name_, &access_key, &secret_key);
@@ -469,6 +479,7 @@ void ZgwConn::PutBucketHandle() {
   // Check whether bucket existed in namelist meta
   if (buckets_name_->IsExist(bucket_name_)) {
     resp_->SetStatusCode(409);
+    resp_->SetBody(xml::ErrorXml(xml::BucketAlreadyOwnedByYou, ""));
     return;
   }
   LOG(INFO) << "ListObjects: " << req_->path << " confirm bucket exist";
