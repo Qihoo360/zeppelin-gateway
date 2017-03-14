@@ -54,7 +54,9 @@ Status ListMap::Ref(ZgwStore *store, const std::string key, NameList **names) {
 Status ListMap::Unref(ZgwStore *store, const std::string &key) {
   ref_lock_.lock();
   if (map_list_.find(key) == map_list_.end()) {
-    return Status::Corruption("Have not call ref on this key");
+    // Ignore
+    ref_lock_.unlock();
+    return Status::OK();
   }
   NameList *nl = map_list_[key];
   nl->ref -= 1;

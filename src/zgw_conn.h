@@ -16,46 +16,61 @@ class ZgwConn : public pink::HttpConn {
   virtual void DealMessage(const pink::HttpRequest* req,
                            pink::HttpResponse* res) override;
 
-  void GetObjectHandle(const pink::HttpRequest* req,
-                       std::string &bucket_name,
-                       std::string &object_name,
-                       pink::HttpResponse* resp);
-  void PutObjectHandle(const pink::HttpRequest *req,
-                       std::string &bucket_name,
-                       std::string &object_name,
-                       pink::HttpResponse* resp);
-  void DelObjectHandle(const pink::HttpRequest* req,
-                       std::string &bucket_name,
-                       std::string &object_name,
-                       pink::HttpResponse* resp);
-  void ListObjectHandle(const pink::HttpRequest* req,
-                        std::string &bucket_name,
-                        pink::HttpResponse* resp);
+  // Operation On Objects
+  void GetObjectHandle(bool is_head_op = false);
+  void PutObjectHandle();
+  void DelObjectHandle();
 
-  void PutBucketHandle(const pink::HttpRequest* req,
-                       std::string &bucket_name,
-                       pink::HttpResponse* resp);
-  void DelBucketHandle(const pink::HttpRequest* req,
-                       std::string &bucket_name,
-                       pink::HttpResponse* resp);
-  void ListBucketHandle(const pink::HttpRequest *req, pink::HttpResponse* resp);
-  void ListUsersHandle(pink::HttpResponse* resp);
+  void InitialMultiUpload();
+  void UploadPartHandle();
+  void ListParts();
+  void CompleteMultiUpload();
+  void AbortMultiUpload();
+
+  // Operation On Buckets
+  void PutBucketHandle();
+  void DelBucketHandle();
+  void ListObjectHandle(bool is_head_op = false);
+  void ListMultiPartsUpload();
+
+  // Operation On Service
+  void ListBucketHandle();
+  void ListUsersHandle();
 
  private:
+  enum METHOD {
+    GET,
+    PUT,
+    DELETE,
+    HEAD,
+    POST,
+    UNSUPPORT,
+  };
+
   ZgwWorkerThread *worker_;
   libzgw::ZgwStore *store_;
-  std::string access_key_;
 
-  Status BucketListRefHandle(libzgw::NameList **buckets_name,
-                             pink::HttpResponse *resp);
-  Status ObjectListRefHandle(std::string &bucket_name,
-                             libzgw::NameList **objects_name,
-                             pink::HttpResponse *resp);
-  void ErrorHandle(std::string code, std::string message,
-                   std::string bucket_name, std::string object_name,
-                   pink::HttpResponse* resp, int resp_code);
-  std::string iso8601_time(time_t sec, suseconds_t usec = 0);
-  std::string GetAccessKey(const pink::HttpRequest* req);
+  // Parse from http request
+  std::string access_key_;
+  pink::HttpRequest *req_;
+  pink::HttpResponse *resp_;
+  std::string bucket_name_;
+  std::string object_name_;
+
+  // Get from zp
+  libzgw::NameList *buckets_name_;
+  libzgw::NameList *objects_name_;
+  libzgw::ZgwUser *zgw_user_;
+
+  std::string GetAccessKey();
+
+  bool IsBucketOp() {
+    return (!bucket_name_.empty() && object_name_.empty());
+  }
+
+  bool IsObjectOp() {
+    return (!bucket_name_.empty() && !object_name_.empty());
+  }
 };
 
 
