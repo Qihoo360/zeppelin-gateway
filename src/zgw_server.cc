@@ -55,7 +55,7 @@ ZgwServer::~ZgwServer() {
 
 Status ZgwServer::Start() {
   Status s;
-  LOG(INFO) << "Waiting for ZgwServerThread Init...";
+  LOG(INFO) << "Waiting for ZgwServerThread Init, About "<< worker_num_ * 10 << "s";
   for (int i = 0; i < worker_num_; i++) {
     s = zgw_worker_thread_[i]->Init(zgw_conf_->zp_meta_ip_ports);
     if (!s.ok()) {

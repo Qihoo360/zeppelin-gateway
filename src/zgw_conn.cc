@@ -168,6 +168,8 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     switch(method) {
       case GET:
         if (req_->query_params.find("uploads") != req_->query_params.end()) {
+          resp_->SetStatusCode(501);
+          return;
           ListMultiPartsUpload();
         } else {
           ListObjectHandle();
@@ -192,7 +194,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
       resp_->SetBody(xml::ErrorXml(xml::NoSuchBucket, bucket_name_));
     } else {
       LOG(INFO) << "Object Op: " << req_->path << " confirm bucket exist";
-      g_zgw_server->object_mutex()->Lock(object_name_);
+      g_zgw_server->object_mutex()->Lock(bucket_name_ + object_name_);
       switch(method) {
         case GET:
           GetObjectHandle();
@@ -209,13 +211,15 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
         case POST:
           if (req_->query_params.find("uploads") != req_->query_params.end()) {
             // Initial MultiPart Upload
+            resp_->SetStatusCode(501);
+            return;
             InitialMultiUpload();
           }
           break;
         default:
           break;
       }
-      g_zgw_server->object_mutex()->Unlock(object_name_);
+      g_zgw_server->object_mutex()->Unlock(bucket_name_ + object_name_);
     }
   } else {
     // Unknow request
@@ -236,14 +240,8 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     return;
   }
 
-  char buf[1000] = {0};
-  time_t now = time(0);
-  struct tm t = *gmtime(&now);
-  strftime(buf, sizeof buf, "%a, %d %b %Y %H:%M:%S %Z", &t);
-  std::string lmt;
-  lmt.assign(buf);
-  resp_->SetHeaders("Last-Modified", lmt);
-  resp_->SetHeaders("Date", lmt);
+  resp_->SetHeaders("Last-Modified", http_nowtime());
+  resp_->SetHeaders("Date", http_nowtime());
 }
 
 void ZgwConn::InitialMultiUpload() {
@@ -456,14 +454,31 @@ void ZgwConn::DelBucketHandle() {
   LOG(INFO) << "DeleteBucket: " << req_->path << " confirm bucket exist";
   // Need not check return value
 
+  Status s;
   if (objects_name_ == NULL || !objects_name_->IsEmpty()) {
+#if 1
     resp_->SetStatusCode(409);
     resp_->SetBody(xml::ErrorXml(xml::BucketNotEmpty, bucket_name_));
     LOG(ERROR) << "DeleteBucket: BucketNotEmpty";
     return;
+#else // for ceph test cases TODO (gaodq)
+    {
+      std::lock_guard<std::mutex> lock(objects_name_->list_lock);
+      for (auto &obname : objects_name_->name_list) {
+        s = store_->DelObject(bucket_name_, obname);
+        if (!s.ok()) {
+          resp_->SetStatusCode(500);
+          LOG(ERROR) << "Delete bucket's objects failed: " << s.ToString();
+          return;
+        }
+        objects_name_->name_list.erase(obname);
+      }
+      objects_name_->dirty = true;
+    }
+#endif
   }
 
-  Status s = store_->DelBucket(bucket_name_);
+  s = store_->DelBucket(bucket_name_);
   if (s.ok()) {
     buckets_name_->Delete(bucket_name_);
     resp_->SetStatusCode(204);
@@ -523,4 +538,12 @@ void ZgwConn::ListBucketHandle() {
   const libzgw::ZgwUserInfo &info = zgw_user_->user_info();
   resp_->SetStatusCode(200);
   resp_->SetBody(xml::ListBucketXml(info, buckets));
+}
+
+std::string ZgwConn::http_nowtime() {
+  char buf[100] = {0};
+  time_t now = time(0);
+  struct tm t = *gmtime(&now);
+  strftime(buf, sizeof buf, "%a, %d %b %Y %H:%M:%S %Z", &t);
+  return std::string(buf);
 }

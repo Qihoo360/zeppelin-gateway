@@ -64,6 +64,7 @@ class ZgwConn : public pink::HttpConn {
   libzgw::ZgwUser *zgw_user_;
 
   std::string GetAccessKey();
+  std::string http_nowtime();
 
   bool IsBucketOp() {
     return (!bucket_name_.empty() && object_name_.empty());

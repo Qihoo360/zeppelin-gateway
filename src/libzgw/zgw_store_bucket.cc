@@ -44,17 +44,15 @@ Status ZgwStore::DelBucket(const std::string &name) {
 Status ZgwStore::ListBuckets(NameList *names, std::vector<ZgwBucket> *buckets) {
   // Get Bucket Meta
   Status s;
-  {
-    std::string value;
-    std::lock_guard<std::mutex> lock(names->list_lock);
-    for (auto& name : names->name_list) {
-      ZgwBucket obucket(name);
-      zp_->Get(kZgwMetaTableName, obucket.MetaKey(), &value);
-      if (!obucket.ParseMetaValue(value).ok()) {
-        continue; // Skip table with not meta info
-      }
-      buckets->push_back(obucket);
+  std::string value;
+  std::lock_guard<std::mutex> lock(names->list_lock);
+  for (auto& name : names->name_list) {
+    ZgwBucket obucket(name);
+    zp_->Get(kZgwMetaTableName, obucket.MetaKey(), &value);
+    if (!obucket.ParseMetaValue(value).ok()) {
+      continue; // Skip table with not meta info
     }
+    buckets->push_back(obucket);
   }
 
   return Status::OK();
