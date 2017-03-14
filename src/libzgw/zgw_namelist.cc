@@ -21,7 +21,7 @@ Status NameList::ParseMetaValue(std::string *value) {
   uint32_t count;
   slash::GetFixed32(value, &count);
   std::string name;
-  for (int i = 0; i < count; i++) {
+  for (uint32_t i = 0; i < count; i++) {
     bool res = slash::GetLengthPrefixedString(value, &name);
     if (!res) {
       return Status::Corruption("Parse name failed");
@@ -78,11 +78,11 @@ Status ListMap::InitNameList(const std::string &key, ZgwStore *store,
   if (key_type_ == kBuckets) {
     // talbe name: kUserTableName
     // meta key: __Buckets_list_<user_name>
-    new_list = new NameList(kUserTableName, kBucketsListPre + key);
+    new_list = new NameList(kBucketsListPre + key);
   } else if (key_type_ == kObjects) {
     // table name: <bucket_name>
     // meta key: __Objects_list_<bucket_name>
-    new_list = new NameList(key, kObjectsListPre + key);
+    new_list = new NameList(kObjectsListPre + key);
   } else {
     return Status::NotSupported("Unknow key type");
   }
@@ -100,7 +100,7 @@ Status ListMap::InitNameList(const std::string &key, ZgwStore *store,
 Status NameList::Load(ZgwStore *store) {
   std::lock_guard<std::mutex> lock(list_lock);
   std::string meta_value;
-  Status s = store->GetNameList(table_name, meta_key, &meta_value);
+  Status s = store->GetNameList(meta_key, &meta_value);
   if (s.ok()) {
     return ParseMetaValue(&meta_value);
   } else if (s.IsNotFound()) {
@@ -112,7 +112,7 @@ Status NameList::Load(ZgwStore *store) {
 Status NameList::Save(ZgwStore *store) {
   std::lock_guard<std::mutex> lock(list_lock);
   if (dirty) {
-    Status s = store->SaveNameList(table_name, meta_key, MetaValue());
+    Status s = store->SaveNameList(meta_key, MetaValue());
     if (!s.ok()) {
       return s;
     }

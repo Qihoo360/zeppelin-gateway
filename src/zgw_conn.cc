@@ -177,8 +177,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
         PutBucketHandle();
         break;
       case DELETE:
-        // DelBucketHandle(req_, bucket_name_, resp_); // TODO (gaodq) 
-        resp_->SetStatusCode(204);
+        DelBucketHandle();
         break;
       case HEAD:
         ListObjectHandle(true);
@@ -193,6 +192,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
       resp_->SetBody(xml::ErrorXml(xml::NoSuchBucket, bucket_name_));
     } else {
       LOG(INFO) << "Object Op: " << req_->path << " confirm bucket exist";
+      g_zgw_server->object_mutex()->Lock(object_name_);
       switch(method) {
         case GET:
           GetObjectHandle();
@@ -215,6 +215,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
         default:
           break;
       }
+      g_zgw_server->object_mutex()->Unlock(object_name_);
     }
   } else {
     // Unknow request
@@ -445,7 +446,6 @@ void ZgwConn::ListObjectHandle(bool is_head_op) {
   resp_->SetStatusCode(200);
 }
 
-// TODO (gaodq) just delete namelist info
 void ZgwConn::DelBucketHandle() {
   LOG(INFO) << "DeleteBucket: " << bucket_name_;
   // Check whether bucket existed in namelist meta
@@ -453,8 +453,15 @@ void ZgwConn::DelBucketHandle() {
     resp_->SetStatusCode(204);
     return;
   }
-  LOG(INFO) << "ListObjects: " << req_->path << " confirm bucket exist";
+  LOG(INFO) << "DeleteBucket: " << req_->path << " confirm bucket exist";
   // Need not check return value
+
+  if (objects_name_ == NULL || !objects_name_->IsEmpty()) {
+    resp_->SetStatusCode(409);
+    resp_->SetBody(xml::ErrorXml(xml::BucketNotEmpty, bucket_name_));
+    LOG(ERROR) << "DeleteBucket: BucketNotEmpty";
+    return;
+  }
 
   Status s = store_->DelBucket(bucket_name_);
   if (s.ok()) {
@@ -462,11 +469,6 @@ void ZgwConn::DelBucketHandle() {
     resp_->SetStatusCode(204);
   } else if (s.IsIOError()) {
     resp_->SetStatusCode(500);
-    LOG(ERROR) << "Delete bucket failed: " << s.ToString();
-  } else {
-    // TODO (gaodq)
-    resp_->SetStatusCode(409);
-    resp_->SetBody(xml::ErrorXml(xml::BucketNotEmpty, bucket_name_));
     LOG(ERROR) << "Delete bucket failed: " << s.ToString();
   }
 
@@ -482,7 +484,7 @@ void ZgwConn::PutBucketHandle() {
     resp_->SetBody(xml::ErrorXml(xml::BucketAlreadyOwnedByYou, ""));
     return;
   }
-  LOG(INFO) << "ListObjects: " << req_->path << " confirm bucket exist";
+  LOG(INFO) << "ListObjects: " << req_->path << " confirm bucket not exist";
 
   // Create bucket in zp
   Status s = store_->AddBucket(bucket_name_, zgw_user_->user_info());

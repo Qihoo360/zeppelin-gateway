@@ -1,9 +1,10 @@
+#include <unistd.h>
 #include "zgw_store.h"
 
 #include "include/slash_string.h"
 
 namespace libzgw {
- 
+
 Status ZgwStore::Open(const std::vector<std::string>& ip_ports, ZgwStore** ptr) {
   *ptr = new ZgwStore();
   assert(*ptr);
@@ -31,8 +32,20 @@ Status ZgwStore::Init(const std::vector<std::string>& ip_ports) {
   zp_ = new libzp::Cluster(zp_option);
   assert(zp_);
 
+  // Create Bucket
+  Status s = zp_->CreateTable(kZgwMetaTableName, kZgwTablePartitionNum);
+  Status s1 = zp_->CreateTable(kZgwDataTableName, kZgwTablePartitionNum);
+  if (s.IsIOError()) {
+    return s;
+  } else if (s1.IsIOError()) {
+    return s1;
+  } else {
+    // Alread create
+  }
+  sleep(10);
+
   // Load all users
-  Status s = LoadAllUsers();
+  s = LoadAllUsers();
   if (!s.ok()) {
     return s;
   }

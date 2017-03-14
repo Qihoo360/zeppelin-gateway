@@ -37,6 +37,7 @@ ZgwServer::ZgwServer(ZgwConfig *zgw_conf)
       kDispatchCronInterval);
   buckets_list_ = new libzgw::ListMap(libzgw::ListMap::kBuckets);
   objects_list_ = new libzgw::ListMap(libzgw::ListMap::kObjects);
+  object_mutex_ = new slash::RecordMutex();
 }
 
 ZgwServer::~ZgwServer() {
@@ -45,11 +46,16 @@ ZgwServer::~ZgwServer() {
     delete zgw_worker_thread_[i];
   }
 
+  delete buckets_list_;
+  delete objects_list_;
+  delete object_mutex_;
+
   LOG(INFO) << "ZgwServerThread " << pthread_self() << " exit!!!";
 }
 
 Status ZgwServer::Start() {
   Status s;
+  LOG(INFO) << "Waiting for ZgwServerThread Init...";
   for (int i = 0; i < worker_num_; i++) {
     s = zgw_worker_thread_[i]->Init(zgw_conf_->zp_meta_ip_ports);
     if (!s.ok()) {
@@ -61,6 +67,7 @@ Status ZgwServer::Start() {
   if (ret != 0) {
     return Status::Corruption("Launch DispatchThread failed");
   }
+  LOG(INFO) << "ZgwServerThread Init Success!";
 
   while (!should_exit_) {
     DoTimingTask();

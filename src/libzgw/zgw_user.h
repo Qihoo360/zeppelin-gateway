@@ -11,8 +11,8 @@
 
 namespace libzgw {
 
-static const std::string kUserTableName = "__zgw_userinfo_table";
-static const int kUserTablePartionNum = 3;
+// static const std::string kUserTableName = "__zgw_userinfo_table";
+// static const int kUserTablePartionNum = 3;
 static const std::string kUserMetaPrefix = "__U__";
 static const std::string kUserListKey = "__ZGW_userlist";
 

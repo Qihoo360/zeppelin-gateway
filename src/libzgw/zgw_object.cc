@@ -6,6 +6,7 @@ namespace libzgw {
 static const std::string kObjectMetaPrefix = "__O__";
 static const std::string kObjectDataPrefix = "__o";
 static const std::string kObjectDataSep = "__";
+static const int kObjectDataStripLen = 1048576; // 1 MB
 
 ZgwObject::ZgwObject(const std::string& name)
       : name_(name),
@@ -16,11 +17,11 @@ ZgwObject::ZgwObject(const std::string& name)
 }
 
 ZgwObject::ZgwObject(const std::string& name, const std::string& content,
-                     const ZgwObjectInfo& i, uint32_t strip_len)
+                     const ZgwObjectInfo& i)
       : name_(name),
         content_(content),
         info_(i),
-        strip_len_(strip_len),
+        strip_len_(kObjectDataStripLen),
         multiparts_done_(true),
         is_partial_(false) {
   strip_count_ = content_.size() / strip_len_ + 1;

@@ -22,14 +22,14 @@ struct ZgwObjectInfo {
   ObjectStorageClass storage_class;
   ZgwUserInfo user;
 
-  ZgwObjectInfo(timeval t, const std::string& et,
-      uint64_t s, ObjectStorageClass c, ZgwUserInfo i)
+  ZgwObjectInfo(timeval t, const std::string& et, uint64_t s,
+                ObjectStorageClass c, ZgwUserInfo i)
     : mtime(t), etag(et), size(s),
-    storage_class(c), user(i) {
+      storage_class(c), user(i) {
   }
   ZgwObjectInfo()
     : size(0),
-    storage_class(ObjectStorageClass::kStandard) {
+      storage_class(ObjectStorageClass::kStandard) {
   }
   std::string MetaValue() const;
   Status ParseMetaValue(std::string *meta_value);
@@ -39,7 +39,7 @@ class ZgwObject {
  public:
   ZgwObject(const std::string& name);
   ZgwObject(const std::string& name, const std::string& content,
-            const ZgwObjectInfo& i, uint32_t strip_len = 8388608 /* 8 MB */);
+            const ZgwObjectInfo& i);
   ~ZgwObject();
 
   std::string name() const {

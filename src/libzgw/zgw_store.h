@@ -14,6 +14,10 @@ using slash::Status;
 
 namespace libzgw {
 
+static const std::string kZgwMetaTableName = "__zgw_meta_table";
+static const std::string kZgwDataTableName = "__zgw_data_table";
+static const int kZgwTablePartitionNum = 3;
+ 
 class NameList;
 class ZgwObjectInfo;
 class ZgwObject;
@@ -29,14 +33,11 @@ public:
                  std::string *access_key, std::string *secret_key);
   Status GetUser(const std::string &access_key, ZgwUser **user);
   Status ListUsers(std::set<ZgwUser *> *user_list);
-  Status SaveNameList(const std::string &table_name, const std::string &meta_key,
-                      const std::string &meta_value);
-  Status GetNameList(const std::string &table_name, const std::string &meta_key,
-                     std::string *meta_value);
+  Status SaveNameList(const std::string &meta_key, const std::string &meta_value);
+  Status GetNameList(const std::string &meta_key, std::string *meta_value);
   
   // Operation On Buckets
-  Status AddBucket(const std::string &bucket_name, ZgwUserInfo user_info,
-                   int partition_num = 3);
+  Status AddBucket(const std::string &bucket_name, ZgwUserInfo user_info);
   Status ListBuckets(NameList *names, std::vector<ZgwBucket> *buckets);
   Status DelBucket(const std::string &bucket_name);
   Status ListObjects(const std::string &bucket_name, NameList *names,

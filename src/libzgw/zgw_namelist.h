@@ -17,10 +17,9 @@ class ZgwStore;
 
 class NameList {
 public:
-  explicit NameList(const std::string &table_name, std::string key)
+  explicit NameList(std::string key)
       : dirty(false),
-        meta_key(key),
-        table_name(table_name) {
+        meta_key(key) {
   }
 
   Status Load(ZgwStore *store);
@@ -34,6 +33,10 @@ public:
     return (name_list.find(value) != name_list.end());
   }
 
+  bool IsEmpty() {
+    return name_list.empty();
+  }
+
   std::string MetaValue() const;
 
   Status ParseMetaValue(std::string *meta_value);
@@ -42,7 +45,6 @@ public:
   int ref;
   std::mutex list_lock;
   std::string meta_key;
-  std::string table_name;
   std::set<std::string> name_list;
 };
 

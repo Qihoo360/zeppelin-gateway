@@ -7,36 +7,18 @@
 
 namespace libzgw {
  
-Status ZgwStore::AddBucket(const std::string &bucket_name,
-                           ZgwUserInfo user_info, int partition_num) {
+Status ZgwStore::AddBucket(const std::string &bucket_name, ZgwUserInfo user_info) {
   ZgwBucket bucket(bucket_name);
-
-  // Create Bucket
-  Status s = zp_->CreateTable(bucket.name(), partition_num);
-  if (s.IsIOError()) {
-    return s;
-  } else {
-    // Alread create, but not found in user meta, continue
-  }
 
   // Add Bucket Meta
   int retry = 3;
   bucket.SetUserInfo(user_info);
-  do {
-    sleep(3); // waiting zeppelin create partitions
-    s = zp_->Set(bucket.name(), bucket.MetaKey(), bucket.MetaValue());
-    if (s.ok()) {
-      break;
-    }
-  } while (retry--);
-
-  return s;
+  return zp_->Set(kZgwMetaTableName, bucket.MetaKey(), bucket.MetaValue());
 }
 
-Status ZgwStore::SaveNameList(const std::string &table_name,
-                              const std::string &meta_key,
+Status ZgwStore::SaveNameList(const std::string &meta_key,
                               const std::string &meta_value) {
-  Status s = zp_->Set(table_name, meta_key, meta_value);
+  Status s = zp_->Set(kZgwMetaTableName, meta_key, meta_value);
   if (!s.ok()) {
     return s;
   }
@@ -44,11 +26,10 @@ Status ZgwStore::SaveNameList(const std::string &table_name,
   return Status::OK();
 }
 
-Status ZgwStore::GetNameList(const std::string &table_name,
-                             const std::string &meta_key,
+Status ZgwStore::GetNameList(const std::string &meta_key,
                              std::string *meta_value) {
   std::string value;
-  Status s = zp_->Get(table_name, meta_key, meta_value);
+  Status s = zp_->Get(kZgwMetaTableName, meta_key, meta_value);
   if (!s.ok()) {
     return s;
   }
@@ -57,11 +38,7 @@ Status ZgwStore::GetNameList(const std::string &table_name,
 }
 
 Status ZgwStore::DelBucket(const std::string &name) {
-  // Check whether is empty bucket
-
-  // TODO wangkang-xy Delete Bucket
-
-  return Status::OK();
+  return zp_->Delete(kZgwMetaTableName, ZgwBucket(name).MetaKey());
 }
 
 Status ZgwStore::ListBuckets(NameList *names, std::vector<ZgwBucket> *buckets) {
@@ -72,7 +49,7 @@ Status ZgwStore::ListBuckets(NameList *names, std::vector<ZgwBucket> *buckets) {
     std::lock_guard<std::mutex> lock(names->list_lock);
     for (auto& name : names->name_list) {
       ZgwBucket obucket(name);
-      zp_->Get(name, obucket.MetaKey(), &value);
+      zp_->Get(kZgwMetaTableName, obucket.MetaKey(), &value);
       if (!obucket.ParseMetaValue(value).ok()) {
         continue; // Skip table with not meta info
       }
@@ -93,7 +70,7 @@ Status ZgwStore::ListObjects(const std::string &bucket_name, NameList *names,
       continue;
     }
     ZgwObject ob(object_name);
-    s = zp_->Get(bucket_name, ob.MetaKey(), &meta_value);
+    s = zp_->Get(kZgwMetaTableName, bucket_name + ob.MetaKey(), &meta_value);
     if (!s.ok()) {
       return s;
     }
@@ -114,11 +91,8 @@ Status ZgwStore::ListObjects(const std::string &bucket_name, NameList *names,
 Status ZgwStore::InitMultiUpload(std::string &bucket_name, std::string &object_name,
                                  std::string *upload_id, std::string *internal_obname,
                                  ZgwUser *user) {
-  Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
+  Status s;
+  // TODO (gaodq)
   // Create virtual object
   timeval now;
   gettimeofday(&now, NULL);
