@@ -8,11 +8,7 @@
 namespace libzgw {
 
 Status ZgwStore::BuildMap() {
-  Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
+  Status s;
   std::string meta_value;
   for (auto &name : user_list_.users_name) {
     ZgwUser *user = new ZgwUser(name);
@@ -35,13 +31,8 @@ Status ZgwStore::BuildMap() {
 }
 
 Status ZgwStore::LoadAllUsers() {
-  Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
   // Create user infomation table if not exist
-  s = zp_->CreateTable(kUserTableName, kUserTablePartionNum);
+  Status s = zp_->CreateTable(kUserTableName, kUserTablePartionNum);
   if (s.IsIOError()) {
     // Can not create user infomation table
     return s;
@@ -73,11 +64,6 @@ Status ZgwStore::LoadAllUsers() {
 Status ZgwStore::AddUser(const std::string &user_name,
                          std::string *access_key,
                          std::string *secret_key) {
-  Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
   // Return if user exists
   if (user_list_.users_name.find(user_name) !=
       user_list_.users_name.end()) {
@@ -86,18 +72,21 @@ Status ZgwStore::AddUser(const std::string &user_name,
 
   // Create user
   ZgwUser *user = new ZgwUser(user_name);
-  s = user->GenKeyPair(access_key, secret_key);
+  Status s = user->GenKeyPair(access_key, secret_key);
   if (!s.ok()) {
     return s;
   }
-  // Insert into memory
-  user_list_.users_name.insert(user_name);
-  access_key_user_map_[*access_key] = user;
+  
   // Dump to zeppelin
   s = zp_->Set(kUserTableName, user_list_.MetaKey(), user_list_.MetaValue());
   if (!s.ok()) {
     return s;
   }
+
+  // Insert into memory
+  user_list_.users_name.insert(user_name);
+  access_key_user_map_[*access_key] = user;
+
   return zp_->Set(kUserTableName, user->MetaKey(), user->MetaValue());
 }
 

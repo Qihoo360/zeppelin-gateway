@@ -9,15 +9,10 @@ namespace libzgw {
  
 Status ZgwStore::AddBucket(const std::string &bucket_name,
                            ZgwUserInfo user_info, int partition_num) {
-  Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
   ZgwBucket bucket(bucket_name);
 
   // Create Bucket
-  s = zp_->CreateTable(bucket.name(), partition_num);
+  Status s = zp_->CreateTable(bucket.name(), partition_num);
   if (s.IsIOError()) {
     return s;
   } else {
@@ -41,12 +36,7 @@ Status ZgwStore::AddBucket(const std::string &bucket_name,
 Status ZgwStore::SaveNameList(const std::string &table_name,
                               const std::string &meta_key,
                               const std::string &meta_value) {
-  Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
-  s = zp_->Set(table_name, meta_key, meta_value);
+  Status s = zp_->Set(table_name, meta_key, meta_value);
   if (!s.ok()) {
     return s;
   }
@@ -57,13 +47,8 @@ Status ZgwStore::SaveNameList(const std::string &table_name,
 Status ZgwStore::GetNameList(const std::string &table_name,
                              const std::string &meta_key,
                              std::string *meta_value) {
-  Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
   std::string value;
-  s = zp_->Get(table_name, meta_key, meta_value);
+  Status s = zp_->Get(table_name, meta_key, meta_value);
   if (!s.ok()) {
     return s;
   }
@@ -72,11 +57,6 @@ Status ZgwStore::GetNameList(const std::string &table_name,
 }
 
 Status ZgwStore::DelBucket(const std::string &name) {
-  Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
   // Check whether is empty bucket
 
   // TODO wangkang-xy Delete Bucket
@@ -86,12 +66,8 @@ Status ZgwStore::DelBucket(const std::string &name) {
 
 Status ZgwStore::ListBuckets(NameList *names,
                              std::vector<ZgwBucket> *buckets) {
-  Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
   // Get Bucket Meta
+  Status s;
   {
     std::string value;
     std::lock_guard<std::mutex> lock(names->list_lock);
@@ -111,11 +87,7 @@ Status ZgwStore::ListBuckets(NameList *names,
 Status ZgwStore::ListObjects(const std::string &bucket_name,
                              NameList *names,
                              std::vector<ZgwObject> *objects) {
-  Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
+  Status s;
   {
     std::string meta_value;
     std::lock_guard<std::mutex> lock(names->list_lock);

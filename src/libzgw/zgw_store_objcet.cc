@@ -11,14 +11,10 @@ Status ZgwStore::AddObject(const std::string &bucket_name,
                            const std::string &object_name,
                            const ZgwObjectInfo& info,
                            const std::string &content) {
-  Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
   libzgw::ZgwObject object(object_name, content, info);
 
   // Set Object Data
+  Status s;
   std::string dvalue;
   uint32_t index = 0, iter = 0;
   while (!(dvalue = object.NextDataStrip(&iter)).empty()) {
@@ -50,15 +46,10 @@ Status ZgwStore::AddObject(const std::string &bucket_name,
 
 Status ZgwStore::DelObject(const std::string &bucket_name,
                            const std::string &object_name) {
-  Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
-
   // Check meta exist
   ZgwObject object(object_name);
   std::string ob_meta_value;
-  s = zp_->Get(bucket_name, object.MetaKey(), &ob_meta_value);
+  Status s = zp_->Get(bucket_name, object.MetaKey(), &ob_meta_value);
   if (!s.ok()) {
     return s;
   }
@@ -85,15 +76,11 @@ Status ZgwStore::DelObject(const std::string &bucket_name,
 
 Status ZgwStore::GetObject(const std::string &bucket_name,
                            const std::string& object_name, ZgwObject* object) {
-  Status s = zp_->Connect();
-  if (!s.ok()) {
-    return s;
-  }
   object->SetName(object_name);
 
   // Get Object
   std::string meta_value;
-  s = zp_->Get(bucket_name, object->MetaKey(), &meta_value);
+  Status s = zp_->Get(bucket_name, object->MetaKey(), &meta_value);
   if (!s.ok()) {
     return s;
   }
