@@ -448,7 +448,8 @@ void ZgwConn::DelBucketHandle() {
   LOG(INFO) << "DeleteBucket: " << bucket_name_;
   // Check whether bucket existed in namelist meta
   if (!buckets_name_->IsExist(bucket_name_)) {
-    resp_->SetStatusCode(204);
+    resp_->SetStatusCode(404);
+    resp_->SetBody(xml::ErrorXml(xml::NoSuchBucket, bucket_name_));
     return;
   }
   LOG(INFO) << "DeleteBucket: " << req_->path << " confirm bucket exist";
