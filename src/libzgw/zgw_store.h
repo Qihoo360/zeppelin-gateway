@@ -16,7 +16,7 @@ namespace libzgw {
 
 static const std::string kZgwMetaTableName = "__zgw_meta_table";
 static const std::string kZgwDataTableName = "__zgw_data_table";
-static const int kZgwTablePartitionNum = 3;
+static const int kZgwTablePartitionNum = 10;
  
 class NameList;
 class ZgwObjectInfo;

@@ -32,9 +32,31 @@ Status ZgwStore::Init(const std::vector<std::string>& ip_ports) {
   zp_ = new libzp::Cluster(zp_option);
   assert(zp_);
 
-  // Create Bucket
-  Status s = zp_->CreateTable(kZgwMetaTableName, kZgwTablePartitionNum);
-  Status s1 = zp_->CreateTable(kZgwDataTableName, kZgwTablePartitionNum);
+  // Find meta and data tables
+  std::vector<std::string> tables;
+  bool meta_table_found = false;
+  bool data_table_found = false;
+  Status s = zp_->ListTable(&tables);
+  if (!s.ok()) {
+    return s;
+  }
+  for (auto &table : tables) {
+    if (table == kZgwMetaTableName) {
+      meta_table_found = true;
+    }
+    if (table == kZgwDataTableName) {
+      data_table_found = true;
+    }
+  }
+  // Create Bucket if not exist
+  Status s1 = Status::OK();
+  s = Status::OK();
+  if (!meta_table_found) {
+    s = zp_->CreateTable(kZgwMetaTableName, kZgwTablePartitionNum);
+  }
+  if (!data_table_found) {
+    s1 = zp_->CreateTable(kZgwDataTableName, kZgwTablePartitionNum);
+  }
   if (s.IsIOError()) {
     return s;
   } else if (s1.IsIOError()) {
@@ -42,7 +64,10 @@ Status ZgwStore::Init(const std::vector<std::string>& ip_ports) {
   } else {
     // Alread create
   }
-  sleep(10);
+  if (!meta_table_found || !data_table_found) {
+    // Waiting for table created
+    sleep(10);
+  }
 
   // Load all users
   s = LoadAllUsers();
