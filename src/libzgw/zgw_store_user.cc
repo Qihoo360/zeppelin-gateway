@@ -70,17 +70,25 @@ Status ZgwStore::AddUser(const std::string &user_name,
     return s;
   }
   
-  // Insert into memory
-  user_list_.users_name.insert(user_name);
-  access_key_user_map_[*access_key] = user;
-
-  // Dump to zeppelin
-  s = zp_->Set(kZgwMetaTableName, user_list_.MetaKey(), user_list_.MetaValue());
+  // Dump user to zeppelin
+  s = zp_->Set(kZgwMetaTableName, user->MetaKey(), user->MetaValue());
   if (!s.ok()) {
     return s;
   }
 
-  return zp_->Set(kZgwMetaTableName, user->MetaKey(), user->MetaValue());
+  // Insert into memory
+  access_key_user_map_[*access_key] = user;
+  user_list_.users_name.insert(user_name);
+
+  // Dump list to zeppelin
+  s = zp_->Set(kZgwMetaTableName, user_list_.MetaKey(), user_list_.MetaValue());
+  if (!s.ok()) {
+    user_list_.users_name.erase(user_name);
+    access_key_user_map_.erase(*access_key);
+    return s;
+  }
+
+  return s;
 }
 
 Status ZgwStore::GetUser(const std::string &access_key, ZgwUser **user) {

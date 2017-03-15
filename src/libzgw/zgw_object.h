@@ -90,6 +90,10 @@ class ZgwObject {
     upload_id_ = v;
   }
 
+  std::set<uint32_t> &part_nums() {
+    return part_nums_;
+  }
+
   // Serialization
   std::string MetaKey() const;
   std::string MetaValue() const;
@@ -110,7 +114,7 @@ class ZgwObject {
   // Multipart Upload
   // for virtual object
   bool multiparts_done_;
-  std::set<int> part_nums_;
+  std::set<uint32_t> part_nums_;
   std::string upload_id_; // md5(object_name) + timestamp
   // for object part
   bool is_partial_;

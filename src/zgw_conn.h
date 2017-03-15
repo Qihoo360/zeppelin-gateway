@@ -26,7 +26,7 @@ class ZgwConn : public pink::HttpConn {
   void UploadPartHandle();
   void ListParts();
   void CompleteMultiUpload();
-  void AbortMultiUpload();
+  void AbortMultiUpload(const std::string &upload_id);
 
   // Operation On Buckets
   void PutBucketHandle();

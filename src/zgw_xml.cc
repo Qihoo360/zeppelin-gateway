@@ -25,6 +25,20 @@ std::string ErrorXml(ErrorType etype, std::string extra_info) {
   doc.append_node(error);
 
   switch(etype) {
+    case NoSuchUpload:
+      error->append_node(doc.allocate_node(node_element, "Code", "NoSuchUpload"));
+      error->append_node(doc.allocate_node(node_element, "Message", "The specified upload does not "
+                                           "exist. The upload ID may be invalid, or the upload may "
+                                           "have been aborted or completed."));
+      error->append_node(doc.allocate_node(node_element, "UploadId", extra_info.c_str()));
+      break;
+    case BucketAlreadyExists:
+      error->append_node(doc.allocate_node(node_element, "Code", "BucketAlreadyExists"));
+      error->append_node(doc.allocate_node(node_element, "Message", "The requested bucket "
+                                           "name is not available. The bucket namespace is "
+                                           "shared by all users of the system. Please select "
+                                           "a different name and try again."));
+      break;
     case BucketAlreadyOwnedByYou:
       error->append_node(doc.allocate_node(node_element, "Code", "BucketAlreadyOwnedByYou"));
       error->append_node(doc.allocate_node(node_element, "Message", "Your previous request "
@@ -247,7 +261,7 @@ std::string ListMultipartUploadsResultXml(const std::vector<libzgw::ZgwObject> &
     const libzgw::ZgwObjectInfo &info = object.info();
     const libzgw::ZgwUserInfo &user = info.user;
     std::string name = object.name();
-    keys.push_back(name.substr(0, name.size() - 32));
+    keys.push_back(name.substr(2, name.size() - 32 - 2));
     xml_node<> *upload = doc.allocate_node(node_element, "Upload");
     upload->append_node(doc.allocate_node(node_element, "Key", keys.back().c_str()));
     upload->append_node(doc.allocate_node(node_element, "UploadId", object.upload_id().c_str()));

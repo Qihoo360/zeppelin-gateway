@@ -54,6 +54,17 @@ Status ZgwStore::DelObject(const std::string &bucket_name,
     return s;
   }
 
+  // Delete subobject if it was a multipart object
+  if (!object.part_nums().empty()) {
+    for (uint32_t n : object.part_nums()) {
+      std::string subobject_name = "__#" + std::to_string(n) + object_name;
+      s = DelObject(bucket_name, subobject_name);
+      if (!s.ok()) {
+        return s;
+      }
+    }
+  }
+
   // Delete Object Meta
   s = zp_->Delete(kZgwMetaTableName, bucket_name + object.MetaKey());
   if (!s.ok()) {
@@ -102,6 +113,30 @@ Status ZgwStore::GetObject(const std::string &bucket_name,
     object->ParseNextStrip(&cvalue);
   }
   return Status::OK();
+}
+
+// Similar to AddObject
+Status ZgwStore::InitMultiUpload(std::string &bucket_name, std::string &object_name,
+                                 std::string *upload_id, std::string *internal_obname,
+                                 ZgwUser *user) {
+  Status s;
+  timeval now;
+  gettimeofday(&now, NULL);
+  ZgwObjectInfo ob_info(now, "", 0, kStandard, user->user_info());
+  std::string tmp_obname = object_name + std::to_string(time(NULL));
+  upload_id->assign(slash::md5(tmp_obname));;
+  internal_obname->assign("__" + object_name + *upload_id);
+  ZgwObject object(*internal_obname);
+  object.SetObjectInfo(ob_info);
+  object.SetMultiPartsDone(false);
+  object.SetUploadId(*upload_id);
+
+  s = zp_->Set(kZgwMetaTableName, bucket_name + object.MetaKey(), object.MetaValue());
+  if (!s.ok()) {
+    return s;
+  }
+
+  return s;
 }
 
 }  // namespace libzgw

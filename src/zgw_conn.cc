@@ -83,6 +83,9 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     bucket_name_.assign(path.substr(1, pos - 1));
     object_name_.assign(path.substr(pos + 1));
   }
+  if (object_name_.back() == '/') {
+    object_name_.resize(object_name_.size() - 1);
+  }
 
   // Users operation, without authorization for now
   if (req_->method == "GET" &&
@@ -128,11 +131,12 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   // }
 
   // Get buckets namelist and ref
-  s = g_zgw_server->buckets_list()->Ref(store_, access_key_, &buckets_name_);
+  auto const &info = zgw_user_->user_info();
+  s = g_zgw_server->buckets_list()->Ref(store_, info.disply_name, &buckets_name_);
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "List buckets name list failed: " << s.ToString();
-    s = g_zgw_server->buckets_list()->Unref(store_, access_key_);
+    s = g_zgw_server->buckets_list()->Unref(store_, info.disply_name);
     return;
   }
 
@@ -142,7 +146,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     if (!s.ok()) {
       resp_->SetStatusCode(500);
       LOG(ERROR) << "List objects name list failed: " << s.ToString();
-      s = g_zgw_server->buckets_list()->Unref(store_, access_key_);
+      s = g_zgw_server->buckets_list()->Unref(store_, info.disply_name);
       return;
     }
   }
@@ -168,8 +172,6 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     switch(method) {
       case GET:
         if (req_->query_params.find("uploads") != req_->query_params.end()) {
-          resp_->SetStatusCode(501);
-          return;
           ListMultiPartsUpload();
         } else {
           ListObjectHandle();
@@ -203,7 +205,11 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
           PutObjectHandle();
           break;
         case DELETE:
-          DelObjectHandle();
+          if (req_->query_params.find("uploadId") != req_->query_params.end()) {
+            AbortMultiUpload(req_->query_params["uploadId"]);
+          } else {
+            DelObjectHandle();
+          }
           break;
         case HEAD:
           GetObjectHandle(true);
@@ -211,8 +217,6 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
         case POST:
           if (req_->query_params.find("uploads") != req_->query_params.end()) {
             // Initial MultiPart Upload
-            resp_->SetStatusCode(501);
-            return;
             InitialMultiUpload();
           }
           break;
@@ -230,7 +234,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
 
   // Unref namelist
   Status s1 = Status::OK();
-  s = g_zgw_server->buckets_list()->Unref(store_, access_key_);
+  s = g_zgw_server->buckets_list()->Unref(store_, info.disply_name);
   if (!bucket_name_.empty()) {
     s1 = g_zgw_server->objects_list()->Unref(store_, bucket_name_);
   }
@@ -269,7 +273,30 @@ void ZgwConn::UploadPartHandle() {
 void ZgwConn::CompleteMultiUpload() {
 }
 
-void ZgwConn::AbortMultiUpload() {
+void ZgwConn::AbortMultiUpload(const std::string &upload_id) {
+  std::string internal_obname = "__" + object_name_ + upload_id;
+  if (!objects_name_->IsExist(internal_obname)) {
+    resp_->SetStatusCode(404);
+    resp_->SetBody(xml::ErrorXml(xml::NoSuchUpload, upload_id));
+    return;
+  }
+
+  Status s = store_->DelObject(bucket_name_, internal_obname);
+  if (!s.ok()) {
+    if (s.IsNotFound()) {
+      // But founded in list meta, continue to delete from list meta
+    } else {
+      resp_->SetStatusCode(500);
+      LOG(ERROR) << "AbortMultiUpload failed: " << s.ToString();
+      return;
+    }
+  }
+
+  objects_name_->Delete(internal_obname);
+  LOG(INFO) << "AbortMultiUpload: " << req_->path << " confirm delete object meta from namelist success";
+
+  // Success
+  resp_->SetStatusCode(204);
 }
 
 void ZgwConn::ListParts() {
@@ -295,7 +322,9 @@ void ZgwConn::ListMultiPartsUpload() {
 
   std::map<std::string, std::string> args;
   args["Bucket"] = bucket_name_;
-  args["NextKeyMarker"] = objects.empty() ? "" : objects.back().name();
+  std::string next_key_marker = objects.empty() ? "" : objects.back().name();
+  args["NextKeyMarker"] = next_key_marker.empty() ? "" :
+    next_key_marker.substr(2, next_key_marker.size() - 32 - 2);
   args["NextUploadIdMarker"] = objects.empty() ? "" : objects.back().upload_id();
   args["MaxUploads"] = "1000";
   args["IsTruncated"] = "false"; // TODO (gaodq)
@@ -457,12 +486,11 @@ void ZgwConn::DelBucketHandle() {
 
   Status s;
   if (objects_name_ == NULL || !objects_name_->IsEmpty()) {
-#if 1
     resp_->SetStatusCode(409);
     resp_->SetBody(xml::ErrorXml(xml::BucketNotEmpty, bucket_name_));
     LOG(ERROR) << "DeleteBucket: BucketNotEmpty";
     return;
-#else // for ceph test cases TODO (gaodq)
+#if 0// for ceph test cases TODO (gaodq)
     {
       std::lock_guard<std::mutex> lock(objects_name_->list_lock);
       for (auto &obname : objects_name_->name_list) {
@@ -500,10 +528,44 @@ void ZgwConn::PutBucketHandle() {
     resp_->SetBody(xml::ErrorXml(xml::BucketAlreadyOwnedByYou, ""));
     return;
   }
+
+  // Check whether belong to other user
+  std::set<libzgw::ZgwUser *> user_list; // name : keys
+  Status s = store_->ListUsers(&user_list);
+  if (!s.ok()) {
+    resp_->SetStatusCode(500);
+    LOG(ERROR) << "Create bucket failed: " << s.ToString();
+  }
+  libzgw::NameList *tmp_bk_list;
+  bool already_exist = false;
+  for (auto user : user_list) {
+    const auto &info = user->user_info();
+    s = g_zgw_server->buckets_list()->Ref(store_, info.disply_name, &tmp_bk_list);
+    if (!s.ok()) {
+      resp_->SetStatusCode(500);
+      LOG(ERROR) << "Create bucket failed: " << s.ToString();
+      return;
+    }
+    if (tmp_bk_list->IsExist(bucket_name_)) {
+      already_exist = true;
+    }
+    s = g_zgw_server->buckets_list()->Unref(store_, info.disply_name);
+    if (!s.ok()) {
+      resp_->SetStatusCode(500);
+      LOG(ERROR) << "Create bucket failed: " << s.ToString();
+      return;
+    }
+    if (already_exist) {
+      resp_->SetStatusCode(409);
+      resp_->SetBody(xml::ErrorXml(xml::BucketAlreadyExists, ""));
+      return;
+    }
+  }
+
   LOG(INFO) << "ListObjects: " << req_->path << " confirm bucket not exist";
 
   // Create bucket in zp
-  Status s = store_->AddBucket(bucket_name_, zgw_user_->user_info());
+  s = store_->AddBucket(bucket_name_, zgw_user_->user_info());
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "Create bucket failed: " << s.ToString();
