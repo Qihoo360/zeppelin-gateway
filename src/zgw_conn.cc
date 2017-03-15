@@ -83,6 +83,9 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     bucket_name_.assign(path.substr(1, pos - 1));
     object_name_.assign(path.substr(pos + 1));
   }
+  if (object_name_.back() == '/') {
+    object_name_.resize(object_name_.size() - 1);
+  }
 
   // Users operation, without authorization for now
   if (req_->method == "GET" &&
