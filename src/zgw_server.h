@@ -47,7 +47,7 @@ class ZgwServer {
     return buckets_list_;
   }
   slash::RecordMutex *object_mutex() {
-    return object_mutex_;
+    return &object_mutex_;
   }
   void Exit() {
     should_exit_ = true;
@@ -65,7 +65,7 @@ class ZgwServer {
   pink::DispatchThread<ZgwConn> *zgw_dispatch_thread_;
   libzgw::ListMap *buckets_list_;
   libzgw::ListMap *objects_list_;
-  slash::RecordMutex *object_mutex_;
+  slash::RecordMutex object_mutex_;
 
   void DoTimingTask();
 };

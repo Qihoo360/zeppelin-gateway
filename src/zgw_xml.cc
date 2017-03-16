@@ -1,4 +1,3 @@
-#include "zgw_store.h"
 #include "zgw_xml.h"
 
 #include "rapidxml.hpp"
@@ -11,6 +10,9 @@ using namespace rapidxml;
 
 const std::string xml_header = "xml version='1.0' encoding='utf-8'";
 const std::string xml_ns = "http://s3.amazonaws.com/doc/2006-03-01/";
+
+inline std::string ExtraParNum(std::string, std::string);
+std::string iso8601_time(time_t, suseconds_t);
 
 // Error XML Parser
 std::string ErrorXml(ErrorType etype, std::string extra_info) {
@@ -249,11 +251,9 @@ std::string ListMultipartUploadsResultXml(const std::vector<libzgw::ZgwObject> &
   rnode->append_attribute(attr);
   doc.append_node(rnode);
 
-  rnode->append_node(doc.allocate_node(node_element, "Bucket", args["Bucket"].c_str()));
-  rnode->append_node(doc.allocate_node(node_element, "NextKeyMarker", args["NextKeyMarker"].c_str()));
-  rnode->append_node(doc.allocate_node(node_element, "NextUploadIdMarker", args["NextUploadIdMarker"].c_str()));
-  rnode->append_node(doc.allocate_node(node_element, "MaxUploads", args["MaxUploads"].c_str()));
-  rnode->append_node(doc.allocate_node(node_element, "IsTruncated", args["IsTruncated"].c_str()));
+  for (auto &it : args) {
+    rnode->append_node(doc.allocate_node(node_element, it.first.c_str(), it.second.c_str()));
+  }
 
   std::vector<std::string> cdates;
   std::vector<std::string> keys;
@@ -288,6 +288,63 @@ std::string ListMultipartUploadsResultXml(const std::vector<libzgw::ZgwObject> &
   std::string res_xml;
   print(std::back_inserter(res_xml), doc, 0);
   return res_xml;
+}
+
+std::string ListPartsResultXml(const std::vector<libzgw::ZgwObject> &objects,
+                               libzgw::ZgwUser *user, std::map<std::string, std::string> &args) {
+  // <Root>
+  xml_document<> doc;
+  xml_node<> *rot =
+    doc.allocate_node(node_pi, doc.allocate_string(xml_header.c_str()));
+  doc.append_node(rot);
+
+  xml_attribute<> *attr = doc.allocate_attribute("xmlns", xml_ns.c_str());
+
+  xml_node<> *rnode = doc.allocate_node(node_element, "ListMultipartUploadsResult");
+  rnode->append_attribute(attr);
+  doc.append_node(rnode);
+
+  for (auto &it : args) {
+    rnode->append_node(doc.allocate_node(node_element, it.first.c_str(), it.second.c_str()));
+  }
+
+  const libzgw::ZgwUserInfo &user_info = user->user_info();
+  xml_node<> *id = doc.allocate_node(node_element, "ID", user_info.user_id.data());
+  xml_node<> *disply_name = doc.allocate_node(node_element, "DisplayName", user_info.disply_name.data());
+  xml_node<> *id1 = doc.allocate_node(node_element, "ID", user_info.user_id.data());
+  xml_node<> *disply_name1 = doc.allocate_node(node_element, "DisplayName", user_info.disply_name.data());
+  xml_node<> *initiator = doc.allocate_node(node_element, "Initiator");
+  xml_node<> *owner = doc.allocate_node(node_element, "Owner");
+  initiator->append_node(id);
+  initiator->append_node(disply_name);
+  owner->append_node(id1);
+  owner->append_node(disply_name1);
+  rnode->append_node(initiator);
+  rnode->append_node(owner);
+
+  std::vector<std::string> size;
+  std::vector<std::string> part_num;
+  std::vector<std::string> last_modified;
+  for (auto &object : objects) {
+    const libzgw::ZgwObjectInfo &info = object.info();
+    part_num.push_back(ExtraParNum(args["Key"], object.name()));
+    xml_node<> *part = doc.allocate_node(node_element, "Part");
+    part->append_node(doc.allocate_node(node_element, "PartNumber", part_num.back().c_str()));
+    last_modified.push_back(iso8601_time(info.mtime.tv_sec, info.mtime.tv_usec));
+    part->append_node(doc.allocate_node(node_element, "LastModified", last_modified.back().c_str()));
+    part->append_node(doc.allocate_node(node_element, "ETag", info.etag.c_str()));
+    size.push_back(std::to_string(info.size));
+    part->append_node(doc.allocate_node(node_element, "Size", size.back().c_str()));
+    rnode->append_node(part);
+  }
+
+  std::string res_xml;
+  print(std::back_inserter(res_xml), doc, 0);
+  return res_xml;
+}
+
+inline std::string ExtraParNum(std::string object_name, std::string subobject_name) {
+  return subobject_name.substr(3, subobject_name.size() - 32 - object_name.size());
 }
 
 std::string iso8601_time(time_t sec, suseconds_t usec) {

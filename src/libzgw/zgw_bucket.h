@@ -40,7 +40,6 @@ class ZgwBucket {
   timeval ctime_;
 };
 
-
-}
+}  // namespace libzgw
 
 #endif

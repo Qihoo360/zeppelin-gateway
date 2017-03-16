@@ -7,27 +7,23 @@ static const std::string kObjectMetaPrefix = "__O__";
 static const std::string kObjectDataPrefix = "__o";
 static const std::string kObjectDataSep = "__";
 static const int kObjectDataStripLen = 1048576; // 1 MB
+extern std::string kBucketMetaPrefix;
 
-ZgwObject::ZgwObject(const std::string& name)
-      : name_(name),
+ZgwObject::ZgwObject(const std::string& bucket_name, const std::string& name)
+      : bucket_name_(bucket_name),
+        name_(name),
         strip_len_(0),
-        strip_count_(0),
-        multiparts_done_(true),
-        is_partial_(false) {
+        strip_count_(0) {
 }
 
-ZgwObject::ZgwObject(const std::string& name, const std::string& content,
-                     const ZgwObjectInfo& i)
-      : name_(name),
+ZgwObject::ZgwObject(const std::string& bucket_name, const std::string& name,
+                     const std::string& content, const ZgwObjectInfo& i)
+      : bucket_name_(bucket_name),
+        name_(name),
         content_(content),
         info_(i),
-        strip_len_(kObjectDataStripLen),
-        multiparts_done_(true),
-        is_partial_(false) {
+        strip_len_(kObjectDataStripLen) {
   strip_count_ = content_.size() / strip_len_ + 1;
-}
-
-ZgwObject::~ZgwObject() {
 }
 
 std::string ZgwObjectInfo::MetaValue() const {
@@ -63,24 +59,17 @@ Status ZgwObjectInfo::ParseMetaValue(std::string *value) {
 }
 
 std::string ZgwObject::MetaKey() const {
-  std::string multipart_sign = is_partial_ ? std::to_string(part_num_) : "";
-  return kObjectMetaPrefix + name_ + multipart_sign;
+  return kBucketMetaPrefix + bucket_name_ + kObjectMetaPrefix + name_;
 }
 
 std::string ZgwObject::MetaValue() const {
   std::string result;
   // Object Internal meta
   slash::PutFixed32(&result, strip_count_);
-  uint32_t b = static_cast<uint32_t>(multiparts_done_);
-  slash::PutFixed32(&result, b);
   slash::PutFixed32(&result, part_nums_.size());
   for (auto &i : part_nums_) {
     slash::PutFixed32(&result, i);
   }
-  // Partial info
-  b = static_cast<uint32_t>(is_partial_);
-  slash::PutFixed32(&result, b);
-  slash::PutFixed32(&result, part_num_);
   slash::PutLengthPrefixedString(&result, upload_id_);
 
   // Object Info
@@ -89,7 +78,9 @@ std::string ZgwObject::MetaValue() const {
 }
 
 std::string ZgwObject::DataKey(int index) const {
-  return kObjectDataPrefix + std::to_string(index) + kObjectDataSep + name_;
+  return kBucketMetaPrefix + bucket_name_ +
+    kObjectDataPrefix + std::to_string(index) +
+    kObjectDataSep + name_;
 }
 
 std::string ZgwObject::NextDataStrip(uint32_t* iter) const {
@@ -105,19 +96,12 @@ std::string ZgwObject::NextDataStrip(uint32_t* iter) const {
 Status ZgwObject::ParseMetaValue(std::string* value) {
   // Object Interal meta
   slash::GetFixed32(value, &strip_count_);
-  uint32_t b;
-  slash::GetFixed32(value, &b);
-  multiparts_done_ = static_cast<bool>(b);
   uint32_t n, v;
   slash::GetFixed32(value, &n);
   for (uint32_t i; i < n; i++) {
     slash::GetFixed32(value, &v);
     part_nums_.insert(v);
   }
-  // Partial info
-  slash::GetFixed32(value, &b);
-  is_partial_ = static_cast<bool>(b);
-  slash::GetFixed32(value, &part_num_);
   bool res = slash::GetLengthPrefixedString(value, &upload_id_);
   if (!res) {
     return Status::Corruption("Parse upload_id failed");

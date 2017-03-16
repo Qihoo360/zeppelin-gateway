@@ -37,10 +37,14 @@ struct ZgwObjectInfo {
 
 class ZgwObject {
  public:
-  ZgwObject(const std::string& name);
-  ZgwObject(const std::string& name, const std::string& content,
-            const ZgwObjectInfo& i);
-  ~ZgwObject();
+  ZgwObject(const std::string& bucket_name, const std::string& name);
+  ZgwObject(const std::string& bucket_name, const std::string& name,
+            const std::string& content, const ZgwObjectInfo& i);
+  ~ZgwObject() {}
+
+  std::string bucket_name() const {
+    return bucket_name_;
+  }
 
   std::string name() const {
     return name_;
@@ -54,32 +58,24 @@ class ZgwObject {
     info_ = info;
   }
 
+  ZgwObjectInfo &info() {
+    return info_;
+  }
+
   const ZgwObjectInfo &info() const {
     return info_;
   }
 
-  std::string content() const {
+  const std::string& content() const {
     return content_;
+  }
+
+  void AppendContent(const std::string& content) {
+    content_.append(content);
   }
 
   uint32_t strip_count() const {
     return strip_count_;
-  }
-
-  bool multiparts_done() const {
-    return multiparts_done_;
-  }
-
-  void SetMultiPartsDone(bool v) {
-    multiparts_done_ = v;
-  }
-
-  bool is_partial() const {
-    return is_partial_;
-  }
-
-  void SetIsPartial(bool v) {
-    is_partial_ = v;
   }
 
   std::string upload_id() const {
@@ -105,6 +101,7 @@ class ZgwObject {
   void ParseNextStrip(std::string* value);
 
  private:
+  std::string bucket_name_;
   std::string name_;
   std::string content_;
   ZgwObjectInfo info_;
@@ -112,13 +109,8 @@ class ZgwObject {
   uint32_t strip_count_;
 
   // Multipart Upload
-  // for virtual object
-  bool multiparts_done_;
   std::set<uint32_t> part_nums_;
-  std::string upload_id_; // md5(object_name) + timestamp
-  // for object part
-  bool is_partial_;
-  uint32_t part_num_;
+  std::string upload_id_; // md5(object_name + timestamp)
 };
 
 }  // namespace libzgw

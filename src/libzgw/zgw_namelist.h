@@ -15,8 +15,7 @@ namespace libzgw {
 
 class ZgwStore;
 
-class NameList {
-public:
+struct NameList {
   explicit NameList(std::string key)
       : dirty(false),
         meta_key(key) {
@@ -25,20 +24,12 @@ public:
   Status Load(ZgwStore *store);
   Status Save(ZgwStore *store);
 
-  void Insert(std::string &value);
-
-  void Delete(std::string &value);
-
-  bool IsExist(std::string &value) {
-    return (name_list.find(value) != name_list.end());
-  }
-
-  bool IsEmpty() {
-    return name_list.empty();
-  }
+  void Insert(const std::string &value);
+  void Delete(const std::string &value);
+  bool IsExist(const std::string &value);
+  bool IsEmpty();
 
   std::string MetaValue() const;
-
   Status ParseMetaValue(std::string *meta_value);
 
   bool dirty;
@@ -54,7 +45,7 @@ class ListMap {
     kBuckets,
     kObjects
   };
-  ListMap(int key_type)
+  ListMap(KEY_TYPE key_type)
       : key_type_(key_type) {
   }
 

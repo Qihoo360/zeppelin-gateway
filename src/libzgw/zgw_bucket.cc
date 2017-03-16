@@ -1,12 +1,13 @@
+#include "zgw_bucket.h"
+
 #include <sys/time.h>
 #include <assert.h>
 
-#include "zgw_bucket.h"
 #include "include/slash_coding.h"
 
 namespace libzgw {
 
-static const std::string kBucketMetaPrefix = "__B__";
+std::string kBucketMetaPrefix = "__B__";
 
 ZgwBucket::ZgwBucket(const std::string& name)
   : name_(name) {

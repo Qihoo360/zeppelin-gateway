@@ -3,7 +3,7 @@
 #include <string>
 #include <set>
 #include <map>
-#include "time.h"
+#include <sys/time.h>
 
 #include "include/slash_status.h"
 #include "include/slash_coding.h"
