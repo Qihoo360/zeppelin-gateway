@@ -35,6 +35,9 @@ extern std::string ListMultipartUploadsResultXml(const std::vector<libzgw::ZgwOb
 extern std::string ListPartsResultXml(const std::vector<std::pair<int, libzgw::ZgwObject>> &objects,
                                       libzgw::ZgwUser *user,
                                       std::map<std::string, std::string> &args);
+extern std::string CompleteMultipartUploadResultXml(const std::string& bucket_name,
+                                                    const std::string& object_name,
+                                                    const std::string& final_etag);
 extern std::string DeleteResultXml(const std::vector<std::string>& success_keys,
                                    const std::map<std::string, std::string>& error_keys);
 extern bool ParseCompleteMultipartUploadXml(const std::string& xml,

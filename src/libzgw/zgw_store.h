@@ -50,7 +50,9 @@ public:
                     const ZgwObjectInfo& info, const std::string& content, int part_num);
   Status ListParts(const std::string& bucket_name, const std::string& internal_obname,
                    std::vector<std::pair<int, ZgwObject>> *parts);
-  Status CompleteMultiUpload(const std::string& bucket_name, const std::string& internal_obname);
+  Status CompleteMultiUpload(const std::string& bucket_name,
+                             const std::string& internal_obname,
+                             std::string *final_etag);
 
 private:
   ZgwStore();

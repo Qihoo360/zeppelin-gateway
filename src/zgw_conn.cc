@@ -131,12 +131,10 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   // }
 
   // Get buckets namelist and ref
-  auto const &info = zgw_user_->user_info();
-  s = g_zgw_server->buckets_list()->Ref(store_, info.disply_name, &buckets_name_);
+  s = g_zgw_server->buckets_list()->Ref(store_, access_key_, &buckets_name_);
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "List buckets name list failed: " << s.ToString();
-    s = g_zgw_server->buckets_list()->Unref(store_, info.disply_name);
     return;
   }
 
@@ -146,7 +144,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     if (!s.ok()) {
       resp_->SetStatusCode(500);
       LOG(ERROR) << "List objects name list failed: " << s.ToString();
-      s = g_zgw_server->buckets_list()->Unref(store_, info.disply_name);
+      s = g_zgw_server->buckets_list()->Unref(store_, access_key_);
       return;
     }
   }
@@ -255,7 +253,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
 
   // Unref namelist
   Status s1 = Status::OK();
-  s = g_zgw_server->buckets_list()->Unref(store_, info.disply_name);
+  s = g_zgw_server->buckets_list()->Unref(store_, access_key_);
   if (!bucket_name_.empty()) {
     s1 = g_zgw_server->objects_list()->Unref(store_, bucket_name_);
   }
@@ -335,7 +333,8 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
 
   // Check every part's etag and part num
   std::vector<std::pair<int, std::string>> recv_parts;
-  if (!xml::ParseCompleteMultipartUploadXml(req_->content, &recv_parts)) {
+  if (!xml::ParseCompleteMultipartUploadXml(req_->content, &recv_parts) ||
+      recv_parts.empty()) {
     resp_->SetStatusCode(400);
     resp_->SetBody(xml::ErrorXml(xml::MalformedXML, ""));
     return;
@@ -347,12 +346,21 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
     LOG(ERROR) << "CompleteMultiUpload failed in list object parts: " << s.ToString();
     return;
   }
+  std::set<int> existed_parts;
+  for (auto& it : store_parts) {
+    existed_parts.insert(it.first);
+  }
   if (recv_parts.size() != store_parts.size()) {
     resp_->SetStatusCode(400);
     resp_->SetBody(xml::ErrorXml(xml::InvalidPart, ""));
   }
   for (size_t i = 0; i < recv_parts.size(); i++) {
-    // check part num order
+    // check part num order and existance
+    if (existed_parts.find(recv_parts[i].first) == existed_parts.end()) {
+      resp_->SetStatusCode(400);
+      resp_->SetBody(xml::ErrorXml(xml::InvalidPart, ""));
+      return;
+    }
     if (recv_parts[i].first != store_parts[i].first) {
       resp_->SetStatusCode(400);
       resp_->SetBody(xml::ErrorXml(xml::InvalidPartOrder, ""));
@@ -379,7 +387,8 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
   DLOG(INFO) << "CompleteMultiUpload: " << req_->path << " confirm delete old object";
 
   // Update object meta in zp
-  s = store_->CompleteMultiUpload(bucket_name_, internal_obname);
+  std::string final_etag;
+  s = store_->CompleteMultiUpload(bucket_name_, internal_obname, &final_etag);
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "CompleteMultiUpload failed: " << s.ToString();
@@ -391,6 +400,10 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
   objects_name_->Delete(internal_obname);
 
   resp_->SetStatusCode(200);
+  resp_->SetHeaders("ETag", final_etag);
+  resp_->SetBody(xml::CompleteMultipartUploadResultXml(bucket_name_,
+                                                       object_name_,
+                                                       final_etag));
 }
 
 void ZgwConn::AbortMultiUpload(const std::string& upload_id) {
@@ -691,7 +704,7 @@ void ZgwConn::DelBucketHandle() {
   DLOG(INFO) << "DeleteBucket: " << req_->path << " confirm bucket exist";
   // Need not check return value
 
-  if (objects_name_ == NULL || !objects_name_->IsEmpty()) {
+  if (objects_name_ != NULL && !objects_name_->IsEmpty()) {
     resp_->SetStatusCode(409);
     resp_->SetBody(xml::ErrorXml(xml::BucketNotEmpty, bucket_name_));
     LOG(ERROR) << "DeleteBucket: BucketNotEmpty";
@@ -730,8 +743,8 @@ void ZgwConn::PutBucketHandle() {
   libzgw::NameList *tmp_bk_list;
   bool already_exist = false;
   for (auto user : user_list) {
-    const auto &info = user->user_info();
-    s = g_zgw_server->buckets_list()->Ref(store_, info.disply_name, &tmp_bk_list);
+    auto access_key = user->access_key();
+    s = g_zgw_server->buckets_list()->Ref(store_, access_key, &tmp_bk_list);
     if (!s.ok()) {
       resp_->SetStatusCode(500);
       LOG(ERROR) << "Create bucket failed: " << s.ToString();
@@ -740,7 +753,7 @@ void ZgwConn::PutBucketHandle() {
     if (tmp_bk_list->IsExist(bucket_name_)) {
       already_exist = true;
     }
-    s = g_zgw_server->buckets_list()->Unref(store_, info.disply_name);
+    s = g_zgw_server->buckets_list()->Unref(store_, access_key);
     if (!s.ok()) {
       resp_->SetStatusCode(500);
       LOG(ERROR) << "Create bucket failed: " << s.ToString();

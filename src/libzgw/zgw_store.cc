@@ -36,7 +36,7 @@ Status ZgwStore::Init(const std::vector<std::string>& ip_ports) {
   bool meta_table_found = false;
   bool data_table_found = false;
   Status s = zp_->ListTable(&tables);
-  if (!s.ok()) {
+  if (s.IsIOError()) {
     return s;
   }
   for (auto &table : tables) {

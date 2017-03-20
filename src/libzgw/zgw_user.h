@@ -3,6 +3,7 @@
 #include <string>
 #include <set>
 #include <map>
+#include <cassert>
 #include <sys/time.h>
 
 #include "include/slash_status.h"
@@ -52,6 +53,12 @@ class ZgwUser {
   }
 
   Status GenKeyPair(std::string *access_key, std::string *secret_key);
+
+  // Return one access_key
+  std::string access_key() {
+    assert(!key_pairs_.empty());
+    return key_pairs_.begin()->first;
+  }
 
   std::map<std::string, std::string> &access_keys() {
     return key_pairs_;

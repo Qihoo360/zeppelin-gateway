@@ -59,7 +59,7 @@ Status ZgwObjectInfo::ParseMetaValue(std::string *value) {
 }
 
 std::string ZgwObject::MetaKey() const {
-  return kBucketMetaPrefix + bucket_name_ + kObjectMetaPrefix + name_;
+  return bucket_name_ + kObjectMetaPrefix + name_;
 }
 
 std::string ZgwObject::MetaValue() const {
@@ -78,7 +78,7 @@ std::string ZgwObject::MetaValue() const {
 }
 
 std::string ZgwObject::DataKey(int index) const {
-  return kBucketMetaPrefix + bucket_name_ +
+  return bucket_name_ +
     kObjectDataPrefix + std::to_string(index) +
     kObjectDataSep + name_;
 }

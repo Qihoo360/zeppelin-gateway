@@ -392,11 +392,33 @@ std::string DeleteResultXml(const std::vector<std::string>& success_keys,
   for (auto& it : error_keys) {
     xml_node<> *error = doc.allocate_node(node_element, "Error");
     rnode->append_node(error);
-    xml_node<> *key = doc.allocate_node(node_element, "Key", it.first.c_str());
-    xml_node<> *code = doc.allocate_node(node_element, "Code", it.second.c_str());
-    error->append_node(key);
-    error->append_node(code);
+    error->append_node(doc.allocate_node(node_element, "Key", it.first.c_str()));
+    error->append_node(doc.allocate_node(node_element, "Code", it.second.c_str()));
   }
+
+  std::string res_xml;
+  print(std::back_inserter(res_xml), doc, 0);
+  return res_xml;
+}
+
+std::string CompleteMultipartUploadResultXml(const std::string& bucket_name,
+                                             const std::string& object_name,
+                                             const std::string& final_etag) {
+  // <Root>
+  xml_document<> doc;
+  xml_node<> *rot =
+    doc.allocate_node(node_pi, doc.allocate_string(xml_header.c_str()));
+  doc.append_node(rot);
+
+  xml_attribute<> *attr = doc.allocate_attribute("xmlns", xml_ns.c_str());
+
+  xml_node<> *rnode = doc.allocate_node(node_element, "CompleteMultipartUploadResult");
+  rnode->append_attribute(attr);
+  doc.append_node(rnode);
+
+  rnode->append_node(doc.allocate_node(node_element, "Bucket", bucket_name.c_str()));;
+  rnode->append_node(doc.allocate_node(node_element, "Key", object_name.c_str()));;
+  rnode->append_node(doc.allocate_node(node_element, "ETag", final_etag.c_str()));;
 
   std::string res_xml;
   print(std::back_inserter(res_xml), doc, 0);
@@ -430,7 +452,10 @@ bool ParseCompleteMultipartUploadXml(const std::string& xml,
     if (!etag) {
       return false;
     }
-    std::string quote_etag = "\"" + std::string(etag->value()) + "\"";
+    std::string quote_etag = etag->value();
+    if (quote_etag.at(0) != '\"') {
+      quote_etag.assign("\"" + quote_etag + "\"");
+    }
     parts->push_back(std::make_pair(std::stoi(part_num->value()), quote_etag));
   }
   return true;

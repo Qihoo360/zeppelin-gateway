@@ -168,9 +168,9 @@ Status ZgwStore::ListParts(const std::string& bucket_name, const std::string& in
 }
 
 Status ZgwStore::CompleteMultiUpload(const std::string& bucket_name,
-                                     const std::string& internal_obname) {
+                                     const std::string& internal_obname,
+                                     std::string *final_etag) {
   std::string final_object_name = internal_obname.substr(2, internal_obname.size() - 32 - 2);
-  std::string final_etag;
   int final_size = 0;
   MD5_CTX md5_ctx;
   char buf[33] = {0};
@@ -194,7 +194,7 @@ Status ZgwStore::CompleteMultiUpload(const std::string& bucket_name,
   for (int i = 0; i < 16; i++) {
     sprintf(buf + i * 2, "%02x", md5[i]);
   }
-  final_etag.assign("\"" + std::string(buf) + "\"");
+  final_etag->assign("\"" + std::string(buf) + "\"");
 
   ZgwObject cur_object(bucket_name, internal_obname);
   // Get stored initial object info
@@ -209,7 +209,7 @@ Status ZgwStore::CompleteMultiUpload(const std::string& bucket_name,
   final_object.SetName(final_object_name);
   final_object.info().mtime = now;
   final_object.info().size = final_size;
-  final_object.info().etag = final_etag;
+  final_object.info().etag = *final_etag;
 
   // Set new meta
   s = zp_->Set(kZgwMetaTableName, final_object.MetaKey(), final_object.MetaValue());
