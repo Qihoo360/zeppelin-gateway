@@ -21,6 +21,7 @@ class ZgwConn : public pink::HttpConn {
   void GetObjectHandle(bool is_head_op = false);
   void PutObjectHandle();
   void DelObjectHandle();
+  void DelMultiObjectsHandle();
 
   void InitialMultiUpload();
   void UploadPartHandle(const std::string& part_num, const std::string& upload_id);
@@ -40,12 +41,12 @@ class ZgwConn : public pink::HttpConn {
 
  private:
   enum METHOD {
-    GET,
-    PUT,
-    DELETE,
-    HEAD,
-    POST,
-    UNSUPPORT,
+    kGet,
+    kPut,
+    kDelete,
+    kHead,
+    kPost,
+    kUnsupport,
   };
 
   ZgwWorkerThread *worker_;

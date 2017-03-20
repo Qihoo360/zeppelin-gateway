@@ -43,17 +43,13 @@ public:
   Status DelBucket(const std::string &bucket_name);
   
   // Operation On Objects
-  Status AddObject(const std::string &bucket_name, const std::string &object_name,
-                   const ZgwObjectInfo& info, const std::string &content);
+  Status AddObject(ZgwObject& object);
   Status GetObject(ZgwObject* object, bool need_content = false);
   Status DelObject(const std::string &bucket_name, const std::string &object_name);
-  Status InitMultiUpload(const std::string &bucket_name, const std::string &object_name,
-                         std::string *upload_id, std::string *internal_obname,
-                         ZgwUser *initiator);
   Status UploadPart(const std::string& bucket_name, const std::string& internal_obname,
                     const ZgwObjectInfo& info, const std::string& content, int part_num);
   Status ListParts(const std::string& bucket_name, const std::string& internal_obname,
-                   std::vector<ZgwObject> *parts);
+                   std::vector<std::pair<int, ZgwObject>> *parts);
   Status CompleteMultiUpload(const std::string& bucket_name, const std::string& internal_obname);
 
 private:

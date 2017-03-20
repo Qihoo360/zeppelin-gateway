@@ -8,12 +8,7 @@
 
 namespace libzgw {
 
-Status ZgwStore::AddObject(const std::string &bucket_name,
-                           const std::string &object_name,
-                           const ZgwObjectInfo& info,
-                           const std::string &content) {
-  ZgwObject object(bucket_name, object_name, content, info);
-
+Status ZgwStore::AddObject(ZgwObject& object) {
   // Set Object Data
   Status s;
   std::string dvalue;
@@ -27,7 +22,7 @@ Status ZgwStore::AddObject(const std::string &bucket_name,
 
   // Delete Old Data, since the object name may already exist
   std::string ometa;
-  libzgw::ZgwObject old_object(bucket_name, object_name);
+  libzgw::ZgwObject old_object(object.bucket_name(), object.name());
   s = zp_->Get(kZgwMetaTableName, object.MetaKey(), &ometa);
   if (s.ok()) {
     old_object.ParseMetaValue(&ometa);
@@ -51,13 +46,12 @@ Status ZgwStore::DelObject(const std::string &bucket_name,
   }
 
   // Delete subobject if it was a multipart object
-  if (!object.part_nums().empty()) {
-    for (uint32_t n : object.part_nums()) {
-      std::string subobject_name = "__#" + std::to_string(n) + object_name;
-      s = DelObject(bucket_name, subobject_name);
-      if (!s.ok()) {
-        return s;
-      }
+  std::string internal_obname = "__" + object.name() + object.upload_id();
+  for (uint32_t n : object.part_nums()) {
+    std::string subobject_name = "__#" + std::to_string(n) + internal_obname;
+    s = DelObject(bucket_name, subobject_name);
+    if (!s.ok()) {
+      return s;
     }
   }
 
@@ -97,8 +91,9 @@ Status ZgwStore::GetObject(ZgwObject* object, bool need_content) {
 
   if (need_content) {
     for (auto n : object->part_nums()) {
-      ZgwObject subobject(object->bucket_name(),
-                          "__#" + object->name() + object->upload_id());
+      std::string internal_obname = "__" + object->name() + object->upload_id();
+      std::string subobject_name = "__#" + std::to_string(n) + internal_obname;
+      ZgwObject subobject(object->bucket_name(), subobject_name);
       s = GetObject(&subobject, true);
       if (!s.ok()) {
         return s;
@@ -124,8 +119,7 @@ Status ZgwStore::UploadPart(const std::string& bucket_name, const std::string& i
                             const ZgwObjectInfo& info, const std::string& content, int part_num) {
   // Get multipart object meta
   ZgwObject object(bucket_name, internal_obname);
-  std::string meta_value;
-  Status s = zp_->Get(kZgwMetaTableName, object.MetaKey(), &meta_value);
+  Status s = GetObject(&object, false);
   if (!s.ok()) {
     return s;
   }
@@ -140,7 +134,8 @@ Status ZgwStore::UploadPart(const std::string& bucket_name, const std::string& i
     }
   }
 
-  s = AddObject(bucket_name, subobject_name, info, content);
+  ZgwObject part_object(bucket_name, subobject_name, content, info);
+  s = AddObject(part_object);
   if (!s.ok()) {
     return s;
   }
@@ -151,7 +146,8 @@ Status ZgwStore::UploadPart(const std::string& bucket_name, const std::string& i
 }
 
 Status ZgwStore::ListParts(const std::string& bucket_name, const std::string& internal_obname,
-                           std::vector<ZgwObject> *parts) {
+                           std::vector<std::pair<int, ZgwObject>> *parts) {
+  // Get multipart object meta
   libzgw::ZgwObject object(bucket_name, internal_obname);
   Status s = GetObject(&object, false);
   if (!s.ok()) {
@@ -165,15 +161,15 @@ Status ZgwStore::ListParts(const std::string& bucket_name, const std::string& in
     if (!s.ok()) {
       return s;
     }
-    parts->push_back(subobject);
+    parts->push_back(std::make_pair(n, subobject));
   }
 
   return Status::OK();
 }
 
 Status ZgwStore::CompleteMultiUpload(const std::string& bucket_name,
-                                   const std::string& internal_obname) {
-  std::string object_name = internal_obname.substr(2, internal_obname.size() - 32 - 2);
+                                     const std::string& internal_obname) {
+  std::string final_object_name = internal_obname.substr(2, internal_obname.size() - 32 - 2);
   std::string final_etag;
   int final_size = 0;
   MD5_CTX md5_ctx;
@@ -183,9 +179,10 @@ Status ZgwStore::CompleteMultiUpload(const std::string& bucket_name,
 
   // Calculate final size and etag
   Status s;
-  std::vector<ZgwObject> parts;
+  std::vector<std::pair<int, ZgwObject>> parts;
   ListParts(bucket_name, internal_obname, &parts);
-  for (auto subob : parts) {  // Intend Use Copy
+  for (auto &it : parts) {
+    ZgwObject subob(it.second); // Intend Use Copy
     s = GetObject(&subob, true);
     if (!s.ok()) {
       return s;
@@ -199,27 +196,33 @@ Status ZgwStore::CompleteMultiUpload(const std::string& bucket_name,
   }
   final_etag.assign("\"" + std::string(buf) + "\"");
 
-  // Add final object meta and delete old object meta
-  ZgwObject old_object(bucket_name, internal_obname);
+  ZgwObject cur_object(bucket_name, internal_obname);
+  // Get stored initial object info
+  s = GetObject(&cur_object, false); 
+  if (!s.ok()) {
+    return s;
+  }
+  // Upload complete object info
+  ZgwObject final_object(cur_object);
   timeval now;
   gettimeofday(&now, NULL);
-  s = GetObject(&old_object, false);
+  final_object.SetName(final_object_name);
+  final_object.info().mtime = now;
+  final_object.info().size = final_size;
+  final_object.info().etag = final_etag;
+
+  // Set new meta
+  s = zp_->Set(kZgwMetaTableName, final_object.MetaKey(), final_object.MetaValue());
   if (!s.ok()) {
     return s;
   }
-  ZgwObject object(old_object);
-  object.SetName(object_name);
-  object.info().mtime = now;
-  object.info().size = final_size;
-  object.info().etag = final_etag;
-  s = zp_->Set(kZgwMetaTableName, object.MetaKey(), object.MetaValue());
-  if (!s.ok()) {
+  // Delete old meta
+  s = zp_->Delete(kZgwMetaTableName, cur_object.MetaKey());
+  if (!s.ok() && !s.IsNotFound()) {
     return s;
   }
-  s = zp_->Delete(kZgwMetaTableName, old_object.MetaKey());
-  if (!s.ok()) {
-    return s;
-  }
+
+  return Status::OK();
 }
 
 }  // namespace libzgw

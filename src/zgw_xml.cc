@@ -1,5 +1,7 @@
 #include "zgw_xml.h"
 
+#include <exception>
+
 #include "rapidxml.hpp"
 #include "rapidxml_print.hpp"
 #include "rapidxml_utils.hpp"
@@ -27,6 +29,29 @@ std::string ErrorXml(ErrorType etype, std::string extra_info) {
   doc.append_node(error);
 
   switch(etype) {
+    case InvalidPartOrder:
+      error->append_node(doc.allocate_node(node_element, "Code", "InvalidPartOrder"));
+      error->append_node(doc.allocate_node(node_element, "Message", "The list of parts "
+                                           "was not in ascending order. The parts list must "
+                                           "be specified in order by part number."));
+      break;
+    case InvalidPart:
+      error->append_node(doc.allocate_node(node_element, "Code", "InvalidPart"));
+      error->append_node(doc.allocate_node(node_element, "Message", "One or more of "
+                                           "the specified parts could not be found. The "
+                                           "part might not have been uploaded, or the "
+                                           "specified entity tag might not have matched "
+                                           "the part's entity tag."));
+      break;
+    case MalformedXML:
+      error->append_node(doc.allocate_node(node_element, "Code", "MalformedXML"));
+      error->append_node(doc.allocate_node(node_element, "Message", "This happens "
+                                           "when the user sends malformed xml (xml "
+                                           "that doesn't conform to the published xsd) "
+                                           "for the configuration. The error message is, "
+                                           "\"The XML you provided was not well-formed "
+                                           "or did not validate against our published schema.\""));
+      break;
     case NoSuchUpload:
       error->append_node(doc.allocate_node(node_element, "Code", "NoSuchUpload"));
       error->append_node(doc.allocate_node(node_element, "Message", "The specified upload does not "
@@ -290,7 +315,7 @@ std::string ListMultipartUploadsResultXml(const std::vector<libzgw::ZgwObject> &
   return res_xml;
 }
 
-std::string ListPartsResultXml(const std::vector<libzgw::ZgwObject> &objects,
+std::string ListPartsResultXml(const std::vector<std::pair<int, libzgw::ZgwObject>> &objects,
                                libzgw::ZgwUser *user, std::map<std::string, std::string> &args) {
   // <Root>
   xml_document<> doc;
@@ -300,7 +325,7 @@ std::string ListPartsResultXml(const std::vector<libzgw::ZgwObject> &objects,
 
   xml_attribute<> *attr = doc.allocate_attribute("xmlns", xml_ns.c_str());
 
-  xml_node<> *rnode = doc.allocate_node(node_element, "ListMultipartUploadsResult");
+  xml_node<> *rnode = doc.allocate_node(node_element, "ListPartsResult");
   rnode->append_attribute(attr);
   doc.append_node(rnode);
 
@@ -325,9 +350,9 @@ std::string ListPartsResultXml(const std::vector<libzgw::ZgwObject> &objects,
   std::vector<std::string> size;
   std::vector<std::string> part_num;
   std::vector<std::string> last_modified;
-  for (auto &object : objects) {
-    const libzgw::ZgwObjectInfo &info = object.info();
-    part_num.push_back(ExtraParNum(args["Key"], object.name()));
+  for (auto& it : objects) {
+    const libzgw::ZgwObjectInfo &info = it.second.info();
+    part_num.push_back(std::to_string(it.first));
     xml_node<> *part = doc.allocate_node(node_element, "Part");
     part->append_node(doc.allocate_node(node_element, "PartNumber", part_num.back().c_str()));
     last_modified.push_back(iso8601_time(info.mtime.tv_sec, info.mtime.tv_usec));
@@ -341,6 +366,102 @@ std::string ListPartsResultXml(const std::vector<libzgw::ZgwObject> &objects,
   std::string res_xml;
   print(std::back_inserter(res_xml), doc, 0);
   return res_xml;
+}
+
+std::string DeleteResultXml(const std::vector<std::string>& success_keys,
+                            const std::map<std::string, std::string>& error_keys) {
+  // <Root>
+  xml_document<> doc;
+  xml_node<> *rot =
+    doc.allocate_node(node_pi, doc.allocate_string(xml_header.c_str()));
+  doc.append_node(rot);
+
+  xml_attribute<> *attr = doc.allocate_attribute("xmlns", xml_ns.c_str());
+
+  xml_node<> *rnode = doc.allocate_node(node_element, "DeleteResult");
+  rnode->append_attribute(attr);
+  doc.append_node(rnode);
+
+  for (auto& skey : success_keys) {
+    xml_node<> *deleted = doc.allocate_node(node_element, "Deleted");
+    rnode->append_node(deleted);
+    xml_node<> *key = doc.allocate_node(node_element, "Key", skey.c_str());
+    deleted->append_node(key);
+  }
+
+  for (auto& it : error_keys) {
+    xml_node<> *error = doc.allocate_node(node_element, "Error");
+    rnode->append_node(error);
+    xml_node<> *key = doc.allocate_node(node_element, "Key", it.first.c_str());
+    xml_node<> *code = doc.allocate_node(node_element, "Code", it.second.c_str());
+    error->append_node(key);
+    error->append_node(code);
+  }
+
+  std::string res_xml;
+  print(std::back_inserter(res_xml), doc, 0);
+  return res_xml;
+}
+
+bool ParseCompleteMultipartUploadXml(const std::string& xml,
+                                     std::vector<std::pair<int, std::string>> *parts) {
+  xml_document<> doc;
+  try {
+    doc.parse<0>(const_cast<char *>(xml.c_str()));
+  } catch (std::exception e) {
+    return false;
+  }
+
+  const char *root_s = "CompleteMultipartUpload";
+  const char *part_s = "Part";
+  const char *part_num_s = "PartNumber";
+  const char *etag_s = "ETag";
+  xml_node<> *root_node = doc.first_node(root_s, strlen(root_s), false);
+  if (!root_node) {
+    return false;
+  }
+  for (xml_node<> *part = root_node->first_node(part_s, strlen(part_s), false);
+       part; part = part->next_sibling(part_s, strlen(part_s), false)) {
+    xml_node<> *part_num = part->first_node(part_num_s, strlen(part_num_s), false);
+    if (!part_num) {
+      return false;
+    }
+    xml_node<> *etag = part->first_node(etag_s, strlen(etag_s), false);
+    if (!etag) {
+      return false;
+    }
+    std::string quote_etag = "\"" + std::string(etag->value()) + "\"";
+    parts->push_back(std::make_pair(std::stoi(part_num->value()), quote_etag));
+  }
+  return true;
+}
+
+bool ParseDelMultiObjectXml(const std::string& xml, std::vector<std::string> *keys) {
+  xml_document<> doc;
+  try {
+    doc.parse<0>(const_cast<char *>(xml.c_str()));
+  } catch (std::exception e) {
+    return false;
+  }
+
+  const char *delete_s = "Delete";
+  const char *object_s = "Object";
+  const char *key_s = "Key";
+  xml_node<> *del = doc.first_node(delete_s, strlen(delete_s), false);
+  if (!del) {
+    return false;
+  }
+
+  for (xml_node<> *object = del->first_node(object_s, strlen(object_s), false);
+       object; object = object->next_sibling(object_s, strlen(object_s), false)) {
+    xml_node<> *key = object->first_node(key_s, strlen(key_s), false);
+    if (!key) {
+      return false;
+    }
+    keys->push_back(key->value());
+  }
+
+  return true;
 }
 
 inline std::string ExtraParNum(std::string object_name, std::string subobject_name) {

@@ -44,7 +44,7 @@ ZgwConn::ZgwConn(const int fd,
 
 std::string ZgwConn::GetAccessKey() {
   if (!req_->query_params["X-Amz-Credential"].empty()) {
-    std::string credential_str = req_->query_params["X-Amz-Credential"];
+    std::string credential_str = req_->query_params.at("X-Amz-Credential");
     return credential_str.substr(0, 20);
   } else {
     std::string auth_str;
@@ -153,41 +153,48 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
 
   METHOD method;
   if (req_->method == "GET") {
-    method = GET;
+    method = kGet;
   } else if (req_->method == "PUT") {
-    method = PUT;
+    method = kPut;
   } else if (req_->method == "DELETE") {
-    method = DELETE;
+    method = kDelete;
   } else if (req_->method == "HEAD") {
-    method = HEAD;
+    method = kHead;
   } else if (req_->method == "POST") {
-    method = POST;
+    method = kPost;
   } else {
-    method = UNSUPPORT;
+    method = kUnsupport;
   }
 
   if (bucket_name_.empty()) {
-    ListBucketHandle();
+    if (method == kGet) {
+      ListBucketHandle();
+    }
   } else if (IsBucketOp()) {
     switch(method) {
-      case GET:
+      case kGet:
         if (req_->query_params.find("uploads") != req_->query_params.end()) {
           ListMultiPartsUpload();
         } else {
           ListObjectHandle();
         }
         break;
-      case PUT:
+      case kPut:
         PutBucketHandle();
         break;
-      case DELETE:
+      case kDelete:
         DelBucketHandle();
         break;
-      case HEAD:
+      case kHead:
         if (!buckets_name_->IsExist(bucket_name_)) {
           resp_->SetStatusCode(404);
         } else {
           resp_->SetStatusCode(200);
+        }
+        break;
+      case kPost:
+        if (req_->query_params.find("delete") != req_->query_params.end()) {
+          DelMultiObjectsHandle();
         }
         break;
       default:
@@ -202,14 +209,14 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
       DLOG(INFO) << "Object Op: " << req_->path << " confirm bucket exist";
       g_zgw_server->object_mutex()->Lock(bucket_name_ + object_name_);
       switch(method) {
-        case GET:
+        case kGet:
           if (req_->query_params.find("uploadId") != req_->query_params.end()) {
             ListParts(req_->query_params["uploadId"]);
           } else {
             GetObjectHandle();
           }
           break;
-        case PUT:
+        case kPut:
           if (req_->query_params.find("partNumber") != req_->query_params.end() &&
               req_->query_params.find("uploadId") != req_->query_params.end()) {
             UploadPartHandle(req_->query_params["partNumber"],
@@ -218,17 +225,17 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
             PutObjectHandle();
           }
           break;
-        case DELETE:
+        case kDelete:
           if (req_->query_params.find("uploadId") != req_->query_params.end()) {
             AbortMultiUpload(req_->query_params["uploadId"]);
           } else {
             DelObjectHandle();
           }
           break;
-        case HEAD:
+        case kHead:
           GetObjectHandle(true);
           break;
-        case POST:
+        case kPost:
           if (req_->query_params.find("uploads") != req_->query_params.end()) {
             InitialMultiUpload();
           } else if (req_->query_params.find("uploadId") != req_->query_params.end()) {
@@ -272,7 +279,9 @@ void ZgwConn::InitialMultiUpload() {
   upload_id.assign(slash::md5(tmp_obname));
   internal_obname.assign("__" + object_name_ + upload_id);
 
-  Status s = store_->AddObject(bucket_name_, internal_obname, ob_info, "");
+  libzgw::ZgwObject object(bucket_name_, internal_obname, "", ob_info);
+  object.SetUploadId(upload_id);
+  Status s = store_->AddObject(object);
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     return;
@@ -324,17 +333,52 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
   }
   DLOG(INFO) << "CompleteMultiUpload: " << req_->path << " confirm upload id exist";
 
-  Status s;
+  // Check every part's etag and part num
+  std::vector<std::pair<int, std::string>> recv_parts;
+  if (!xml::ParseCompleteMultipartUploadXml(req_->content, &recv_parts)) {
+    resp_->SetStatusCode(400);
+    resp_->SetBody(xml::ErrorXml(xml::MalformedXML, ""));
+    return;
+  }
+  std::vector<std::pair<int, libzgw::ZgwObject>> store_parts;
+  Status s = store_->ListParts(bucket_name_, internal_obname, &store_parts);
+  if (!s.ok()) {
+    resp_->SetStatusCode(500);
+    LOG(ERROR) << "CompleteMultiUpload failed in list object parts: " << s.ToString();
+    return;
+  }
+  if (recv_parts.size() != store_parts.size()) {
+    resp_->SetStatusCode(400);
+    resp_->SetBody(xml::ErrorXml(xml::InvalidPart, ""));
+  }
+  for (size_t i = 0; i < recv_parts.size(); i++) {
+    // check part num order
+    if (recv_parts[i].first != store_parts[i].first) {
+      resp_->SetStatusCode(400);
+      resp_->SetBody(xml::ErrorXml(xml::InvalidPartOrder, ""));
+      return;
+    }
+    // Check etag
+    const libzgw::ZgwObjectInfo& info = store_parts[i].second.info();
+    if (info.etag != recv_parts[i].second) {
+      resp_->SetStatusCode(400);
+      resp_->SetBody(xml::ErrorXml(xml::InvalidPart, ""));
+      return;
+    }
+  }
+
+  // Delete old object data
   if (objects_name_->IsExist(object_name_)) {
     s = store_->DelObject(bucket_name_, object_name_);
-    if (!s.ok()) {
+    if (!s.ok() && !s.IsNotFound()) {
       resp_->SetStatusCode(500);
-      LOG(ERROR) << "CompleteMultiUpload failed: " << s.ToString();
+      LOG(ERROR) << "CompleteMultiUpload failed in delete old object: " << s.ToString();
       return;
     }
   }
   DLOG(INFO) << "CompleteMultiUpload: " << req_->path << " confirm delete old object";
 
+  // Update object meta in zp
   s = store_->CompleteMultiUpload(bucket_name_, internal_obname);
   if (!s.ok()) {
     resp_->SetStatusCode(500);
@@ -384,11 +428,11 @@ void ZgwConn::ListParts(const std::string& upload_id) {
   }
   DLOG(INFO) << "ListParts: " << req_->path << " confirm upload exist";
 
-  std::vector<libzgw::ZgwObject> parts;
+  std::vector<std::pair<int, libzgw::ZgwObject>> parts;
   Status s = store_->ListParts(bucket_name_, internal_obname, &parts);
   if (!s.ok()) {
     resp_->SetStatusCode(500);
-    LOG(ERROR) << "UploadPart data failed: " << s.ToString();
+    LOG(ERROR) << "ListParts failed: " << s.ToString();
     return;
   }
 
@@ -473,6 +517,37 @@ void ZgwConn::ListUsersHandle() {
   }
 }
 
+void ZgwConn::DelMultiObjectsHandle() {
+  if (!buckets_name_->IsExist(bucket_name_)) {
+    resp_->SetStatusCode(404);
+    resp_->SetBody(xml::ErrorXml(xml::NoSuchBucket, bucket_name_));
+    return;
+  }
+
+  std::vector<std::string> keys;
+  if (!xml::ParseDelMultiObjectXml(req_->content, &keys)) {
+    resp_->SetStatusCode(400);
+    resp_->SetBody(xml::ErrorXml(xml::MalformedXML, ""));
+  }
+  std::vector<std::string> success_keys;
+  std::map<std::string, std::string> error_keys;
+  Status s;
+  for (auto &key : keys) {
+    DLOG(INFO) << "DeleteMuitiObjects: " << key;
+    if (objects_name_->IsExist(key)) {
+      s = store_->DelObject(bucket_name_, key);
+      if (!s.ok()) {
+        error_keys.insert(std::make_pair(key, "InternalError"));
+        continue;
+      }
+    }
+    objects_name_->Delete(key);
+    success_keys.push_back(key);
+  }
+  resp_->SetBody(xml::DeleteResultXml(success_keys, error_keys));
+  resp_->SetStatusCode(200);
+}
+
 void ZgwConn::DelObjectHandle() {
   DLOG(INFO) << "DeleteObject: " << bucket_name_ << "/" << object_name_;
 
@@ -539,7 +614,8 @@ void ZgwConn::PutObjectHandle() {
   gettimeofday(&now, NULL);
   libzgw::ZgwObjectInfo ob_info(now, etag, req_->content.size(), libzgw::kStandard,
                                 zgw_user_->user_info());
-  Status s = store_->AddObject(bucket_name_, object_name_, ob_info, req_->content);
+  libzgw::ZgwObject object(bucket_name_, object_name_, req_->content, ob_info);
+  Status s = store_->AddObject(object);
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "Put object data failed: " << s.ToString();
@@ -573,6 +649,9 @@ void ZgwConn::ListObjectHandle() {
   {
     std::lock_guard<std::mutex> lock(objects_name_->list_lock);
     for (auto &name : objects_name_->name_list) {
+      if (name.find_first_of("__") == 0) {
+        continue;
+      }
       libzgw::ZgwObject object(bucket_name_, name);
       s = store_->GetObject(&object, false);
       if (!s.ok()) {
