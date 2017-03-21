@@ -168,6 +168,9 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     if (method == kGet) {
       ListBucketHandle();
     }
+    // Unknow request
+    resp_->SetStatusCode(405);
+    resp_->SetBody(xml::ErrorXml(xml::MethodNotAllowed, ""));
   } else if (IsBucketOp()) {
     switch(method) {
       case kGet:
@@ -263,7 +266,6 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     return;
   }
 
-  resp_->SetHeaders("Last-Modified", http_nowtime());
   resp_->SetHeaders("Date", http_nowtime());
 }
 
@@ -383,12 +385,12 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
       LOG(ERROR) << "CompleteMultiUpload failed in delete old object: " << s.ToString();
       return;
     }
+    DLOG(INFO) << "CompleteMultiUpload: " << req_->path << " confirm delete old object";
   }
-  DLOG(INFO) << "CompleteMultiUpload: " << req_->path << " confirm delete old object";
 
   // Update object meta in zp
   std::string final_etag;
-  s = store_->CompleteMultiUpload(bucket_name_, internal_obname, &final_etag);
+  s = store_->CompleteMultiUpload(bucket_name_, internal_obname, store_parts, &final_etag);
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "CompleteMultiUpload failed: " << s.ToString();
@@ -400,6 +402,8 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
   objects_name_->Delete(internal_obname);
 
   resp_->SetStatusCode(200);
+  final_etag.erase(final_etag.size() - 1); // erase last '"'
+  final_etag += "-" + std::to_string(store_parts.size()) + "\"";
   resp_->SetHeaders("ETag", final_etag);
   resp_->SetBody(xml::CompleteMultipartUploadResultXml(bucket_name_,
                                                        object_name_,
@@ -608,9 +612,13 @@ void ZgwConn::GetObjectHandle(bool is_head_op) {
   bool need_content = !is_head_op;
   Status s = store_->GetObject(&object, need_content);
   if (!s.ok()) {
-    resp_->SetStatusCode(500);
-    LOG(ERROR) << "Get object data failed: " << s.ToString();
-    return;
+    if (s.IsNotFound()) {
+      LOG(WARNING) << "Data size maybe strip count error";
+    } else {
+      resp_->SetStatusCode(500);
+      LOG(ERROR) << "Get object data failed: " << s.ToString();
+      return;
+    }
   }
   DLOG(INFO) << "GetObject: " << req_->path << " confirm get object from zp success";
 

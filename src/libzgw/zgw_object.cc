@@ -23,7 +23,8 @@ ZgwObject::ZgwObject(const std::string& bucket_name, const std::string& name,
         content_(content),
         info_(i),
         strip_len_(kObjectDataStripLen) {
-  strip_count_ = content_.empty() ? 0 : content_.size() / strip_len_ + 1;
+  int m = content_.size() % strip_len_;
+  strip_count_ = content_.size() / strip_len_ + (m > 0 ? 1 : 0);
 }
 
 std::string ZgwObjectInfo::MetaValue() const {
@@ -66,10 +67,13 @@ std::string ZgwObject::MetaValue() const {
   std::string result;
   // Object Internal meta
   slash::PutFixed32(&result, strip_count_);
+  slash::PutFixed32(&result, placeholder1_);
   slash::PutFixed32(&result, part_nums_.size());
   for (uint32_t i : part_nums_) {
     slash::PutFixed32(&result, i);
   }
+  slash::PutFixed32(&result, placeholder2_);
+  slash::PutFixed32(&result, placeholder3_);
   slash::PutLengthPrefixedString(&result, upload_id_);
 
   // Object Info
@@ -96,12 +100,16 @@ std::string ZgwObject::NextDataStrip(uint32_t* iter) const {
 Status ZgwObject::ParseMetaValue(std::string* value) {
   // Object Interal meta
   slash::GetFixed32(value, &strip_count_);
+  slash::GetFixed32(value, &placeholder1_);
   uint32_t n, v;
   slash::GetFixed32(value, &n);
   for (uint32_t i = 0; i < n; i++) {
     slash::GetFixed32(value, &v);
     part_nums_.insert(v);
   }
+
+  slash::GetFixed32(value, &placeholder2_);
+  slash::GetFixed32(value, &placeholder3_);
   bool res = slash::GetLengthPrefixedString(value, &upload_id_);
   if (!res) {
     return Status::Corruption("Parse upload_id failed");
@@ -120,4 +128,4 @@ void ZgwObject::ParseNextStrip(std::string* value) {
   content_.append(*value);
 }
 
-}
+}  // namespace libzgw

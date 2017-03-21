@@ -21,6 +21,7 @@ enum ErrorType {
   MalformedXML,
   InvalidPart,
   InvalidPartOrder,
+  MethodNotAllowed,
 };
 
 extern std::string ErrorXml(ErrorType etype, std::string extra_info);

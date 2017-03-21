@@ -52,6 +52,7 @@ public:
                    std::vector<std::pair<int, ZgwObject>> *parts);
   Status CompleteMultiUpload(const std::string& bucket_name,
                              const std::string& internal_obname,
+                             const std::vector<std::pair<int, ZgwObject>>& parts,
                              std::string *final_etag);
 
 private:

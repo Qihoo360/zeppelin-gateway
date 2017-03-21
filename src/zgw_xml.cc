@@ -29,6 +29,11 @@ std::string ErrorXml(ErrorType etype, std::string extra_info) {
   doc.append_node(error);
 
   switch(etype) {
+    case MethodNotAllowed:
+      error->append_node(doc.allocate_node(node_element, "Code", "MethodNotAllowed"));
+      error->append_node(doc.allocate_node(node_element, "Message", "The specified method "
+                                           "is not allowed against this resource."));
+      break;
     case InvalidPartOrder:
       error->append_node(doc.allocate_node(node_element, "Code", "InvalidPartOrder"));
       error->append_node(doc.allocate_node(node_element, "Message", "The list of parts "

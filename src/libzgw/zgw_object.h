@@ -111,6 +111,11 @@ class ZgwObject {
   // Multipart Upload
   std::set<uint32_t> part_nums_;
   std::string upload_id_; // md5(object_name + timestamp)
+
+  // Reserve for compatibility
+  uint32_t placeholder1_;
+  uint32_t placeholder2_;
+  uint32_t placeholder3_;
 };
 
 }  // namespace libzgw

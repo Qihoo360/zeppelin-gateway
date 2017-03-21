@@ -46,8 +46,11 @@ Status ZgwStore::DelObject(const std::string &bucket_name,
   }
 
   // Delete subobject if it was a multipart object
-  std::string internal_obname = "__" + object.name() + object.upload_id();
   for (uint32_t n : object.part_nums()) {
+    std::string internal_obname = object.name();
+    if (object_name.find_first_of("__") != 0) {
+      internal_obname = "__" + object.name() + object.upload_id();
+    }
     std::string subobject_name = "__#" + std::to_string(n) + internal_obname;
     s = DelObject(bucket_name, subobject_name);
     if (!s.ok()) {
@@ -91,8 +94,11 @@ Status ZgwStore::GetObject(ZgwObject* object, bool need_content) {
 
   if (need_content) {
     for (auto n : object->part_nums()) {
-      std::string internal_obname = "__" + object->name() + object->upload_id();
-      std::string subobject_name = "__#" + std::to_string(n) + internal_obname;
+      std::string subobject_name = object->name();
+      if (subobject_name.find_first_of("__") != 0) {
+        std::string internal_obname = "__" + subobject_name + object->upload_id();
+        subobject_name = "__#" + std::to_string(n) + internal_obname;
+      }
       ZgwObject subobject(object->bucket_name(), subobject_name);
       s = GetObject(&subobject, true);
       if (!s.ok()) {
@@ -169,6 +175,7 @@ Status ZgwStore::ListParts(const std::string& bucket_name, const std::string& in
 
 Status ZgwStore::CompleteMultiUpload(const std::string& bucket_name,
                                      const std::string& internal_obname,
+                                     const std::vector<std::pair<int, ZgwObject>>& parts,
                                      std::string *final_etag) {
   std::string final_object_name = internal_obname.substr(2, internal_obname.size() - 32 - 2);
   int final_size = 0;
@@ -179,8 +186,6 @@ Status ZgwStore::CompleteMultiUpload(const std::string& bucket_name,
 
   // Calculate final size and etag
   Status s;
-  std::vector<std::pair<int, ZgwObject>> parts;
-  ListParts(bucket_name, internal_obname, &parts);
   for (auto &it : parts) {
     ZgwObject subob(it.second); // Intend Use Copy
     s = GetObject(&subob, true);
@@ -212,7 +217,7 @@ Status ZgwStore::CompleteMultiUpload(const std::string& bucket_name,
   final_object.info().etag = *final_etag;
 
   // Set new meta
-  s = zp_->Set(kZgwMetaTableName, final_object.MetaKey(), final_object.MetaValue());
+  s = AddObject(final_object);
   if (!s.ok()) {
     return s;
   }
