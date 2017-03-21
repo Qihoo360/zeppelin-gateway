@@ -24,7 +24,9 @@ ZgwObject::ZgwObject(const std::string& name, const std::string& content,
         strip_len_(kObjectDataStripLen),
         multiparts_done_(true),
         is_partial_(false) {
-  strip_count_ = content_.size() / strip_len_ + 1;
+  int m = content_.size() % strip_len_;
+  strip_count_ = content_.empty() ? 0 :
+    (content_.size() / strip_len_ + (m > 0 ? 1 : 0));
 }
 
 ZgwObject::~ZgwObject() {

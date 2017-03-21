@@ -376,9 +376,13 @@ void ZgwConn::GetObjectHandle(bool is_head_op) {
     libzgw::ZgwObject object(object_name_);
     Status s = store_->GetObject(bucket_name_, object_name_, &object);
     if (!s.ok()) {
-      resp_->SetStatusCode(500);
-      LOG(ERROR) << "Get object data failed: " << s.ToString();
-      return;
+      if (s.IsNotFound()) {
+        LOG(WARNING) << "Data size maybe strip count error";
+      } else {
+        resp_->SetStatusCode(500);
+        LOG(ERROR) << "Get object data failed: " << s.ToString();
+        return;
+      }
     }
     LOG(INFO) << "GetObject: " << req_->path << " confirm get object from zp success";
 
