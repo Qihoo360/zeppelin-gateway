@@ -1,4 +1,5 @@
 #include <memory>
+#include <cctype>
 #include <sys/time.h>
 
 #include "zgw_conn.h"
@@ -11,10 +12,11 @@
 
 extern ZgwServer* g_zgw_server;
 
-static Status ExtraBucketAndObject(const std::string& path,
+static void ExtraBucketAndObject(const std::string& _path,
                                    std::string* bucket_name, std::string* object_name) {
+  std::string path = _path;
   if (path[0] != '/') {
-    return Status::IOError("Path parse error: " + path);
+    path = "/" + path;
   }
   size_t pos = path.find('/', 1);
   if (pos == std::string::npos) {
@@ -27,8 +29,6 @@ static Status ExtraBucketAndObject(const std::string& path,
   if (!object_name->empty() && object_name->back() == '/') {
     object_name->erase(object_name->size() - 1);
   }
-
-  return Status::OK();
 }
 
 static std::string http_nowtime(time_t t) {
@@ -61,6 +61,29 @@ static void DumpHttpRequest(const pink::HttpRequest* req) {
   }
   DLOG(INFO) << "------------------------------------- ";
 } 
+
+bool ZgwConn::IsValidBucket() {
+  if (bucket_name_.empty() || !object_name_.empty()) {
+    return false;
+  }
+  char c = bucket_name_.at(0);
+  if (!std::isalnum(c)) {
+    return false;
+  }
+
+  return true;
+}
+
+bool ZgwConn::IsValidObject() {
+  if (bucket_name_.empty() || object_name_.empty()) {
+    return false;
+  }
+  if (object_name_.find("__") == 0) {
+    return false;
+  }
+
+  return true;
+}
 
 std::string ZgwConn::GetAccessKey() {
   if (!req_->query_params["X-Amz-Credential"].empty()) {
@@ -98,13 +121,14 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   resp_ = resp;
 
   // Get bucket name and object name
-  Status s = ExtraBucketAndObject(req_->path, &bucket_name_, &object_name_);
-  if (!s.ok()) {
+  if (req_->path[0] != '/') {
     resp_->SetStatusCode(500);
-    LOG(ERROR) << "HTTP path parse error: " << s.ToString();
+    resp_->SetBody("Path parse error: " + req_->path);
     return;
   }
+  ExtraBucketAndObject(req_->path, &bucket_name_, &object_name_);
 
+  Status s;
   // Users operation, without authorization for now
   if (req_->method == "GET" &&
       bucket_name_ == "admin_list_users") {
@@ -190,7 +214,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
       resp_->SetStatusCode(405);
       resp_->SetBody(xml::ErrorXml(xml::MethodNotAllowed, ""));
     }
-  } else if (IsBucketOp()) {
+  } else if (IsValidBucket()) {
     switch(method) {
       case kGet:
         if (req_->query_params.find("uploads") != req_->query_params.end()) {
@@ -220,7 +244,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
       default:
         break;
     }
-  } else if (IsObjectOp()) {
+  } else if (IsValidObject()) {
     // Check whether bucket existed in namelist meta
     if (!buckets_name_->IsExist(bucket_name_)) {
       resp_->SetStatusCode(404);
@@ -286,6 +310,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   }
 
   resp_->SetHeaders("Date", http_nowtime(time(NULL)));
+  resp_->SetHeaders("x-amz-request-id", "tx00000000000000000113c-0058a43a07-7deaf-sh-bt-1"); // TODO (gaodq)
 }
 
 void ZgwConn::InitialMultiUpload() {
@@ -657,6 +682,7 @@ void ZgwConn::GetObjectHandle(bool is_head_op) {
   }
   DLOG(INFO) << "GetObject: " << req_->path << " confirm get object from zp success";
 
+  resp_->SetHeaders("Last-Modified", http_nowtime(object.info().mtime.tv_sec));
   resp_->SetBody(object.content());
   resp_->SetStatusCode(200);
 }
@@ -664,12 +690,7 @@ void ZgwConn::GetObjectHandle(bool is_head_op) {
 bool ZgwConn::GetSourceObject(std::unique_ptr<libzgw::ZgwObject>& src_object_p) {
   std::string src_bucket_name, src_object_name;
   auto& source = req_->headers.at("x-amz-copy-source");
-  Status s = ExtraBucketAndObject(source, &src_bucket_name, &src_object_name);
-  if (!s.ok()) {
-    resp_->SetStatusCode(500);
-    LOG(ERROR) << "Path parse error: " << s.ToString();
-    return false;
-  }
+  ExtraBucketAndObject(source, &src_bucket_name, &src_object_name);
   if (src_bucket_name.empty() || src_object_name.empty()) {
     resp_->SetStatusCode(400);
     resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "x-amz-copy-source"));
@@ -682,7 +703,7 @@ bool ZgwConn::GetSourceObject(std::unique_ptr<libzgw::ZgwObject>& src_object_p) 
   }
 
   libzgw::NameList *tmp_obnames = NULL;
-  s = g_zgw_server->objects_list()->Ref(store_, src_bucket_name, &tmp_obnames);
+  Status s = g_zgw_server->objects_list()->Ref(store_, src_bucket_name, &tmp_obnames);
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "Ref objects name list failed: " << s.ToString();
@@ -813,14 +834,35 @@ void ZgwConn::DelBucketHandle() {
   DLOG(INFO) << "DeleteBucket: " << req_->path << " confirm bucket exist";
   // Need not check return value
 
+  // AbortAllMultiPartUpload
+  Status s;
   if (objects_name_ != NULL && !objects_name_->IsEmpty()) {
-    resp_->SetStatusCode(409);
-    resp_->SetBody(xml::ErrorXml(xml::BucketNotEmpty, bucket_name_));
-    LOG(ERROR) << "DeleteBucket: BucketNotEmpty";
-    return;
+    bool has_normal_object = false;
+    std::lock_guard<std::mutex> lock(objects_name_->list_lock);
+    for (auto &name : objects_name_->name_list) {
+      if (name.find("__") != 0) {
+        has_normal_object = true;
+        break;
+      }
+    }
+    if (!has_normal_object) {
+      for (auto &name : objects_name_->name_list) {
+        s = store_->DelObject(bucket_name_, name);
+        if (!s.ok()) {
+          resp_->SetStatusCode(500);
+          LOG(ERROR) << "Delete bucket failed: " << s.ToString();
+        }
+      }
+      objects_name_->name_list.clear();
+    } else {
+      resp_->SetStatusCode(409);
+      resp_->SetBody(xml::ErrorXml(xml::BucketNotEmpty, bucket_name_));
+      LOG(ERROR) << "DeleteBucket: BucketNotEmpty";
+      return;
+    }
   }
 
-  Status s = store_->DelBucket(bucket_name_);
+  s = store_->DelBucket(bucket_name_);
   if (s.ok()) {
     buckets_name_->Delete(bucket_name_);
     resp_->SetStatusCode(204);

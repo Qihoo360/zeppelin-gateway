@@ -64,15 +64,10 @@ class ZgwConn : public pink::HttpConn {
   libzgw::NameList *objects_name_;
   libzgw::ZgwUser *zgw_user_;
 
+  bool IsValidBucket();
+  bool IsValidObject();
   bool GetSourceObject(std::unique_ptr<libzgw::ZgwObject>& src_object_p);
   std::string GetAccessKey();
-  bool IsBucketOp() {
-    return (!bucket_name_.empty() && object_name_.empty());
-  }
-
-  bool IsObjectOp() {
-    return (!bucket_name_.empty() && !object_name_.empty());
-  }
 };
 
 
