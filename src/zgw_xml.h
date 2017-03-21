@@ -22,6 +22,7 @@ enum ErrorType {
   InvalidPart,
   InvalidPartOrder,
   MethodNotAllowed,
+  InvalidArgument,
 };
 
 extern std::string ErrorXml(ErrorType etype, std::string extra_info);
@@ -39,6 +40,7 @@ extern std::string ListPartsResultXml(const std::vector<std::pair<int, libzgw::Z
 extern std::string CompleteMultipartUploadResultXml(const std::string& bucket_name,
                                                     const std::string& object_name,
                                                     const std::string& final_etag);
+extern std::string CopyObjectResultXml(timeval now, const std::string& etag);
 extern std::string DeleteResultXml(const std::vector<std::string>& success_keys,
                                    const std::map<std::string, std::string>& error_keys);
 extern bool ParseCompleteMultipartUploadXml(const std::string& xml,

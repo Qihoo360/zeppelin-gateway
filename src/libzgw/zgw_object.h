@@ -54,6 +54,10 @@ class ZgwObject {
     name_ = name;
   }
 
+  void SetBucketName(const std::string& name) {
+    bucket_name_ = name;
+  }
+
   void SetObjectInfo(const ZgwObjectInfo &info) {
     info_ = info;
   }

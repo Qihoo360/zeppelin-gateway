@@ -29,6 +29,12 @@ std::string ErrorXml(ErrorType etype, std::string extra_info) {
   doc.append_node(error);
 
   switch(etype) {
+    case InvalidArgument:
+      error->append_node(doc.allocate_node(node_element, "Code", "InvalidArgument"));
+      error->append_node(doc.allocate_node(node_element, "Message", "Copy Source must "
+                                           "mention the source bucket and key: sourcebucket/sourcekey"));
+      error->append_node(doc.allocate_node(node_element, "ArgumentName", extra_info.c_str()));
+      break;
     case MethodNotAllowed:
       error->append_node(doc.allocate_node(node_element, "Code", "MethodNotAllowed"));
       error->append_node(doc.allocate_node(node_element, "Message", "The specified method "
@@ -424,6 +430,28 @@ std::string CompleteMultipartUploadResultXml(const std::string& bucket_name,
   rnode->append_node(doc.allocate_node(node_element, "Bucket", bucket_name.c_str()));;
   rnode->append_node(doc.allocate_node(node_element, "Key", object_name.c_str()));;
   rnode->append_node(doc.allocate_node(node_element, "ETag", final_etag.c_str()));;
+
+  std::string res_xml;
+  print(std::back_inserter(res_xml), doc, 0);
+  return res_xml;
+}
+
+std::string CopyObjectResultXml(timeval now, const std::string& etag) {
+  // <Root>
+  xml_document<> doc;
+  xml_node<> *rot =
+    doc.allocate_node(node_pi, doc.allocate_string(xml_header.c_str()));
+  doc.append_node(rot);
+
+  xml_attribute<> *attr = doc.allocate_attribute("xmlns", xml_ns.c_str());
+
+  xml_node<> *rnode = doc.allocate_node(node_element, "CompleteMultipartUploadResult");
+  rnode->append_attribute(attr);
+  doc.append_node(rnode);
+
+  std::string time = iso8601_time(now.tv_sec, now.tv_usec);
+  rnode->append_node(doc.allocate_node(node_element, "LastModified", time.c_str()));;
+  rnode->append_node(doc.allocate_node(node_element, "ETag", etag.c_str()));;
 
   std::string res_xml;
   print(std::back_inserter(res_xml), doc, 0);

@@ -63,8 +63,13 @@ Status ListMap::Unref(ZgwStore *store, const std::string &key) {
 
   if (nl->ref <= 0) {
     nl->ref = 0; // Avoid multi unref
-    ref_lock_.unlock();
-    return nl->Save(store);
+    Status s = nl->Save(store);
+    if (!s.ok()) {
+      ref_lock_.unlock();
+      return s;
+    }
+    delete nl;
+    map_list_.erase(key);
   }
   ref_lock_.unlock();
   return Status::OK();

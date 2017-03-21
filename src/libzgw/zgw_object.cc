@@ -12,7 +12,7 @@ extern std::string kBucketMetaPrefix;
 ZgwObject::ZgwObject(const std::string& bucket_name, const std::string& name)
       : bucket_name_(bucket_name),
         name_(name),
-        strip_len_(0),
+        strip_len_(kObjectDataStripLen),
         strip_count_(0) {
 }
 
