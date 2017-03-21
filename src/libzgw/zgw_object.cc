@@ -25,8 +25,7 @@ ZgwObject::ZgwObject(const std::string& name, const std::string& content,
         multiparts_done_(true),
         is_partial_(false) {
   int m = content_.size() % strip_len_;
-  strip_count_ = content_.empty() ? 0 :
-    (content_.size() / strip_len_ + (m > 0 ? 1 : 0));
+  strip_count_ = content_.size() / strip_len_ + (m > 0 ? 1 : 0);
 }
 
 ZgwObject::~ZgwObject() {
@@ -112,7 +111,7 @@ Status ZgwObject::ParseMetaValue(std::string* value) {
   multiparts_done_ = static_cast<bool>(b);
   uint32_t n, v;
   slash::GetFixed32(value, &n);
-  for (uint32_t i; i < n; i++) {
+  for (uint32_t i = 0; i < n; i++) {
     slash::GetFixed32(value, &v);
     part_nums_.insert(v);
   }
