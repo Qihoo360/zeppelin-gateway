@@ -505,7 +505,23 @@ void ZgwConn::ListParts(const std::string& upload_id) {
   }
   DLOG(INFO) << "ListParts: " << req_->path << " confirm upload exist";
 
-  std::vector<std::pair<int, libzgw::ZgwObject>> parts;
+  std::string part_num_marder = req_->query_params["part-number-marker"];
+  std::string mus = req_->query_params["max-parts"];
+  int max_parts = 0;
+  if (!mus.empty()) {
+    max_parts = std::atoi(mus.c_str());
+    if (max_parts == 0 && !isdigit(mus[0])) {
+      resp_->SetStatusCode(400);
+      resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "max-parts"));
+      return;
+    }
+  } else {
+    max_parts = 1000;
+  }
+  bool is_trucated = false;
+  int count = 0;
+
+  std::vector<std::pair<int, libzgw::ZgwObject>> parts, needed_parts;
   Status s = store_->ListParts(bucket_name_, internal_obname, &parts);
   if (!s.ok()) {
     resp_->SetStatusCode(500);
@@ -513,18 +529,33 @@ void ZgwConn::ListParts(const std::string& upload_id) {
     return;
   }
 
+  for (auto& part : parts) {
+    if (count >= max_parts) {
+      if (max_parts > 0)
+        is_trucated = true;
+      break;
+    }
+    if (!part_num_marder.empty() &&
+        std::to_string(part.first) < part_num_marder) {
+      continue;
+    }
+    needed_parts.push_back(part);
+    ++count;
+  }
+
   std::map<std::string, std::string> args{
     {"Bucket", bucket_name_},
     {"Key", object_name_},
     {"UploadId", upload_id},
     {"StorageClass", "STANDARD"},
-    // {"PartNumberMarker", "1"},
-    // {"NextPartNumberMarker", ""},
-    {"MaxParts", "1000"},
-    {"IsTruncated", "false"},
+    {"PartNumberMarker", part_num_marder},
+    {"NextPartNumberMarker", (!is_trucated || needed_parts.empty()) ? "" :
+      std::to_string(needed_parts.back().first)},
+    {"MaxParts", std::to_string(max_parts)},
+    {"IsTruncated", is_trucated ? "true" : "false"},
   };
   resp_->SetStatusCode(200);
-  resp_->SetBody(xml::ListPartsResultXml(parts, zgw_user_, args));
+  resp_->SetBody(xml::ListPartsResultXml(needed_parts, zgw_user_, args));
 }
 
 void ZgwConn::ListMultiPartsUpload() {
@@ -536,12 +567,40 @@ void ZgwConn::ListMultiPartsUpload() {
   }
   DLOG(INFO) << "ListMultiPartsUpload: " << req_->path << " confirm bucket exist";
 
+  std::string delimiter = req_->query_params["delimiter"];
+  std::string prefix = req_->query_params["prefix"];
+  std::string mus = req_->query_params["max-uploads"];
+  int max_uploads = 0;
+  if (!mus.empty()) {
+    max_uploads = std::atoi(mus.c_str());
+    if (max_uploads == 0 && !isdigit(mus[0])) {
+      resp_->SetStatusCode(400);
+      resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "max-uploads"));
+      return;
+    }
+  } else {
+    max_uploads = 1000;
+  }
+  std::string key_marker = req_->query_params["key-marker"];
+  std::string upload_id_marker = req_->query_params["upload-id-marker"];
+
+  bool is_trucated = false;
   Status s;
+  int count = 0;
   std::vector<libzgw::ZgwObject> objects;
   {
     std::lock_guard<std::mutex> lock(objects_name_->list_lock);
     for (auto &name : objects_name_->name_list) {
-      if (name.compare(0, 2, "__") == 0) {
+      if (count > max_uploads) {
+        if (max_uploads > 0)
+          is_trucated = true;
+        break;
+      }
+      if (name.compare(0, 2, "__") != 0 ||
+          (!prefix.empty() && name.substr(2, prefix.size()) != prefix) ||
+          (!key_marker.empty() &&
+           !upload_id_marker.empty() &&
+           name < ("__" + key_marker + upload_id_marker))) {
         continue;
       }
       libzgw::ZgwObject object(bucket_name_, name);
@@ -555,18 +614,21 @@ void ZgwConn::ListMultiPartsUpload() {
         return;
       }
       objects.push_back(object);
+      ++count;
     }
   }
 
   std::string next_key_marker = objects.empty() ? "" : objects.back().name();
   std::map<std::string, std::string> args {
     {"Bucket", bucket_name_},
-    {"NextKeyMarker", next_key_marker.empty() ? "" :
+    {"KeyMarker", key_marker},
+    {"NextKeyMarker", (!is_trucated || next_key_marker.empty()) ? "" :
       next_key_marker.substr(2, next_key_marker.size() - 32 -2)},
-    {"NextUploadIdMarker", objects.empty() ? "" : objects.back().upload_id()},
-    {"MaxUploads", "1000"},
-    {"IsTruncated", "false"},
+    {"NextUploadIdMarker", (!is_trucated || objects.empty()) ? "" : objects.back().upload_id()},
+    {"MaxUploads", std::to_string(max_uploads)},
+    {"IsTruncated", is_trucated ? "true" : "false"},
   };
+  if (!objects.empty()) objects.pop_back();
   resp_->SetStatusCode(200);
   resp_->SetBody(xml::ListMultipartUploadsResultXml(objects, args));
 }
