@@ -194,16 +194,9 @@ std::string ListObjectsXml(const std::vector<libzgw::ZgwObject> &objects,
   rnode->append_attribute(attr);
   doc.append_node(rnode);
 
-  //    <Name>
-  rnode->append_node(doc.allocate_node(node_element, "Name", args["Name"].c_str()));
-  //    <Prefix>
-  rnode->append_node(doc.allocate_node(node_element, "Prefix", args["Prefix"].c_str()));
-  //    <Marker>
-  rnode->append_node(doc.allocate_node(node_element, "Marker", args["Marker"].c_str()));
-  //    <MaxKeys>
-  rnode->append_node(doc.allocate_node(node_element, "MaxKeys", args["MaxKeys"].c_str()));
-  //    <IsTruncated>
-  rnode->append_node(doc.allocate_node(node_element, "IsTruncated", args["IsTruncated"].c_str()));
+  for (auto &it : args) {
+    rnode->append_node(doc.allocate_node(node_element, it.first.c_str(), it.second.c_str()));
+  }
 
   // Saver for xml parser
   std::vector<std::string> cdates;
@@ -489,7 +482,7 @@ bool ParseCompleteMultipartUploadXml(const std::string& xml,
     if (quote_etag.at(0) != '\"') {
       quote_etag.assign("\"" + quote_etag + "\"");
     }
-    parts->push_back(std::make_pair(std::stoi(part_num->value()), quote_etag));
+    parts->push_back(std::make_pair(std::atoi(part_num->value()), quote_etag));
   }
   return true;
 }

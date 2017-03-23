@@ -365,13 +365,13 @@ void ZgwConn::UploadPartHandle(const std::string& part_num, const std::string& u
     src_object_p->info().mtime = now;
     etag = src_object_p->info().etag;
     s = store_->UploadPart(bucket_name_, internal_obname, src_object_p->info(),
-                           src_object_p->content(), std::stoi(part_num));
+                           src_object_p->content(), std::atoi(part_num.c_str()));
   } else {
     etag.assign("\"" + slash::md5(req_->content) + "\"");
     libzgw::ZgwObjectInfo ob_info(now, etag, req_->content.size(), libzgw::kStandard,
                                   zgw_user_->user_info());
     s = store_->UploadPart(bucket_name_, internal_obname, ob_info, req_->content,
-                           std::stoi(part_num));
+                           std::atoi(part_num.c_str()));
   }
   if (!s.ok()) {
     resp_->SetStatusCode(500);
@@ -541,7 +541,7 @@ void ZgwConn::ListMultiPartsUpload() {
   {
     std::lock_guard<std::mutex> lock(objects_name_->list_lock);
     for (auto &name : objects_name_->name_list) {
-      if (name.find_first_of("__") != 0) {
+      if (name.compare(0, 2, "__") == 0) {
         continue;
       }
       libzgw::ZgwObject object(bucket_name_, name);
@@ -786,13 +786,48 @@ void ZgwConn::ListObjectHandle() {
   }
   DLOG(INFO) << "ListObjects: " << req_->path << " confirm bucket exist";
 
+  std::string delimiter = req_->query_params["delimiter"];
+  std::string prefix = req_->query_params["prefix"];
+  std::string mks = req_->query_params["max-keys"];
+  int max_keys = 0;
+  if (!mks.empty()) {
+    max_keys = std::atoi(mks.c_str());
+    if (max_keys == 0 && !isdigit(mks[0])) {
+      resp_->SetStatusCode(400);
+      resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "max-keys"));
+      return;
+    }
+  } else {
+    max_keys = 1000;
+  }
+  std::string marker = req_->query_params["marker"];
+  std::string start_after = req_->query_params["start-after"];
+  std::string type = req_->query_params["list-type"];
+  if (!type.empty() && type != "2") {
+    resp_->SetStatusCode(400);
+    resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "list-type"));
+    return;
+  }
+
+  bool is_trucated = false;
+
   // Get objects meta from zp
   Status s;
+  int count = 0;
   std::vector<libzgw::ZgwObject> objects;
   {
     std::lock_guard<std::mutex> lock(objects_name_->list_lock);
     for (auto &name : objects_name_->name_list) {
-      if (name.find_first_of("__") == 0) {
+      if (count >= max_keys) {
+        if (max_keys > 0)
+          is_trucated = true;
+        break;
+      }
+      if (name.compare(0, 2, "__") == 0 ||
+          // (!prefix.empty() && name.compare(0, prefix.size(), prefix) != 0) ||
+          (!prefix.empty() && name.substr(0, prefix.size()) != prefix) ||
+          (!start_after.empty() && name < start_after) ||
+          (!marker.empty() && name < marker)) {
         continue;
       }
       libzgw::ZgwObject object(bucket_name_, name);
@@ -806,6 +841,7 @@ void ZgwConn::ListObjectHandle() {
         return;
       }
       objects.push_back(object);
+      ++count;
     }
   }
   DLOG(INFO) << "ListObjects: " << req_->path << " confirm get objects' meta from zp success";
@@ -813,12 +849,13 @@ void ZgwConn::ListObjectHandle() {
   // Success Http response
   std::map<std::string, std::string> args{
     {"Name", bucket_name_},
-    {"MaxKeys", "1000"},
-    {"IsTruncated", "false"},
+    {"Prefix", prefix},
+    {"Marker", marker},
+    {"Delimiter", delimiter},
+    {"MaxKeys", std::to_string(max_keys)},
+    {"IsTruncated", is_trucated ? "true" : "false"},
+    {"StartAfter", start_after}
   };
-  // args["Name"] = bucket_name_;
-  // args["MaxKeys"] = "1000";
-  // args["IsTruncated"] = "false";
   resp_->SetBody(xml::ListObjectsXml(objects, args));
   resp_->SetStatusCode(200);
 }
@@ -939,7 +976,6 @@ void ZgwConn::PutBucketHandle() {
 
 void ZgwConn::ListBucketHandle() {
   DLOG(INFO) << "ListBuckets: ";
-  // Find object list meta
 
   // Load bucket info from zp
   Status s;
