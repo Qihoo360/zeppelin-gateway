@@ -452,7 +452,7 @@ std::string CopyObjectResultXml(timeval now, const std::string& etag) {
 
   xml_attribute<> *attr = doc.allocate_attribute("xmlns", xml_ns.c_str());
 
-  xml_node<> *rnode = doc.allocate_node(node_element, "CompleteMultipartUploadResult");
+  xml_node<> *rnode = doc.allocate_node(node_element, "CopyPartResult");
   rnode->append_attribute(attr);
   doc.append_node(rnode);
 

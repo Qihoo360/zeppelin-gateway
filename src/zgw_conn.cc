@@ -387,6 +387,9 @@ void ZgwConn::UploadPartHandle(const std::string& part_num, const std::string& u
   }
   DLOG(INFO) << "UploadPart: " << req_->path << " confirm add to zp success";
 
+  if (is_copy_op) {
+    resp_->SetBody(xml::CopyObjectResultXml(now, etag));
+  }
   resp_->SetHeaders("ETag", etag);
   resp_->SetStatusCode(200);
 }
