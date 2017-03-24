@@ -1,3 +1,4 @@
+#include <cctype>
 #include <openssl/hmac.h>
 #include "slash_string.h"
 #include "slash_hash.h"
@@ -73,14 +74,40 @@ std::string HMAC_SHA256(const std::string key, const std::string value, bool raw
   return std::string(buf);
 }
 
-static void hexchar(unsigned char c, unsigned char &hex1, unsigned char &hex2) {
+inline void char2hex(unsigned char c, unsigned char &hex1, unsigned char &hex2) {
     hex1 = c / 16;
     hex2 = c % 16;
     hex1 += hex1 <= 9 ? '0' : 'a' - 10;
     hex2 += hex2 <= 9 ? '0' : 'a' - 10;
 }
 
-std::string UrlEncode(std::string s) {
+inline char hex2char(const std::string& hex) {
+  assert(hex.size() == 2);
+  char a = std::tolower(hex[0]);
+  char b = std::tolower(hex[1]);
+  a = a >= 'a' ? (10 + a - 'a') : (a - '0');
+  b = b >= 'a' ? (10 + b - 'a') : (b - '0');
+  return (a * 16 + b);
+}
+
+std::string UrlDecode(const std::string& url) {
+  std::string v;
+  size_t i = 0;
+  while (i < url.size()) {
+    if (url[i] == '%') {
+      if (i + 3 > url.size()) {
+        break;
+      }
+      v.push_back(hex2char(url.substr(i + 1, 2)));
+      i += 3;
+    } else {
+      v.push_back(url[i++]);
+    }
+  }
+  return v;
+}
+
+std::string UrlEncode(const std::string& s) {
   const char *str = s.c_str();
   std::string v;
   v.clear();
@@ -96,7 +123,7 @@ std::string UrlEncode(std::string s) {
     } else {
       v.push_back('%');
       unsigned char d1, d2;
-      hexchar(c, d1, d2);
+      char2hex(c, d1, d2);
       v.push_back(d1);
       v.push_back(d2);
     }

@@ -7,6 +7,8 @@
 #include "include/http_conn.h"
 
 std::string HMAC_SHA256(const std::string key, const std::string value, bool raw = true);
+extern std::string UrlEncode(const std::string& s);
+extern std::string UrlDecode(const std::string& url);
 
 class ZgwAuth {
  public:

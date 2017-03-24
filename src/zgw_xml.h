@@ -25,18 +25,19 @@ enum ErrorType {
   InvalidArgument,
 };
 
-extern std::string ErrorXml(ErrorType etype, std::string extra_info);
+extern std::string ErrorXml(ErrorType etype, const std::string extra_info);
 extern std::string ListBucketXml(const libzgw::ZgwUserInfo &info,
                                  const std::vector<libzgw::ZgwBucket> &buckets);
 extern std::string ListObjectsXml(const std::vector<libzgw::ZgwObject> &objects,
-                                  std::map<std::string, std::string> &args);
-extern std::string InitiateMultipartUploadResultXml(std::string &bucket_name, std::string &key,
-                                                 std::string &upload_id);
+                                  const std::map<std::string, std::string> &args,
+                                  const std::set<std::string>& commonprefixes);
+extern std::string InitiateMultipartUploadResultXml(const std::string &bucket_name, const std::string &key,
+                                                    const std::string &upload_id);
 extern std::string ListMultipartUploadsResultXml(const std::vector<libzgw::ZgwObject> &objects,
-                                                 std::map<std::string, std::string> &args);
+                                                 const std::map<std::string, std::string> &args,
+                                                 const std::set<std::string>& commonprefixes);
 extern std::string ListPartsResultXml(const std::vector<std::pair<int, libzgw::ZgwObject>> &objects,
-                                      libzgw::ZgwUser *user,
-                                      std::map<std::string, std::string> &args);
+                                      const libzgw::ZgwUser *user, const std::map<std::string, std::string> &args);
 extern std::string CompleteMultipartUploadResultXml(const std::string& bucket_name,
                                                     const std::string& object_name,
                                                     const std::string& final_etag);

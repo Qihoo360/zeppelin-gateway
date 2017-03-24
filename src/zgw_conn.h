@@ -64,6 +64,7 @@ class ZgwConn : public pink::HttpConn {
   libzgw::NameList *objects_name_;
   libzgw::ZgwUser *zgw_user_;
 
+  void PreProcessUrl();
   bool IsValidBucket();
   bool IsValidObject();
   bool GetSourceObject(std::unique_ptr<libzgw::ZgwObject>& src_object_p);

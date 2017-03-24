@@ -181,7 +181,8 @@ std::string ListBucketXml(const libzgw::ZgwUserInfo &info,
 
 // ListObjects XML Parser
 std::string ListObjectsXml(const std::vector<libzgw::ZgwObject> &objects,
-                           std::map<std::string, std::string> &args) {
+                           const std::map<std::string, std::string> &args,
+                           const std::set<std::string>& commonprefixes) {
   // <Root>
   xml_document<> doc;
   xml_node<> *rot =
@@ -194,7 +195,7 @@ std::string ListObjectsXml(const std::vector<libzgw::ZgwObject> &objects,
   rnode->append_attribute(attr);
   doc.append_node(rnode);
 
-  for (auto &it : args) {
+  for (const auto &it : args) {
     rnode->append_node(doc.allocate_node(node_element, it.first.c_str(), it.second.c_str()));
   }
 
@@ -237,14 +238,20 @@ std::string ListObjectsXml(const std::vector<libzgw::ZgwObject> &objects,
                                          user.disply_name.data()));
   }
 
+  for (const auto& commonprefix : commonprefixes) {
+    xml_node<> *com_prefix = doc.allocate_node(node_element, "CommonPrefixes");
+    com_prefix->append_node(doc.allocate_node(node_element, "Prefix", commonprefix.c_str()));
+    rnode->append_node(com_prefix);
+  }
+
   std::string res_xml;
   print(std::back_inserter(res_xml), doc, 0);
   return res_xml;
 }
 
 // MultiPartUpload XML Parser
-std::string InitiateMultipartUploadResultXml(std::string &bucket_name, std::string &key,
-                                             std::string &upload_id) {
+std::string InitiateMultipartUploadResultXml(const std::string &bucket_name, const std::string &key,
+                                             const std::string &upload_id) {
   // <Root>
   xml_document<> doc;
   xml_node<> *rot =
@@ -267,7 +274,8 @@ std::string InitiateMultipartUploadResultXml(std::string &bucket_name, std::stri
 }
 
 std::string ListMultipartUploadsResultXml(const std::vector<libzgw::ZgwObject> &objects,
-                                          std::map<std::string, std::string> &args) {
+                                          const std::map<std::string, std::string> &args,
+                                          const std::set<std::string>& commonprefixes) {
   // <Root>
   xml_document<> doc;
   xml_node<> *rot =
@@ -280,7 +288,7 @@ std::string ListMultipartUploadsResultXml(const std::vector<libzgw::ZgwObject> &
   rnode->append_attribute(attr);
   doc.append_node(rnode);
 
-  for (auto &it : args) {
+  for (const auto &it : args) {
     rnode->append_node(doc.allocate_node(node_element, it.first.c_str(), it.second.c_str()));
   }
 
@@ -314,13 +322,19 @@ std::string ListMultipartUploadsResultXml(const std::vector<libzgw::ZgwObject> &
     rnode->append_node(upload);
   }
 
+  for (const auto& commonprefix : commonprefixes) {
+    xml_node<> *com_prefix = doc.allocate_node(node_element, "CommonPrefixes");
+    com_prefix->append_node(doc.allocate_node(node_element, "Prefix", commonprefix.c_str()));
+    rnode->append_node(com_prefix);
+  }
+
   std::string res_xml;
   print(std::back_inserter(res_xml), doc, 0);
   return res_xml;
 }
 
-std::string ListPartsResultXml(const std::vector<std::pair<int, libzgw::ZgwObject>> &objects,
-                               libzgw::ZgwUser *user, std::map<std::string, std::string> &args) {
+std::string ListPartsResultXml(const std::vector<std::pair<int, libzgw::ZgwObject>>& objects,
+                               const libzgw::ZgwUser* user, const std::map<std::string, std::string>& args) {
   // <Root>
   xml_document<> doc;
   xml_node<> *rot =
@@ -333,7 +347,7 @@ std::string ListPartsResultXml(const std::vector<std::pair<int, libzgw::ZgwObjec
   rnode->append_attribute(attr);
   doc.append_node(rnode);
 
-  for (auto &it : args) {
+  for (const auto &it : args) {
     rnode->append_node(doc.allocate_node(node_element, it.first.c_str(), it.second.c_str()));
   }
 
@@ -386,14 +400,14 @@ std::string DeleteResultXml(const std::vector<std::string>& success_keys,
   rnode->append_attribute(attr);
   doc.append_node(rnode);
 
-  for (auto& skey : success_keys) {
+  for (const auto& skey : success_keys) {
     xml_node<> *deleted = doc.allocate_node(node_element, "Deleted");
     rnode->append_node(deleted);
     xml_node<> *key = doc.allocate_node(node_element, "Key", skey.c_str());
     deleted->append_node(key);
   }
 
-  for (auto& it : error_keys) {
+  for (const auto& it : error_keys) {
     xml_node<> *error = doc.allocate_node(node_element, "Error");
     rnode->append_node(error);
     error->append_node(doc.allocate_node(node_element, "Key", it.first.c_str()));
