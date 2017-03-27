@@ -720,6 +720,10 @@ void ZgwConn::GetObjectHandle(bool is_head_op) {
   if (!s.ok()) {
     if (s.IsNotFound()) {
       LOG(WARNING) << "Data size maybe strip count error";
+    } else if (s.IsEndFile()) {
+      resp_->SetStatusCode(416);
+      resp_->SetBody(xml::ErrorXml(xml::InvalidRange, bucket_name_));
+      return;
     } else {
       resp_->SetStatusCode(500);
       LOG(ERROR) << "Get object data failed: " << s.ToString();
@@ -780,6 +784,11 @@ bool ZgwConn::GetSourceObject(std::unique_ptr<libzgw::ZgwObject>& src_object_p) 
   bool need_partial = !segments.empty();
   if (need_partial) {
     s = store_->GetPartialObject(src_object_p.get(), segments);
+    if (s.IsEndFile()) {
+      resp_->SetStatusCode(416);
+      resp_->SetBody(xml::ErrorXml(xml::InvalidRange, bucket_name_));
+      return false;
+    }
   } else {
     s = store_->GetObject(src_object_p.get(), true);
   }

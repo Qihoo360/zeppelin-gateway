@@ -100,8 +100,8 @@ Status ZgwStore::GetPartialObject(ZgwObject* object, int start_byte, int partial
     }
     object->AppendContent(candidate_value.substr(start_byte, partial_size));
   } else {
-    int cur_total_size = 0;
     for (auto n : object->part_nums()) {
+      // Get sub object size;
       std::string subobject_name = kInternalSubObjectNamePrefix +
         std::to_string(n) + kInternalObjectNamePrefix + object->name() + object->upload_id();
       ZgwObject subobject(object->bucket_name(), subobject_name);
@@ -109,28 +109,24 @@ Status ZgwStore::GetPartialObject(ZgwObject* object, int start_byte, int partial
       if (!s.ok()) {
         return s;
       }
-      cur_total_size += subobject.info().size;
+      int cur_object_size = subobject.info().size;
 
-      if (start_byte + partial_size < cur_total_size) {
+      if (start_byte < cur_object_size) {
         // This subobject
-        s = GetPartialObject(&subobject, start_byte, partial_size);
+        int get_size = std::min(cur_object_size, partial_size);
+        s = GetPartialObject(&subobject, start_byte, get_size);
         if (!s.ok()) {
           return s;
         }
         object->AppendContent(subobject.content());
-        break;
-      } else if (start_byte > subobject.info().size) {
-        // Next subobject
-        start_byte -= subobject.info().size;
-      } else {
-        // Contain this subobject
-        s = GetPartialObject(&subobject, start_byte, subobject.info().size - start_byte);
-        if (!s.ok()) {
-          return s;
-        }
-        object->AppendContent(subobject.content());
-        partial_size -= (subobject.info().size - start_byte);
+        partial_size -= get_size;
         start_byte = 0;
+        if (partial_size == 0) {
+          break;
+        }
+      } else {
+        // Next subobject
+        start_byte -= cur_object_size;
       }
     }
   }
@@ -138,7 +134,8 @@ Status ZgwStore::GetPartialObject(ZgwObject* object, int start_byte, int partial
   return Status::OK();
 }
 
-Status ZgwStore::GetPartialObject(ZgwObject* object, std::vector<std::pair<int, uint32_t>>& segments) {
+Status ZgwStore::GetPartialObject(ZgwObject* object,
+                                  std::vector<std::pair<int, uint32_t>>& segments) {
   // Get Object
   std::string meta_value;
   Status s = zp_->Get(kZgwMetaTableName, object->MetaKey(), &meta_value);
@@ -162,9 +159,13 @@ Status ZgwStore::GetPartialObject(ZgwObject* object, std::vector<std::pair<int, 
       seg.first = start_byte;
       seg.second = start_byte + partial_size - 1;
     } else {
-      seg.second = std::min((uint64_t)seg.second, object->info().size);
+      seg.second = std::min((uint64_t)seg.second, object->info().size - 1);
       partial_size = seg.second - seg.first + 1;
       start_byte = seg.first;
+    }
+
+    if (start_byte > object->info().size) {
+      return Status::EndFile("Start byte is greater than object size");
     }
 
     Status s = GetPartialObject(object, start_byte, partial_size);
