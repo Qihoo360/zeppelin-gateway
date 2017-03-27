@@ -67,6 +67,8 @@ class ZgwConn : public pink::HttpConn {
   void PreProcessUrl();
   bool IsValidBucket();
   bool IsValidObject();
+  bool ParseRange(const std::string& range,
+                  std::vector<std::pair<int, uint32_t>>* segments);
   bool GetSourceObject(std::unique_ptr<libzgw::ZgwObject>& src_object_p);
   std::string GetAccessKey();
 };

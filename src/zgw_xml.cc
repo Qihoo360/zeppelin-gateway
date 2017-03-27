@@ -29,6 +29,10 @@ std::string ErrorXml(ErrorType etype, std::string extra_info) {
   doc.append_node(error);
 
   switch(etype) {
+    case InvalidRange:
+      error->append_node(doc.allocate_node(node_element, "Code", "InvalidRange"));
+      error->append_node(doc.allocate_node(node_element, "BucketName", extra_info.c_str()));
+      break;
     case InvalidArgument:
       error->append_node(doc.allocate_node(node_element, "Code", "InvalidArgument"));
       error->append_node(doc.allocate_node(node_element, "Message", "Copy Source must "

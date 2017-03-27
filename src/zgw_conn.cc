@@ -1,5 +1,6 @@
 #include <memory>
 #include <cctype>
+#include <cstdint>
 #include <sys/time.h>
 
 #include "zgw_conn.h"
@@ -85,7 +86,7 @@ bool ZgwConn::IsValidObject() {
   if (bucket_name_.empty() || object_name_.empty()) {
     return false;
   }
-  if (object_name_.find("__") == 0) {
+  if (object_name_.find(libzgw::kInternalObjectNamePrefix) == 0) {
     return false;
   }
   return true;
@@ -328,7 +329,7 @@ void ZgwConn::InitialMultiUpload() {
   libzgw::ZgwObjectInfo ob_info(now, "", 0, libzgw::kStandard, zgw_user_->user_info());
   std::string tmp_obname = object_name_ + std::to_string(time(NULL));
   upload_id.assign(slash::md5(tmp_obname));
-  internal_obname.assign("__" + object_name_ + upload_id);
+  internal_obname.assign(libzgw::kInternalObjectNamePrefix + object_name_ + upload_id);
 
   libzgw::ZgwObject object(bucket_name_, internal_obname, "", ob_info);
   object.SetUploadId(upload_id);
@@ -350,7 +351,7 @@ void ZgwConn::InitialMultiUpload() {
 }
 
 void ZgwConn::UploadPartHandle(const std::string& part_num, const std::string& upload_id) {
-  std::string internal_obname = "__" + object_name_ + upload_id;
+  std::string internal_obname = libzgw::kInternalObjectNamePrefix + object_name_ + upload_id;
   if (!objects_name_->IsExist(internal_obname)) {
     resp_->SetStatusCode(404);
     resp_->SetBody(xml::ErrorXml(xml::NoSuchUpload, upload_id));
@@ -370,6 +371,8 @@ void ZgwConn::UploadPartHandle(const std::string& part_num, const std::string& u
     }
     src_object_p->info().user = zgw_user_->user_info();
     src_object_p->info().mtime = now;
+    src_object_p->info().size = src_object_p->content().size();
+    src_object_p->info().etag.assign("\"" + slash::md5(src_object_p->content()) + "\"");
     etag = src_object_p->info().etag;
     s = store_->UploadPart(bucket_name_, internal_obname, src_object_p->info(),
                            src_object_p->content(), std::atoi(part_num.c_str()));
@@ -395,7 +398,7 @@ void ZgwConn::UploadPartHandle(const std::string& part_num, const std::string& u
 }
 
 void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
-  std::string internal_obname = "__" + object_name_ + upload_id;
+  std::string internal_obname = libzgw::kInternalObjectNamePrefix + object_name_ + upload_id;
   if (!objects_name_->IsExist(internal_obname)) {
     resp_->SetStatusCode(404);
     resp_->SetBody(xml::ErrorXml(xml::NoSuchUpload, upload_id));
@@ -481,7 +484,7 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
 }
 
 void ZgwConn::AbortMultiUpload(const std::string& upload_id) {
-  std::string internal_obname = "__" + object_name_ + upload_id;
+  std::string internal_obname = libzgw::kInternalObjectNamePrefix + object_name_ + upload_id;
   if (!objects_name_->IsExist(internal_obname)) {
     resp_->SetStatusCode(404);
     resp_->SetBody(xml::ErrorXml(xml::NoSuchUpload, upload_id));
@@ -507,7 +510,7 @@ void ZgwConn::AbortMultiUpload(const std::string& upload_id) {
 }
 
 void ZgwConn::ListParts(const std::string& upload_id) {
-  std::string internal_obname = "__" + object_name_ + upload_id;
+  std::string internal_obname = libzgw::kInternalObjectNamePrefix + object_name_ + upload_id;
   if (!objects_name_->IsExist(internal_obname)) {
     resp_->SetStatusCode(404);
     resp_->SetBody(xml::ErrorXml(xml::NoSuchUpload, upload_id));
@@ -603,7 +606,7 @@ void ZgwConn::ListMultiPartsUpload() {
   {
     std::lock_guard<std::mutex> lock(objects_name_->list_lock);
     for (auto &name : objects_name_->name_list) {
-      if (name.compare(0, 2, "__") != 0 ||
+      if (name.compare(0, 2, libzgw::kInternalObjectNamePrefix) != 0 ||
           (!prefix.empty() && name.substr(2, prefix.size()) != prefix)) {
         continue;
       }
@@ -764,6 +767,35 @@ void ZgwConn::DelObjectHandle() {
   resp_->SetStatusCode(204);
 }
 
+bool ZgwConn::ParseRange(const std::string& range,
+                         std::vector<std::pair<int, uint32_t>>* segments) {
+  // Check whether range is valid
+  size_t pos = range.find("bytes=");
+  if (pos == std::string::npos) {
+    resp_->SetStatusCode(400);
+    resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "range"));
+    return false;
+  }
+  std::string range_header = range.substr(6);
+  std::vector<std::string> elems;
+  slash::StringSplit(range_header, ',', elems);
+  for (auto& elem : elems) {
+    int start = 0;
+    uint32_t end = UINT32_MAX;
+    int res = sscanf(elem.c_str(), "%d-%d", &start, &end);
+    if (res > 0) {
+      if (end < start) {
+        resp_->SetStatusCode(416);
+        resp_->SetBody(xml::ErrorXml(xml::InvalidRange, bucket_name_));
+        return false;
+      }
+      segments->push_back(std::make_pair(start, end));
+      break; // Support one range for now
+    }
+  }
+  return true;
+}
+
 void ZgwConn::GetObjectHandle(bool is_head_op) {
   DLOG(INFO) << "GetObjects: " << bucket_name_ << "/" << object_name_;
 
@@ -775,12 +807,30 @@ void ZgwConn::GetObjectHandle(bool is_head_op) {
   DLOG(INFO) << "GetObject: " << req_->path << " confirm object exist";
 
   // Get object
+  Status s;
+  std::vector<std::pair<int, uint32_t>> segments;
+  if (!req_->headers["range"].empty() &&
+      !ParseRange(req_->headers["range"], &segments)) {
+    return;
+  }
   libzgw::ZgwObject object(bucket_name_, object_name_);
   bool need_content = !is_head_op;
-  Status s = store_->GetObject(&object, need_content);
+  bool need_partial = !segments.empty();
+  if (need_partial && need_content) {
+    for (auto& seg : segments) {
+      std::cout << seg.first << " - " << seg.second << std::endl;
+    }
+    s = store_->GetPartialObject(&object, segments);
+  } else {
+    s = store_->GetObject(&object, need_content);
+  }
   if (!s.ok()) {
     if (s.IsNotFound()) {
       LOG(WARNING) << "Data size maybe strip count error";
+    } else if (s.IsEndFile()) {
+      resp_->SetStatusCode(416);
+      resp_->SetBody(xml::ErrorXml(xml::InvalidRange, bucket_name_));
+      return;
     } else {
       resp_->SetStatusCode(500);
       LOG(ERROR) << "Get object data failed: " << s.ToString();
@@ -792,7 +842,14 @@ void ZgwConn::GetObjectHandle(bool is_head_op) {
 
   resp_->SetHeaders("Last-Modified", http_nowtime(object.info().mtime.tv_sec));
   resp_->SetBody(object.content());
-  resp_->SetStatusCode(200);
+  if (need_partial) {
+    char buf[256] = {0};
+    sprintf(buf, "bytes %d-%u/%lu", segments[0].first, segments[0].second, object.info().size);
+    resp_->SetHeaders("Content-Range", std::string(buf));
+    resp_->SetStatusCode(206);
+  } else {
+    resp_->SetStatusCode(200);
+  }
 }
 
 bool ZgwConn::GetSourceObject(std::unique_ptr<libzgw::ZgwObject>& src_object_p) {
@@ -827,7 +884,22 @@ bool ZgwConn::GetSourceObject(std::unique_ptr<libzgw::ZgwObject>& src_object_p) 
 
   // Get source object
   src_object_p.reset(new libzgw::ZgwObject(src_bucket_name, src_object_name));
-  s = store_->GetObject(src_object_p.get(), true);
+  std::vector<std::pair<int, uint32_t>> segments;
+  if (!req_->headers["x-amz-copy-source-range"].empty() &&
+      !ParseRange(req_->headers["x-amz-copy-source-range"], &segments)) {
+    return false;
+  }
+  bool need_partial = !segments.empty();
+  if (need_partial) {
+    s = store_->GetPartialObject(src_object_p.get(), segments);
+    if (s.IsEndFile()) {
+      resp_->SetStatusCode(416);
+      resp_->SetBody(xml::ErrorXml(xml::InvalidRange, bucket_name_));
+      return false;
+    }
+  } else {
+    s = store_->GetObject(src_object_p.get(), true);
+  }
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "Put copy object data failed: " << s.ToString();
@@ -931,7 +1003,7 @@ void ZgwConn::ListObjectHandle() {
   {
     std::lock_guard<std::mutex> lock(objects_name_->list_lock);
     for (auto &name : objects_name_->name_list) {
-      if (name.compare(0, 2, "__") == 0 ||
+      if (name.compare(0, 2, libzgw::kInternalObjectNamePrefix) == 0 ||
           (!prefix.empty() && name.substr(0, prefix.size()) != prefix))  {
         continue;
       }
@@ -1001,6 +1073,9 @@ void ZgwConn::ListObjectHandle() {
     {"IsTruncated", is_trucated ? "true" : "false"},
     {"StartAfter", start_after}
   };
+  if (next_marker.empty()) {
+    args.erase("NextMarker");
+  }
   resp_->SetBody(xml::ListObjectsXml(objects, args, commonprefixes));
   resp_->SetStatusCode(200);
 }
@@ -1022,7 +1097,7 @@ void ZgwConn::DelBucketHandle() {
     bool has_normal_object = false;
     std::lock_guard<std::mutex> lock(objects_name_->list_lock);
     for (auto &name : objects_name_->name_list) {
-      if (name.find("__") != 0) {
+      if (name.find(libzgw::kInternalObjectNamePrefix) != 0) {
         has_normal_object = true;
         break;
       }

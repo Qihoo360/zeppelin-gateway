@@ -48,10 +48,11 @@ Status ZgwStore::DelObject(const std::string &bucket_name,
   // Delete subobject if it was a multipart object
   for (uint32_t n : object.part_nums()) {
     std::string internal_obname = object.name();
-    if (object_name.find_first_of("__") != 0) {
-      internal_obname = "__" + object.name() + object.upload_id();
+    if (object_name.find_first_of(kInternalObjectNamePrefix) != 0) {
+      internal_obname = kInternalObjectNamePrefix + object.name() + object.upload_id();
     }
-    std::string subobject_name = "__#" + std::to_string(n) + internal_obname;
+    std::string subobject_name = kInternalSubObjectNamePrefix +
+      std::to_string(n) + internal_obname;
     s = DelObject(bucket_name, subobject_name);
     if (!s.ok()) {
       return s;
@@ -78,6 +79,104 @@ Status ZgwStore::DelObject(const std::string &bucket_name,
   return Status::OK();
 }
 
+Status ZgwStore::GetPartialObject(ZgwObject* object, int start_byte, int partial_size) {
+  // Assert object has parsed
+
+  std::vector<ZgwObject> candidate_object;
+  Status s;
+  if (object->part_nums().empty()) {
+    // This object
+    int start_strip = start_byte / object->strip_len();
+    start_byte -= start_strip * object->strip_len();
+    int m = (start_byte + partial_size) % object->strip_len();
+    int strip_needed = (start_byte + partial_size) / object->strip_len() + (m > 0 ? 1 : 0);
+    std::string candidate_value, svalue;
+    for (int i = start_strip; i < start_strip + strip_needed; ++i) {
+      s = zp_->Get(kZgwDataTableName, object->DataKey(i), &svalue);
+      if (!s.ok()) {
+        return s;
+      }
+      candidate_value.append(svalue);
+    }
+    object->AppendContent(candidate_value.substr(start_byte, partial_size));
+  } else {
+    for (auto n : object->part_nums()) {
+      // Get sub object size;
+      std::string subobject_name = kInternalSubObjectNamePrefix +
+        std::to_string(n) + kInternalObjectNamePrefix + object->name() + object->upload_id();
+      ZgwObject subobject(object->bucket_name(), subobject_name);
+      s = GetObject(&subobject, false);
+      if (!s.ok()) {
+        return s;
+      }
+      int cur_object_size = subobject.info().size;
+
+      if (start_byte < cur_object_size) {
+        // This subobject
+        int get_size = std::min(cur_object_size, partial_size);
+        s = GetPartialObject(&subobject, start_byte, get_size);
+        if (!s.ok()) {
+          return s;
+        }
+        object->AppendContent(subobject.content());
+        partial_size -= get_size;
+        start_byte = 0;
+        if (partial_size == 0) {
+          break;
+        }
+      } else {
+        // Next subobject
+        start_byte -= cur_object_size;
+      }
+    }
+  }
+
+  return Status::OK();
+}
+
+Status ZgwStore::GetPartialObject(ZgwObject* object,
+                                  std::vector<std::pair<int, uint32_t>>& segments) {
+  // Get Object
+  std::string meta_value;
+  Status s = zp_->Get(kZgwMetaTableName, object->MetaKey(), &meta_value);
+  if (!s.ok()) {
+    return s;
+  }
+
+  // Parse from value
+  s = object->ParseMetaValue(&meta_value);
+  if (!s.ok()) {
+    return s;
+  }
+
+  for (auto &seg : segments) {
+    // Calculate partial size and start byte
+    uint32_t partial_size = 0, start_byte = 0;
+    if (seg.first < 0) {
+      partial_size = 0 - seg.first;
+      partial_size = std::min((uint64_t)partial_size, object->info().size);
+      start_byte = object->info().size - partial_size;
+      seg.first = start_byte;
+      seg.second = start_byte + partial_size - 1;
+    } else {
+      seg.second = std::min((uint64_t)seg.second, object->info().size - 1);
+      partial_size = seg.second - seg.first + 1;
+      start_byte = seg.first;
+    }
+
+    if (start_byte > object->info().size) {
+      return Status::EndFile("Start byte is greater than object size");
+    }
+
+    Status s = GetPartialObject(object, start_byte, partial_size);
+    if (!s.ok()) {
+      return s;
+    }
+  }
+
+  return Status::OK();
+}
+
 Status ZgwStore::GetObject(ZgwObject* object, bool need_content) {
   // Get Object
   std::string meta_value;
@@ -95,9 +194,10 @@ Status ZgwStore::GetObject(ZgwObject* object, bool need_content) {
   if (need_content) {
     for (auto n : object->part_nums()) {
       std::string subobject_name = object->name();
-      if (subobject_name.find_first_of("__") != 0) {
-        std::string internal_obname = "__" + subobject_name + object->upload_id();
-        subobject_name = "__#" + std::to_string(n) + internal_obname;
+      if (subobject_name.find_first_of(kInternalObjectNamePrefix) != 0) {
+        std::string internal_obname = kInternalObjectNamePrefix +
+          subobject_name + object->upload_id();
+        subobject_name = kInternalSubObjectNamePrefix + std::to_string(n) + internal_obname;
       }
       ZgwObject subobject(object->bucket_name(), subobject_name);
       s = GetObject(&subobject, true);
@@ -129,7 +229,8 @@ Status ZgwStore::UploadPart(const std::string& bucket_name, const std::string& i
   if (!s.ok()) {
     return s;
   }
-  std::string subobject_name = "__#" + std::to_string(part_num) + internal_obname;
+  std::string subobject_name = kInternalSubObjectNamePrefix +
+    std::to_string(part_num) + internal_obname;
 
   // Check if need override
   auto &part_nums = object.part_nums();
@@ -161,7 +262,8 @@ Status ZgwStore::ListParts(const std::string& bucket_name, const std::string& in
   }
 
   for (auto n : object.part_nums()) {
-    std::string subobject_name = "__#" + std::to_string(n) + internal_obname;
+    std::string subobject_name = kInternalSubObjectNamePrefix +
+      std::to_string(n) + internal_obname;
     ZgwObject subobject(bucket_name, subobject_name);
     s = GetObject(&subobject, false);
     if (!s.ok()) {

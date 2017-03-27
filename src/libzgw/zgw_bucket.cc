@@ -7,7 +7,7 @@
 
 namespace libzgw {
 
-std::string kBucketMetaPrefix = "__B__";
+static const std::string kBucketMetaPrefix = "__B__";
 
 ZgwBucket::ZgwBucket(const std::string& name)
   : name_(name) {
