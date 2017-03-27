@@ -45,6 +45,7 @@ public:
   // Operation On Objects
   Status AddObject(ZgwObject& object);
   Status GetObject(ZgwObject* object, bool need_content = false);
+  Status GetPartialObject(ZgwObject* object, std::vector<std::pair<int, uint32_t>>& segments);
   Status DelObject(const std::string &bucket_name, const std::string &object_name);
   Status UploadPart(const std::string& bucket_name, const std::string& internal_obname,
                     const ZgwObjectInfo& info, const std::string& content, int part_num);
@@ -64,6 +65,7 @@ private:
 
   Status BuildMap();
   std::string GetRandomKey(int width);
+  Status GetPartialObject(ZgwObject* object, int start, int end);
 };
 
 }  // namespace libzgw

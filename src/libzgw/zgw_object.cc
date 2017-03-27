@@ -7,7 +7,6 @@ static const std::string kObjectMetaPrefix = "__O__";
 static const std::string kObjectDataPrefix = "__o";
 static const std::string kObjectDataSep = "__";
 static const int kObjectDataStripLen = 1048576; // 1 MB
-extern std::string kBucketMetaPrefix;
 
 ZgwObject::ZgwObject(const std::string& bucket_name, const std::string& name)
       : bucket_name_(bucket_name),

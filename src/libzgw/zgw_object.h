@@ -9,6 +9,9 @@
 
 namespace libzgw {
 
+static const std::string kInternalObjectNamePrefix = "__";
+static const std::string kInternalSubObjectNamePrefix = "__#";
+
 using slash::Status;
 
 enum ObjectStorageClass {
@@ -78,6 +81,10 @@ class ZgwObject {
     content_.append(content);
   }
 
+  uint32_t strip_len() const {
+    return strip_len_;
+  }
+
   uint32_t strip_count() const {
     return strip_count_;
   }
@@ -109,7 +116,7 @@ class ZgwObject {
   std::string name_;
   std::string content_;
   ZgwObjectInfo info_;
-  uint32_t strip_len_;
+  const uint32_t strip_len_;
   uint32_t strip_count_;
 
   // Multipart Upload

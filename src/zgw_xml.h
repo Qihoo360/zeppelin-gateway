@@ -23,6 +23,7 @@ enum ErrorType {
   InvalidPartOrder,
   MethodNotAllowed,
   InvalidArgument,
+  InvalidRange,
 };
 
 extern std::string ErrorXml(ErrorType etype, std::string extra_info);
