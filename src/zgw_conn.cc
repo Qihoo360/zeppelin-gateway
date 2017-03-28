@@ -842,6 +842,8 @@ void ZgwConn::GetObjectHandle(bool is_head_op) {
 
   resp_->SetHeaders("Last-Modified", http_nowtime(object.info().mtime.tv_sec));
   resp_->SetBody(object.content());
+  resp_->SetHeaders("Content-Length", object.info().size);
+  resp_->SetHeaders("ETag", object.info().etag);
   if (need_partial) {
     char buf[256] = {0};
     sprintf(buf, "bytes %d-%u/%lu", segments[0].first, segments[0].second, object.info().size);
@@ -855,7 +857,9 @@ void ZgwConn::GetObjectHandle(bool is_head_op) {
 bool ZgwConn::GetSourceObject(std::unique_ptr<libzgw::ZgwObject>& src_object_p) {
   std::string src_bucket_name, src_object_name;
   auto& source = req_->headers.at("x-amz-copy-source");
+  DLOG(INFO) << "Copy source object: " << source;
   ExtraBucketAndObject(source, &src_bucket_name, &src_object_name);
+  DLOG(INFO) << "Copy source object: " << src_bucket_name << " " << src_object_name;
   if (src_bucket_name.empty() || src_object_name.empty()) {
     resp_->SetStatusCode(400);
     resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "x-amz-copy-source"));
@@ -891,6 +895,7 @@ bool ZgwConn::GetSourceObject(std::unique_ptr<libzgw::ZgwObject>& src_object_p) 
   }
   bool need_partial = !segments.empty();
   if (need_partial) {
+    DLOG(INFO) << "Copy partial source object: " << source << " " << segments[0].first << "-" << segments[0].second;
     s = store_->GetPartialObject(src_object_p.get(), segments);
     if (s.IsEndFile()) {
       resp_->SetStatusCode(416);

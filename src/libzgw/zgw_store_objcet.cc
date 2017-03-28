@@ -113,7 +113,7 @@ Status ZgwStore::GetPartialObject(ZgwObject* object, int start_byte, int partial
 
       if (start_byte < cur_object_size) {
         // This subobject
-        int get_size = std::min(cur_object_size, partial_size);
+        int get_size = std::min(cur_object_size - start_byte, partial_size);
         s = GetPartialObject(&subobject, start_byte, get_size);
         if (!s.ok()) {
           return s;
