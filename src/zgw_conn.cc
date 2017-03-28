@@ -926,7 +926,7 @@ bool ZgwConn::GetSourceObject(std::string* content) {
 }
 
 void ZgwConn::PutObjectHandle() {
-  DLOG(INFO) << "PutObjcet: " << req_->content << " Size: " << req_->content.size();
+  DLOG(INFO) << "PutObjcet: " << req_->path << " Size: " << req_->content.size();
 
   Status s;
   timeval now;
