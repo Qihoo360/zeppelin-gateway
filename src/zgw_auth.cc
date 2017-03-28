@@ -107,7 +107,7 @@ std::string UrlDecode(const std::string& url) {
   return v;
 }
 
-std::string UrlEncode(const std::string& s) {
+std::string UrlEncode(const std::string& s, bool encode_slash) {
   const char *str = s.c_str();
   std::string v;
   v.clear();
@@ -116,8 +116,14 @@ std::string UrlEncode(const std::string& s) {
     if ((c >= '0' && c <= '9') ||
         (c >= 'a' && c <= 'z') ||
         (c >= 'A' && c <= 'Z') ||
-        (c == '_' || c == '-' || c == '~' || c == '.' || c == '/')) {
+        (c == '_' || c == '-' || c == '~' || c == '.')) {
       v.push_back(c);
+    } else if (c == '/') {
+      if (encode_slash) {
+        v.append("%2F");
+      } else {
+        v.push_back(c);
+      }
     } else if (c == ' ') {
       v.append("%20");
     } else {
@@ -140,10 +146,10 @@ std::string ZgwAuth::CreateCanonicalRequest(const pink::HttpRequest *req) {
   result.append(UrlEncode(req->path) + "\n");
   // <CanonicalQueryString>\n
   for (auto &q : req->query_params) {
-    result.append(UrlEncode(q.first) + "=" + UrlEncode(q.second) + "&");
+    result.append(UrlEncode(q.first, true) + "=" + UrlEncode(q.second, true) + "&");
   }
-  if (result.back() == '&') {
-    result.resize(result.size() - 1); // delete last '&'
+  if (!result.empty() && result.back() == '&') {
+    result.pop_back(); // delete last '&'
   }
   result.append("\n");
   // <CanonicalHeaders>\n

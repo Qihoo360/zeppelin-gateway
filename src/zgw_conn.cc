@@ -94,7 +94,7 @@ bool ZgwConn::IsValidObject() {
 }
 
 std::string ZgwConn::GetAccessKey() {
-  if (!req_->query_params["X-Amz-Credential"].empty()) {
+  if (req_->query_params.find("X-Amz-Credential") != req_->query_params.end()) {
     std::string credential_str = req_->query_params.at("X-Amz-Credential");
     return credential_str.substr(0, 20);
   } else {
@@ -166,20 +166,22 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   access_key_ = GetAccessKey();
   // Authorize access key
   s = store_->GetUser(access_key_, &zgw_user_);
-  ZgwAuth zgw_auth;
   if (!s.ok()) {
     resp_->SetStatusCode(403);
     resp_->SetBody(xml::ErrorXml(xml::InvalidAccessKeyId, ""));
+    DLOG(INFO) << "InvalidAccessKeyId";
     return;
   }
 
-  // TODO (gaodq) disable request authorization
   // Authorize request
-  // if (!zgw_auth.Auth(req_, zgw_user_->secret_key(access_key_))) {
-  //   resp_->SetStatusCode(403);
-  //   resp_->SetBody(xml::ErrorXml(xml::SignatureDoesNotMatch, ""));
-  //   return;
-  // }
+  ZgwAuth zgw_auth;
+  if (!zgw_auth.Auth(req_, zgw_user_->secret_key(access_key_))) {
+    resp_->SetStatusCode(403);
+    resp_->SetBody(xml::ErrorXml(xml::SignatureDoesNotMatch, ""));
+    DLOG(INFO) << "Auth failed: " << ip_port() << " " << req_->headers["authorization"];
+    return;
+  }
+  DLOG(INFO) << "Auth passed: " << ip_port() << " " << req_->headers["authorization"];
 
   // Get buckets namelist and ref
   s = g_zgw_server->buckets_list()->Ref(store_, access_key_, &buckets_name_);
@@ -858,6 +860,7 @@ void ZgwConn::GetObjectHandle(bool is_head_op) {
     char buf[256] = {0};
     sprintf(buf, "bytes %d-%u/%lu", segments[0].first, segments[0].second, object.info().size);
     resp_->SetHeaders("Content-Range", std::string(buf));
+    resp_->SetHeaders("Content-Length", object.content().size());
     resp_->SetStatusCode(206);
   } else {
     resp_->SetStatusCode(200);
@@ -926,7 +929,7 @@ bool ZgwConn::GetSourceObject(std::string* content) {
 }
 
 void ZgwConn::PutObjectHandle() {
-  DLOG(INFO) << "PutObjcet: " << req_->content << " Size: " << req_->content.size();
+  DLOG(INFO) << "PutObjcet: " << req_->path << " Size: " << req_->content.size();
 
   Status s;
   timeval now;
