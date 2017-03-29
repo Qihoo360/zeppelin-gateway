@@ -93,26 +93,6 @@ bool ZgwConn::IsValidObject() {
   return true;
 }
 
-std::string ZgwConn::GetAccessKey() {
-  if (req_->query_params.find("X-Amz-Credential") != req_->query_params.end()) {
-    std::string credential_str = req_->query_params.at("X-Amz-Credential");
-    return credential_str.substr(0, 20);
-  } else {
-    std::string auth_str;
-    auto iter = req_->headers.find("authorization");
-    if (iter != req_->headers.end())
-      auth_str.assign(iter->second);
-    else return "";
-    size_t pos = auth_str.find("Credential");
-    if (pos == std::string::npos)
-      return "";
-    size_t slash_pos = auth_str.find('/');
-    // e.g. auth_str: "...Credential=f3oiCCuyE7v3dOZgeEBsa/20170225/us..."
-    return auth_str.substr(pos + 11, slash_pos - pos - 11);
-  }
-  return "";
-}
-
 ZgwConn::ZgwConn(const int fd,
                  const std::string &ip_port,
                  pink::Thread* worker)
@@ -162,11 +142,10 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     return;
   }
   
-  // Get access key
-  access_key_ = GetAccessKey();
-  // Authorize access key
-  s = store_->GetUser(access_key_, &zgw_user_);
-  if (!s.ok()) {
+  // Get access key from request and secret key from zp
+  ZgwAuth zgw_auth;
+  if (!zgw_auth.ParseAuthInfo(req_, &access_key_) ||
+      !store_->GetUser(access_key_, &zgw_user_).ok()) {
     resp_->SetStatusCode(403);
     resp_->SetBody(xml::ErrorXml(xml::InvalidAccessKeyId, ""));
     DLOG(INFO) << "InvalidAccessKeyId";
@@ -174,11 +153,11 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   }
 
   // Authorize request
-  ZgwAuth zgw_auth;
   if (!zgw_auth.Auth(req_, zgw_user_->secret_key(access_key_))) {
     resp_->SetStatusCode(403);
     resp_->SetBody(xml::ErrorXml(xml::SignatureDoesNotMatch, ""));
     DLOG(INFO) << "Auth failed: " << ip_port() << " " << req_->headers["authorization"];
+    DLOG(INFO) << "Auth failed creq: " << zgw_auth.canonical_request();
     return;
   }
   DLOG(INFO) << "Auth passed: " << ip_port() << " " << req_->headers["authorization"];
@@ -475,12 +454,16 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
 
   // Update object meta in zp
   std::string final_etag;
+  auto start = std::chrono::high_resolution_clock::now();
   s = store_->CompleteMultiUpload(bucket_name_, internal_obname, store_parts, &final_etag);
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "CompleteMultiUpload failed: " << s.ToString();
     return;
   }
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double, std::milli> diff = end - start;
+  DLOG(INFO) << "CompleteMultiUpload: " << "timeused " << diff.count() << " ms";
   DLOG(INFO) << "CompleteMultiUpload: " << req_->path << " confirm zp's objects change name";
 
   objects_name_->Insert(object_name_);

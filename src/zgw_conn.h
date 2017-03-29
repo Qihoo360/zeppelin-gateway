@@ -70,7 +70,6 @@ class ZgwConn : public pink::HttpConn {
   bool ParseRange(const std::string& range,
                   std::vector<std::pair<int, uint32_t>>* segments);
   bool GetSourceObject(std::string* content);
-  std::string GetAccessKey();
 };
 
 
