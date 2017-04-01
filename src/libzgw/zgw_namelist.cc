@@ -1,6 +1,8 @@
 #include "zgw_namelist.h"
+
 #include <iostream>
-#include "include/slash_coding.h"
+
+#include "slash/include/slash_coding.h"
 
 namespace libzgw {
 

@@ -1,21 +1,21 @@
+#include "zgw_conn.h"
+
 #include <memory>
 #include <chrono>
 #include <cctype>
 #include <cstdint>
 #include <sys/time.h>
 
-#include "zgw_conn.h"
+#include "slash/include/slash_hash.h"
+#include "libzgw/zgw_namelist.h"
 #include "zgw_server.h"
 #include "zgw_auth.h"
 #include "zgw_xml.h"
-#include "libzgw/zgw_namelist.h"
-
-#include "slash_hash.h"
 
 extern ZgwServer* g_zgw_server;
 
 static void ExtraBucketAndObject(const std::string& _path,
-                                   std::string* bucket_name, std::string* object_name) {
+                                 std::string* bucket_name, std::string* object_name) {
   std::string path = _path;
   if (path[0] != '/') {
     path = "/" + path;
@@ -96,9 +96,8 @@ bool ZgwConn::IsValidObject() {
 ZgwConn::ZgwConn(const int fd,
                  const std::string &ip_port,
                  pink::Thread* worker)
-      : HttpConn(fd, ip_port) {
-  worker_ = reinterpret_cast<ZgwWorkerThread *>(worker);
-  store_ = worker_->GetStore();
+      : HttpConn(fd, ip_port, worker) {
+	store_ = g_zgw_server->GetWorkerStore(worker);
 }
 
 void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp) {

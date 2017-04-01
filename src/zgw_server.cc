@@ -2,20 +2,30 @@
 
 #include <glog/logging.h>
 
-Status ZgwWorkerThread::Init(std::vector<std::string> &zp_meta_ip_ports) {
+#include "zgw_conn.h"
+
+Status ZgwServer::InitWorderThread(pink::Thread* worker,
+                                   std::vector<std::string> &zp_meta_ip_ports) {
   // Open ZgwStore
+  libzgw::ZgwStore* store;
   Status s =
-    libzgw::ZgwStore::Open(zp_meta_ip_ports, &store_); 
+    libzgw::ZgwStore::Open(zp_meta_ip_ports, &store); 
   if (!s.ok()) {
     LOG(FATAL) << "Can not open ZgwStore: " << s.ToString();
     return s;
   }
+  std::lock_guard<std::mutex> lock(worker_store_mutex_);
+  worker_store_.insert(std::make_pair(worker, store));
 
   return Status::OK();
 }
 
-ZgwWorkerThread::~ZgwWorkerThread() {
-  delete store_;
+libzgw::ZgwStore* ZgwServer::GetWorkerStore(pink::Thread* worker) {
+  std::lock_guard<std::mutex> lock(worker_store_mutex_);
+  if (worker_store_.find(worker) != worker_store_.end()) {
+    return worker_store_[worker];
+  }
+  return NULL;
 }
 
 ZgwServer::ZgwServer(ZgwConfig *zgw_conf)
@@ -24,26 +34,29 @@ ZgwServer::ZgwServer(ZgwConfig *zgw_conf)
       port_(zgw_conf->server_port),
       should_exit_(false) {
   worker_num_ = zgw_conf->worker_num;
+  if (worker_num_ > kMaxWorkerThread) {
+    LOG(WARNING) << "Exceed max worker thread num: " << kMaxWorkerThread;
+    worker_num_ = kMaxWorkerThread;
+  }
+  conn_factory = new ZgwConnFactory();
   for (int i = 0; i < worker_num_; i++) {
-    zgw_worker_thread_[i] = new ZgwWorkerThread();
+    zgw_worker_thread_[i] = pink::NewWorkerThread(conn_factory, 1000);
   }
   std::set<std::string> ips;
   ips.insert(ip_);
-  zgw_dispatch_thread_ = new pink::DispatchThread<ZgwConn>(
-      ips,
-      port_,
-      worker_num_,
-      reinterpret_cast<pink::WorkerThread<ZgwConn> **>(zgw_worker_thread_),
-      kDispatchCronInterval);
+  zgw_dispatch_thread_ = pink::NewDispatchThread(ips, port_, worker_num_, zgw_worker_thread_,
+                                                 kDispatchCronInterval);
   buckets_list_ = new libzgw::ListMap(libzgw::ListMap::kBuckets);
   objects_list_ = new libzgw::ListMap(libzgw::ListMap::kObjects);
 }
 
 ZgwServer::~ZgwServer() {
-  delete zgw_dispatch_thread_;
   for (int i = 0; i < worker_num_; i++) {
+    delete worker_store_[zgw_worker_thread_[i]];
     delete zgw_worker_thread_[i];
   }
+  delete zgw_dispatch_thread_;
+  delete conn_factory;
 
   LOG(INFO) << "ZgwServerThread " << pthread_self() << " exit!!!";
 }
@@ -52,7 +65,7 @@ Status ZgwServer::Start() {
   Status s;
   LOG(INFO) << "Waiting for ZgwServerThread Init, About "<< worker_num_ * 10 << "s";
   for (int i = 0; i < worker_num_; i++) {
-    s = zgw_worker_thread_[i]->Init(zgw_conf_->zp_meta_ip_ports);
+    s = InitWorderThread(zgw_worker_thread_[i], zgw_conf_->zp_meta_ip_ports);
     if (!s.ok()) {
       return s;
     }
@@ -65,10 +78,10 @@ Status ZgwServer::Start() {
   LOG(INFO) << "ZgwServerThread Init Success!";
 
   while (!should_exit_) {
-    DoTimingTask();
-    usleep(kZgwCronInterval * 1000);
+    // TODO (gaodq) DoTiming in ServerHandle
+    usleep(kDispatchCronInterval);
   }
+
+  // zgw_dispatch_thread_->JoinThread();
   return Status::OK();
 }
-
-void ZgwServer::DoTimingTask() {}

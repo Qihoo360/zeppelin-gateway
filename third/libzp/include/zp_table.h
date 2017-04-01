@@ -14,13 +14,11 @@
 #include <unordered_map>
 #include <utility>
 
-#include "include/pink_cli.h"
+#include "pink/include/pink_cli.h"
 
 #include "include/zp_meta.pb.h"
 
-
 namespace libzp {
-
 
 struct Node {
   Node();
@@ -96,8 +94,6 @@ class Table {
   int partition_num_;
   std::map<int, Partition*> partitions_;
 };
-
-
 
 }  // namespace libzp
 #endif  // CLIENT_INCLUDE_ZP_TABLE_H_

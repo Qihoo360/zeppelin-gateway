@@ -4,7 +4,6 @@
  */
 #include "include/zp_table.h"
 
-
 namespace libzp {
 
 const int kDataConnTimeout =  20000000;

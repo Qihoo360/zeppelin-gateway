@@ -1,9 +1,10 @@
 #ifndef ZGW_OBJECT_H
 #define ZGW_OBJECT_H
+
 #include <string>
 #include <sys/time.h>
 
-#include "include/slash_status.h"
+#include "slash/include/slash_status.h"
 #include "zgw_user.h"
 #include "zgw_namelist.h"
 

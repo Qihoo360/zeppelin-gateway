@@ -9,7 +9,6 @@
 #include <iostream>
 #include <string>
 
-
 namespace libzp {
 
 Cluster::Cluster(const Options& options)

@@ -4,7 +4,8 @@
 #include <string>
 #include <vector>
 #include <map>
-#include "zgw_store.h"
+
+#include "libzgw/zgw_store.h"
 
 namespace xml {
 

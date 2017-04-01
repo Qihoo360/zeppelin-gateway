@@ -1,9 +1,10 @@
 #ifndef ZGW_STORE_H
 #define ZGW_STORE_H
+
 #include <string>
 #include <vector>
 
-#include "slash_status.h"
+#include "slash/include/slash_status.h"
 
 #include "zp_cluster.h"
 #include "zgw_bucket.h"

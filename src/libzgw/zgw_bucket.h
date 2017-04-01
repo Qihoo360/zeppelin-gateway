@@ -1,11 +1,12 @@
 #ifndef ZGW_BUCKET_H
 #define ZGW_BUCKET_H
+
 #include <string>
 #include <set>
 #include <sys/time.h>
 
-#include "include/slash_string.h"
-#include "include/slash_status.h"
+#include "slash/include/slash_string.h"
+#include "slash/include/slash_status.h"
 #include "zgw_user.h"
 
 namespace libzgw {

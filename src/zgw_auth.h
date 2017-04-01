@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 
-#include "include/http_conn.h"
+#include "pink/include/http_conn.h"
 
 extern std::string UrlEncode(const std::string& s, bool encode_slash = false);
 extern std::string UrlDecode(const std::string& url);

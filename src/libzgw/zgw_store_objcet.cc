@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include <set>
 
-#include "include/slash_string.h"
+#include "slash/include/slash_string.h"
 #include <openssl/md5.h>
 
 namespace libzgw {

@@ -9,7 +9,7 @@
 #include <string>
 #include <map>
 
-#include "include/pink_cli.h"
+#include "pink/include/pink_cli.h"
 
 #include "include/zp_meta.pb.h"
 #include "include/zp_table.h"

@@ -6,7 +6,7 @@
 #include <map>
 #include <mutex>
 
-#include <include/slash_status.h>
+#include "slash/include/slash_status.h"
 #include "zgw_store.h"
 
 using slash::Status;

@@ -1,9 +1,10 @@
-#include <cctype>
-#include <openssl/hmac.h>
-#include "slash_string.h"
-#include "slash_hash.h"
-
 #include "zgw_auth.h"
+
+#include <cctype>
+
+#include <openssl/hmac.h>
+#include "slash/include/slash_string.h"
+#include "slash/include/slash_hash.h"
 
 static std::string HMAC_SHA256(const std::string key, const std::string value, bool raw = true);
 

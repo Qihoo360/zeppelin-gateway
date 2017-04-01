@@ -1,10 +1,8 @@
 #ifndef ZGW_CONN_H
 #define ZGW_CONN_H
 
-#include "include/pink_thread.h"
-#include "include/http_conn.h"
-
-#include "zgw_store.h"
+#include "pink/include/http_conn.h"
+#include "libzgw/zgw_store.h"
 
 class ZgwWorkerThread;
 
@@ -70,6 +68,13 @@ class ZgwConn : public pink::HttpConn {
   bool ParseRange(const std::string& range,
                   std::vector<std::pair<int, uint32_t>>* segments);
   bool GetSourceObject(std::string* content);
+};
+
+class ZgwConnFactory : public pink::ConnFactory {
+ public:
+  virtual pink::PinkConn* NewPinkConn(int connfd, const std::string& ip_port, pink::Thread* thread) const {
+    return new ZgwConn(connfd, ip_port, thread);
+  }
 };
 
 

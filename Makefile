@@ -12,13 +12,13 @@ SRC_DIR = ./src
 LIBZGW_DIR = ./src/libzgw
 THIRD_DIR = ./third
 OUTPUT = ./output
-VERSION = -D_GITVER_=$(shell git rev-list master | head -n1) \
+VERSION = -D_GITVER_=$(shell git rev-list HEAD | head -n1) \
 					-D_COMPILEDATE_=$(shell date +%FT%T%z)
 
-LIB_PATH = -L$(THIRD_DIR)/slash/output/lib/ \
-					 -L$(THIRD_DIR)/pink/output/lib/ \
+LIB_PATH = -L$(THIRD_DIR)/slash/slash/lib \
+					 -L$(THIRD_DIR)/pink/pink/lib \
 					 -L$(THIRD_DIR)/glog/.libs \
-					 -L$(THIRD_DIR)/libzp/output/lib/
+					 -L$(THIRD_DIR)/libzp/output/lib
 
 LIBS = -lzp \
 			 -lslash \
@@ -28,14 +28,11 @@ LIBS = -lzp \
 			 -lcrypto \
 			 -lpthread
 
-INCLUDE_PATH = -I$(LIBZGW_DIR)/\
-							 -I$(THIRD_DIR)/slash \
-							 -I$(THIRD_DIR)/slash/include \
+INCLUDE_PATH = -I$(THIRD_DIR)/slash \
 							 -I$(THIRD_DIR)/pink \
-							 -I$(THIRD_DIR)/pink/include \
 							 -I$(THIRD_DIR)/rapidxml \
-							 -I$(THIRD_DIR)/libzp \
 							 -I$(THIRD_DIR)/libzp/include \
+							 -I$(THIRD_DIR)/libzp \
 							 -I$(THIRD_DIR)/glog/src \
 
 .PHONY: all clean
@@ -47,14 +44,13 @@ BASE_BOJS += $(wildcard $(SRC_DIR)/*.c)
 BASE_BOJS += $(wildcard $(SRC_DIR)/*.cpp)
 OBJS = $(patsubst %.cc,%.o,$(BASE_BOJS))
 
-PINK = $(THIRD_DIR)/pink/output/lib/libpink.a
-SLASH = $(THIRD_DIR)/slash/output/lib/libslash.a
+PINK = $(THIRD_DIR)/pink/pink/lib/libpink.a
+SLASH = $(THIRD_DIR)/slash/slash/lib/libslash.a
 LIBZP = $(THIRD_DIR)/libzp/output/lib/libzp.a
 GLOG = $(THIRD_DIR)/glog/.libs/libglog.so.0
 
 all: $(OBJECT)
 	rm -rf $(OUTPUT)
-	mkdir -p $(OUTPUT)
 	mkdir -p $(OUTPUT)/bin
 	mkdir -p $(OUTPUT)/log
 	mkdir -p $(OUTPUT)/lib
@@ -72,13 +68,13 @@ $(OBJS): %.o : %.cc
 	$(CXX) $(CXXFLAGS) -c $< -o $@ $(INCLUDE_PATH) $(VERSION)
 
 $(SLASH):
-	make -C $(THIRD_DIR)/slash/ __PERF=$(__PERF)
+	make -C $(THIRD_DIR)/slash/slash __PERF=$(__PERF)
 
 $(PINK):
-	make -C $(THIRD_DIR)/pink/ __PERF=$(__PERF)
+	make -C $(THIRD_DIR)/pink/pink __PERF=$(__PERF) SLASH_PATH=../../slash
 
 $(LIBZP):
-	make -C $(THIRD_DIR)/libzp/ __PERF=$(__PERF)
+	make -C $(THIRD_DIR)/libzp __PERF=$(__PERF)
 
 $(GLOG):
 	if [ ! -f $(GLOG) ]; then \
@@ -93,6 +89,6 @@ clean:
 	rm -rf $(OBJECT)
 
 distclean: clean
-	make -C $(THIRD_DIR)/slash/ clean
-	make -C $(THIRD_DIR)/pink/ clean
-	make -C $(THIRD_DIR)/libzp/ clean
+	make -C $(THIRD_DIR)/slash/slash clean
+	make -C $(THIRD_DIR)/pink/pink clean
+	make -C $(THIRD_DIR)/libzp clean

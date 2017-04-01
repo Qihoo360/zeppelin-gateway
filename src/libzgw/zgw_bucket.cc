@@ -3,7 +3,7 @@
 #include <sys/time.h>
 #include <assert.h>
 
-#include "include/slash_coding.h"
+#include "slash/include/slash_coding.h"
 
 namespace libzgw {
 

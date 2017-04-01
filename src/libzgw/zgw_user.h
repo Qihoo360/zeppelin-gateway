@@ -1,14 +1,15 @@
 #ifndef ZGW_USER_H
 #define ZGW_USER_H
+
 #include <string>
 #include <set>
 #include <map>
 #include <cassert>
 #include <sys/time.h>
 
-#include "include/slash_status.h"
-#include "include/slash_coding.h"
-#include "include/slash_hash.h"
+#include "slash/include/slash_status.h"
+#include "slash/include/slash_coding.h"
+#include "slash/include/slash_hash.h"
 
 namespace libzgw {
 
