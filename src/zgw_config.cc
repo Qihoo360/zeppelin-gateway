@@ -2,6 +2,7 @@
 #include <iostream>
 
 #include "slash_string.h"
+#include "zgw_const.h"
 
 ZgwConfig::ZgwConfig(std::string path)
       : server_ip("0.0.0.0"),
@@ -9,7 +10,8 @@ ZgwConfig::ZgwConfig(std::string path)
         daemonize(false),
         minloglevel(0),
         worker_num(2),
-        log_path("./log") {
+        log_path("./log"),
+        pid_file(kZgwPidFile) {
   b_conf = new slash::BaseConf(path);
 }
 
@@ -29,6 +31,7 @@ int ZgwConfig::LoadConf() {
   b_conf->GetConfInt("minloglevel", &minloglevel);
   b_conf->GetConfInt("worker_num", &worker_num);
   b_conf->GetConfStr("log_path", &log_path);
+  b_conf->GetConfStr("pid_file", &pid_file);
 
   return 0;
 }
@@ -43,4 +46,5 @@ void ZgwConfig::Dump() {
   std::cout << "daemonize: " << daemonize << std::endl;
   std::cout << "worker_num: " << worker_num << std::endl;
   std::cout << "log_path: " << log_path << std::endl;
+  std::cout << "pid_file: " << pid_file << std::endl;
 }

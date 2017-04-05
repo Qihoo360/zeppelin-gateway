@@ -23,6 +23,7 @@ struct ZgwConfig {
   int worker_num;
 
   std::string log_path;
+  std::string pid_file;
 };
 
 #endif

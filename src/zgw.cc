@@ -91,7 +91,7 @@ void ZgwConfigInit(ZgwConfig **zgw_conf, int argc, char* argv[]) {
   (*zgw_conf)->Dump();
 }
 
-static void daemonize() {
+static void daemonize(const std::string& pid_file) {
   pid_t pid;
   umask(0);
 
@@ -113,7 +113,8 @@ static void daemonize() {
     LOG(FATAL) << "close std fd failed" << std::endl;
   }
   // Write pid file
-  std::ofstream of(kZgwPidFile);
+  std::ofstream of;
+  of.open(pid_file.empty() ? kZgwPidFile : pid_file);
   of << getpid() << std::endl;
 }
 
@@ -137,7 +138,7 @@ int main(int argc, char** argv) {
 
   if (zgw_conf->daemonize) {
     std::cout << "Running as daemon" << std::endl;
-    daemonize();
+    daemonize(zgw_conf->pid_file);
   }
 
   LOG(INFO) << "Start Server on " << zgw_conf->server_ip <<
