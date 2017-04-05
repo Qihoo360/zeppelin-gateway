@@ -40,12 +40,11 @@ ZgwServer::ZgwServer(ZgwConfig *zgw_conf)
   }
   conn_factory = new ZgwConnFactory();
   for (int i = 0; i < worker_num_; i++) {
-    zgw_worker_thread_[i] = pink::NewWorkerThread(conn_factory, 1000);
+    zgw_worker_thread_[i] = pink::NewWorkerThread(conn_factory);
   }
   std::set<std::string> ips;
   ips.insert(ip_);
-  zgw_dispatch_thread_ = pink::NewDispatchThread(ips, port_, worker_num_, zgw_worker_thread_,
-                                                 kDispatchCronInterval);
+  zgw_dispatch_thread_ = pink::NewDispatchThread(ips, port_, worker_num_, zgw_worker_thread_);
   buckets_list_ = new libzgw::ListMap(libzgw::ListMap::kBuckets);
   objects_list_ = new libzgw::ListMap(libzgw::ListMap::kObjects);
 }
@@ -78,10 +77,9 @@ Status ZgwServer::Start() {
   LOG(INFO) << "ZgwServerThread Init Success!";
 
   while (!should_exit_) {
-    // TODO (gaodq) DoTiming in ServerHandle
-    usleep(kDispatchCronInterval);
+    // DoTimingTask
+    usleep(kZgwCronInterval);
   }
 
-  // zgw_dispatch_thread_->JoinThread();
   return Status::OK();
 }
