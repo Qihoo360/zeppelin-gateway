@@ -251,9 +251,9 @@ std::string ZgwAuth::CreateCanonicalRequest(const pink::HttpRequest *req) {
   }
   result.append("\n");
   
+  std::string content_sha265 = req_tmp->headers["x-amz-content-sha256"];
   result.append(signed_headers_str_ + "\n");
-  result.append(is_presign_url_ ? "UNSIGNED-PAYLOAD" :
-                slash::sha256(req->content));;
+  result.append(is_presign_url_ ? "UNSIGNED-PAYLOAD" : content_sha265);
   return result;
 }
 

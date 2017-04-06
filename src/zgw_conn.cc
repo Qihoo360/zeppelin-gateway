@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <sys/time.h>
 
-#include "slash/include/slash_hash.h"
+#include <openssl/md5.h>
 #include "libzgw/zgw_namelist.h"
 #include "zgw_server.h"
 #include "zgw_auth.h"
@@ -37,6 +37,19 @@ static std::string http_nowtime(time_t t) {
   char buf[100] = {0};
   struct tm t_ = *gmtime(&t);
   strftime(buf, sizeof buf, "%a, %d %b %Y %H:%M:%S %Z", &t_);
+  return std::string(buf);
+}
+
+static std::string md5(const std::string& content) {
+  MD5_CTX md5_ctx;
+  char buf[33] = {0};
+  unsigned char md5[16] = {0};
+  MD5_Init(&md5_ctx);
+  MD5_Update(&md5_ctx, content.c_str(), content.size());
+  MD5_Final(md5, &md5_ctx);
+  for (int i = 0; i < 16; i++) {
+    sprintf(buf + i * 2, "%02x", md5[i]);
+  }
   return std::string(buf);
 }
 
@@ -309,7 +322,7 @@ void ZgwConn::InitialMultiUpload() {
   gettimeofday(&now, NULL);
   libzgw::ZgwObjectInfo ob_info(now, "", 0, libzgw::kStandard, zgw_user_->user_info());
   std::string tmp_obname = object_name_ + std::to_string(time(NULL));
-  upload_id.assign(slash::md5(tmp_obname));
+  upload_id.assign(md5(tmp_obname));
   internal_obname.assign(libzgw::kInternalObjectNamePrefix + object_name_ + upload_id);
 
   libzgw::ZgwObject object(bucket_name_, internal_obname, "", ob_info);
@@ -361,7 +374,7 @@ void ZgwConn::UploadPartHandle(const std::string& part_num, const std::string& u
     DLOG(INFO) << "UploadPart: " << "Part Size: " << object_content.size();
   }
   auto start = std::chrono::high_resolution_clock::now();
-  etag.assign("\"" + slash::md5(object_content) + "\"");
+  etag.assign("\"" + md5(object_content) + "\"");
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double, std::milli> diff = end - start;
   DLOG(INFO) << "UploadPart: " << "Calc md5 timeused " << diff.count() << " ms";
@@ -814,9 +827,17 @@ void ZgwConn::GetObjectHandle(bool is_head_op) {
     for (auto& seg : segments) {
       std::cout << seg.first << " - " << seg.second << std::endl;
     }
+    auto start = std::chrono::high_resolution_clock::now();
     s = store_->GetPartialObject(&object, segments);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> diff = end - start;
+    DLOG(INFO) << "GetPartialObject: " << "GetPartialObjec timeused " << diff.count() << " ms";
   } else {
+    auto start = std::chrono::high_resolution_clock::now();
     s = store_->GetObject(&object, need_content);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> diff = end - start;
+    DLOG(INFO) << "GetObject: " << "GetSourceObject timeused " << diff.count() << " ms";
   }
   if (!s.ok()) {
     if (s.IsNotFound()) {
@@ -934,7 +955,7 @@ void ZgwConn::PutObjectHandle() {
     object_content = req_->content;
   }
   auto start = std::chrono::high_resolution_clock::now();
-  etag.assign("\"" + slash::md5(object_content) + "\"");
+  etag.assign("\"" + md5(object_content) + "\"");
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double, std::milli> diff = end - start;
   DLOG(INFO) << "PutObject: " << "Calc md5 timeused " << diff.count() << " ms";

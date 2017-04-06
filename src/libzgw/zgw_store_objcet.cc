@@ -290,12 +290,12 @@ Status ZgwStore::CompleteMultiUpload(const std::string& bucket_name,
   Status s;
   for (auto &it : parts) {
     ZgwObject subob(it.second); // Intend Use Copy
-    s = GetObject(&subob, true);
+    s = GetObject(&subob, false);
     if (!s.ok()) {
       return s;
     }
     final_size += subob.info().size;
-    MD5_Update(&md5_ctx, subob.content().c_str(), subob.content().size());
+    MD5_Update(&md5_ctx, subob.info().etag.c_str(), subob.info().etag.size());
   }
   MD5_Final(md5, &md5_ctx);
   for (int i = 0; i < 16; i++) {
