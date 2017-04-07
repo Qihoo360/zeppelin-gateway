@@ -404,7 +404,8 @@ Status Cluster::SubmitDataCmd(const std::string& table, const std::string& key,
   if (s.ok()) {
     s = TryDataRpc(master);
   }
-  if (s.ok() // Success
+  if ((s.ok() && // Success
+       data_res_.code() == client::StatusCode::kOk)
       || has_pull) { // Already pull once
     return s;
   }
