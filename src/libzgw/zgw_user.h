@@ -1,18 +1,18 @@
 #ifndef ZGW_USER_H
 #define ZGW_USER_H
+
 #include <string>
 #include <set>
 #include <map>
-#include "time.h"
+#include <cassert>
+#include <sys/time.h>
 
-#include "include/slash_status.h"
-#include "include/slash_coding.h"
-#include "include/slash_hash.h"
+#include "slash/include/slash_status.h"
+#include "slash/include/slash_coding.h"
+#include "slash/include/slash_hash.h"
 
 namespace libzgw {
 
-// static const std::string kUserTableName = "__zgw_userinfo_table";
-// static const int kUserTablePartionNum = 3;
 static const std::string kUserMetaPrefix = "__U__";
 static const std::string kUserListKey = "__ZGW_userlist";
 
@@ -54,6 +54,12 @@ class ZgwUser {
   }
 
   Status GenKeyPair(std::string *access_key, std::string *secret_key);
+
+  // Return one access_key
+  std::string access_key() {
+    assert(!key_pairs_.empty());
+    return key_pairs_.begin()->first;
+  }
 
   std::map<std::string, std::string> &access_keys() {
     return key_pairs_;

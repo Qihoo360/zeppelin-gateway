@@ -1,9 +1,9 @@
+#include "zgw_store.h"
+
 #include <unistd.h>
 
-#include "zgw_store.h"
+#include "slash/include/slash_string.h"
 #include "zgw_user.h"
-
-#include "include/slash_string.h"
 
 namespace libzgw {
 
@@ -76,11 +76,17 @@ Status ZgwStore::AddUser(const std::string &user_name,
     return s;
   }
   
-  // Insert into memory
-  user_list_.users_name.insert(user_name);
-  access_key_user_map_[*access_key] = user;
+  // Dump user to zeppelin
+  s = zp_->Set(kZgwMetaTableName, user->MetaKey(), user->MetaValue());
+  if (!s.ok()) {
+    return s;
+  }
 
-  // Dump to zeppelin
+  // Insert into memory
+  access_key_user_map_[*access_key] = user;
+  user_list_.users_name.insert(user_name);
+
+  // Dump list to zeppelin
   s = zp_->Set(kZgwMetaTableName, user_list_.MetaKey(), user_list_.MetaValue());
   if (!s.ok()) {
     user_list_.users_name.erase(user_name);

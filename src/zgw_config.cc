@@ -1,7 +1,8 @@
 #include "zgw_config.h"
+
 #include <iostream>
 
-#include "slash_string.h"
+#include "slash/include/slash_string.h"
 #include "zgw_const.h"
 
 ZgwConfig::ZgwConfig(std::string path)

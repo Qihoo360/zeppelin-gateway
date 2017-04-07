@@ -9,16 +9,16 @@ Object Gateway Provide Applications with a RESTful Gateway to zeppelin
 | Feature                   | Status         |
 | :------------------------ | :------------- |
 | List Buckets              | Supported      |
-| Delete Bucket             | Not Supported  |
+| Delete Bucket             | Supported  |
 | Create Bucket             | Supported      |
 | Policy (Buckets, Objects) | Not Supported  |
 | Bucket ACLs (Get, Put)    | Not Supported  |
-| Get Bucket Info (HEAD)    | Not Supported  |
+| Get Bucket Info (HEAD)    | Supported  |
 | Get Object                | Supported      |
 | Put Object                | Supported      |
 | Delete Object             | Supported      |
 | Object ACLs (Get, Put)    | Not Supported  |
-| Get Object Info (HEAD)    | Not Supported  |
+| Get Object Info (HEAD)    | Supported  |
 | POST Object               | Not  Supported |
-| Copy Object               | Not Supported  |
-| Multipart Uploads         | Not Supported  |
+| Copy Object               | Supported  |
+| Multipart Uploads         | Supported  |

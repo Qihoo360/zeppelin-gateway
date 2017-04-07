@@ -14,18 +14,16 @@ OUTPUT := ./output/
 
 
 INCLUDE_PATH = -I./ \
-			   -I./include/ \
-			   -I$(THIRD_PATH)/glog/src/ \
-			   -I$(THIRD_PATH)/slash/include/ \
-			   -I$(THIRD_PATH)/slash/ \
-			   -I$(THIRD_PATH)/pink/include/ \
-			   -I$(THIRD_PATH)/pink/ 
+			   -I./include \
+			   -I$(THIRD_PATH)/glog/src \
+			   -I$(THIRD_PATH)/slash \
+			   -I$(THIRD_PATH)/pink 
 
 
 LIB_PATH = -L./ \
 		   -L/usr/local/lib/google/ \
-		   -L$(THIRD_PATH)/slash/output/lib/ \
-		   -L$(THIRD_PATH)/pink/output/lib/ 
+		   -L$(THIRD_PATH)/slash/slash/lib/ \
+		   -L$(THIRD_PATH)/pink/slash/lib/ 
 
 
 
@@ -52,9 +50,8 @@ all: $(LIBRARY)
 
 $(LIBRARY): $(OBJS)
 	rm -rf $(OUTPUT)
-	mkdir $(OUTPUT)
-	mkdir $(OUTPUT)/include
-	mkdir $(OUTPUT)/lib
+	mkdir -p $(OUTPUT)/include
+	mkdir -p $(OUTPUT)/lib
 	rm -rf $@
 	ar -rcs $@ $(OBJS)
 	cp -r ./include $(OUTPUT)/

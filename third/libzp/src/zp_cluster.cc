@@ -9,7 +9,6 @@
 #include <iostream>
 #include <string>
 
-
 namespace libzp {
 
 Cluster::Cluster(const Options& options)
@@ -405,8 +404,7 @@ Status Cluster::SubmitDataCmd(const std::string& table, const std::string& key,
   if (s.ok()) {
     s = TryDataRpc(master);
   }
-  if ((s.ok() &&
-        data_res_.code() == client::StatusCode::kOk)// Success
+  if ((s.ok() && data_res_.code() == client::StatusCode::kOk) // Success
       || has_pull) { // Already pull once
     return s;
   }

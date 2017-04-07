@@ -8,8 +8,8 @@
 #include <getopt.h>
 #include <glog/logging.h>
 
-#include "include/env.h"
-#include "include/slash_string.h"
+#include "slash/include/env.h"
+#include "slash/include/slash_string.h"
 #include "zgw_server.h"
 #include "zgw_config.h"
 #include "zgw_const.h"

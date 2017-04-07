@@ -1,7 +1,8 @@
 #include "zgw_namelist.h"
-#include "include/slash_coding.h"
 
 #include <iostream>
+
+#include "slash/include/slash_coding.h"
 
 namespace libzgw {
 
@@ -127,16 +128,26 @@ Status NameList::Save(ZgwStore *store) {
   return Status::OK();
 }
 
-void NameList::Insert(std::string &value) {
+void NameList::Insert(const std::string &value) {
   std::lock_guard<std::mutex> lock(list_lock);
   name_list.insert(value);
   dirty = true;
 }
 
-void NameList::Delete(std::string &value) {
+void NameList::Delete(const std::string &value) {
   std::lock_guard<std::mutex> lock(list_lock);
   name_list.erase(value);
   dirty = true;
+}
+
+bool NameList::IsExist(const std::string &value) {
+  std::lock_guard<std::mutex> lock(list_lock);
+  return (name_list.find(value) != name_list.end());
+}
+
+bool NameList::IsEmpty() {
+  std::lock_guard<std::mutex> lock(list_lock);
+  return name_list.empty();
 }
 
 }  // namespace libzgw

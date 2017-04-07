@@ -1,13 +1,17 @@
 #ifndef ZGW_OBJECT_H
 #define ZGW_OBJECT_H
+
 #include <string>
 #include <sys/time.h>
 
-#include "include/slash_status.h"
+#include "slash/include/slash_status.h"
 #include "zgw_user.h"
 #include "zgw_namelist.h"
 
 namespace libzgw {
+
+static const std::string kInternalObjectNamePrefix = "__";
+static const std::string kInternalSubObjectNamePrefix = "__#";
 
 using slash::Status;
 
@@ -37,10 +41,14 @@ struct ZgwObjectInfo {
 
 class ZgwObject {
  public:
-  ZgwObject(const std::string& name);
-  ZgwObject(const std::string& name, const std::string& content,
-            const ZgwObjectInfo& i);
-  ~ZgwObject();
+  ZgwObject(const std::string& bucket_name, const std::string& name);
+  ZgwObject(const std::string& bucket_name, const std::string& name,
+            const std::string& content, const ZgwObjectInfo& i);
+  ~ZgwObject() {}
+
+  std::string bucket_name() const {
+    return bucket_name_;
+  }
 
   std::string name() const {
     return name_;
@@ -50,36 +58,36 @@ class ZgwObject {
     name_ = name;
   }
 
+  void SetBucketName(const std::string& name) {
+    bucket_name_ = name;
+  }
+
   void SetObjectInfo(const ZgwObjectInfo &info) {
     info_ = info;
+  }
+
+  ZgwObjectInfo &info() {
+    return info_;
   }
 
   const ZgwObjectInfo &info() const {
     return info_;
   }
 
-  std::string content() const {
+  const std::string& content() const {
     return content_;
+  }
+
+  void AppendContent(const std::string& content) {
+    content_.append(content);
+  }
+
+  uint32_t strip_len() const {
+    return strip_len_;
   }
 
   uint32_t strip_count() const {
     return strip_count_;
-  }
-
-  bool multiparts_done() const {
-    return multiparts_done_;
-  }
-
-  void SetMultiPartsDone(bool v) {
-    multiparts_done_ = v;
-  }
-
-  bool is_partial() const {
-    return is_partial_;
-  }
-
-  void SetIsPartial(bool v) {
-    is_partial_ = v;
   }
 
   std::string upload_id() const {
@@ -88,6 +96,10 @@ class ZgwObject {
 
   void SetUploadId(std::string &v) {
     upload_id_ = v;
+  }
+
+  std::set<uint32_t> &part_nums() {
+    return part_nums_;
   }
 
   // Serialization
@@ -101,20 +113,21 @@ class ZgwObject {
   void ParseNextStrip(std::string* value);
 
  private:
+  std::string bucket_name_;
   std::string name_;
   std::string content_;
   ZgwObjectInfo info_;
-  uint32_t strip_len_;
+  const uint32_t strip_len_;
   uint32_t strip_count_;
 
   // Multipart Upload
-  // for virtual object
-  bool multiparts_done_;
-  std::set<int> part_nums_;
-  std::string upload_id_; // md5(object_name) + timestamp
-  // for object part
-  bool is_partial_;
-  uint32_t part_num_;
+  std::set<uint32_t> part_nums_;
+  std::string upload_id_; // md5(object_name + timestamp)
+
+  // Reserve for compatibility
+  uint32_t placeholder1_;
+  uint32_t placeholder2_;
+  uint32_t placeholder3_;
 };
 
 }  // namespace libzgw

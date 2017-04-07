@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include "base_conf.h"
+#include "slash/include/base_conf.h"
 
 struct ZgwConfig {
   explicit ZgwConfig(std::string path);

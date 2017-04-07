@@ -1,10 +1,8 @@
 #ifndef ZGW_CONN_H
 #define ZGW_CONN_H
 
-#include "include/pink_thread.h"
-#include "include/http_conn.h"
-
-#include "zgw_store.h"
+#include "pink/include/http_conn.h"
+#include "libzgw/zgw_store.h"
 
 class ZgwWorkerThread;
 
@@ -21,17 +19,18 @@ class ZgwConn : public pink::HttpConn {
   void GetObjectHandle(bool is_head_op = false);
   void PutObjectHandle();
   void DelObjectHandle();
+  void DelMultiObjectsHandle();
 
   void InitialMultiUpload();
-  void UploadPartHandle();
-  void ListParts();
-  void CompleteMultiUpload();
-  void AbortMultiUpload();
+  void UploadPartHandle(const std::string& part_num, const std::string& upload_id);
+  void ListParts(const std::string& upload_id);
+  void CompleteMultiUpload(const std::string& upload_id);
+  void AbortMultiUpload(const std::string& upload_id);
 
   // Operation On Buckets
   void PutBucketHandle();
   void DelBucketHandle();
-  void ListObjectHandle(bool is_head_op = false);
+  void ListObjectHandle();
   void ListMultiPartsUpload();
 
   // Operation On Service
@@ -40,12 +39,12 @@ class ZgwConn : public pink::HttpConn {
 
  private:
   enum METHOD {
-    GET,
-    PUT,
-    DELETE,
-    HEAD,
-    POST,
-    UNSUPPORT,
+    kGet,
+    kPut,
+    kDelete,
+    kHead,
+    kPost,
+    kUnsupport,
   };
 
   ZgwWorkerThread *worker_;
@@ -63,15 +62,18 @@ class ZgwConn : public pink::HttpConn {
   libzgw::NameList *objects_name_;
   libzgw::ZgwUser *zgw_user_;
 
-  std::string GetAccessKey();
-  std::string http_nowtime();
+  void PreProcessUrl();
+  bool IsValidBucket();
+  bool IsValidObject();
+  bool ParseRange(const std::string& range,
+                  std::vector<std::pair<int, uint32_t>>* segments);
+  bool GetSourceObject(std::string* content);
+};
 
-  bool IsBucketOp() {
-    return (!bucket_name_.empty() && object_name_.empty());
-  }
-
-  bool IsObjectOp() {
-    return (!bucket_name_.empty() && !object_name_.empty());
+class ZgwConnFactory : public pink::ConnFactory {
+ public:
+  virtual pink::PinkConn* NewPinkConn(int connfd, const std::string& ip_port, pink::Thread* thread) const {
+    return new ZgwConn(connfd, ip_port, thread);
   }
 };
 

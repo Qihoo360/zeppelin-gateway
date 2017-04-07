@@ -9,12 +9,10 @@
 #include <vector>
 #include <unordered_map>
 
-
-#include "include/pink_cli.h"
+#include "pink/include/pink_cli.h"
 
 #include "include/zp_meta.pb.h"
 #include "include/client.pb.h"
-
 #include "include/zp_table.h"
 #include "include/zp_conn.h"
 
