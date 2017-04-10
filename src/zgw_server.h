@@ -43,13 +43,18 @@ class ZgwServer {
     return &object_mutex_;
   }
 
-  Status InitWorderThread(pink::Thread* worker,
-                          std::vector<std::string> &zp_meta_ip_ports);
+  libzgw::ZgwStore* admin_store() {
+    return admin_store_;
+  }
 
   libzgw::ZgwStore* GetWorkerStore(pink::Thread* worker);
 
+  bool running() const {
+    return !should_exit_.load();
+  }
+
   void Exit() {
-    should_exit_ = true;
+    should_exit_.store(true);
   }
 
  private:
@@ -57,19 +62,28 @@ class ZgwServer {
   // Server related
 	std::vector<std::string> zp_meta_ip_ports_;
   std::string ip_;
-  int port_;
   std::atomic<bool> should_exit_;
 
   int worker_num_;
+  int port_;
   std::mutex worker_store_mutex_;
   std::map<pink::Thread*, libzgw::ZgwStore*> worker_store_;
-  ZgwConnFactory *conn_factory;
+  ZgwConnFactory *conn_factory_;
   pink::Thread* zgw_worker_thread_[kMaxWorkerThread];
+
+  int admin_port_;
+  libzgw::ZgwStore* admin_store_;
+  AdminConnFactory *admin_conn_factory_;
   pink::ServerThread* zgw_dispatch_thread_;
+  pink::ServerThread* zgw_admin_thread_;
 
   libzgw::ListMap* buckets_list_;
   libzgw::ListMap* objects_list_;
   slash::RecordMutex object_mutex_;
+
+  Status InitWorderThread(pink::Thread* worker,
+                          std::vector<std::string> &zp_meta_ip_ports);
+  Status InitAdminThread();
 };
 
 #endif

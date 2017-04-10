@@ -17,6 +17,7 @@ struct ZgwConfig {
   std::vector<std::string> zp_meta_ip_ports;
   std::string server_ip;
   int server_port;
+  int admin_port;
   bool daemonize;
   int minloglevel;
   int cron_interval;

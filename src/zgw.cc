@@ -130,19 +130,14 @@ int main(int argc, char** argv) {
   GlogInit(zgw_conf);
   ZgwSignalSetup();
 
- // FileLocker db_lock(g_zgw_conf->lock_file());
- // Status s = db_lock.Lock();
- // if (!s.ok()) {
- //   return 1;
- // }
-
   if (zgw_conf->daemonize) {
     std::cout << "Running as daemon" << std::endl;
     daemonize(zgw_conf->pid_file);
   }
 
   LOG(INFO) << "Start Server on " << zgw_conf->server_ip <<
-    ": " << zgw_conf->server_port;
+    ":" << zgw_conf->server_port;
+  LOG(INFO) << "admin port on:" << zgw_conf->admin_port;
 
   g_zgw_server = new ZgwServer(zgw_conf);
   Status s = g_zgw_server->Start();
