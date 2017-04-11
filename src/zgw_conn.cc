@@ -357,8 +357,7 @@ void ZgwConn::InitialMultiUpload() {
   timeval now;
   gettimeofday(&now, NULL);
   libzgw::ZgwObjectInfo ob_info(now, "", 0, libzgw::kStandard, zgw_user_->user_info());
-  std::string tmp_obname = object_name_ + std::to_string(time(NULL));
-  upload_id.assign(md5(tmp_obname));
+  upload_id.assign(md5(object_name_ + std::to_string(now.tv_sec * 1000000 + now.tv_usec)));
   internal_obname.assign(libzgw::kInternalObjectNamePrefix + object_name_ + upload_id);
 
   libzgw::ZgwObject object(bucket_name_, internal_obname, "", ob_info);
@@ -645,6 +644,7 @@ void ZgwConn::ListMultiPartsUpload() {
   bool is_trucated = false;
   Status s;
   std::set<std::string> commonprefixes;
+  std::vector<std::string> candidate_names;
   std::vector<libzgw::ZgwObject> objects;
   {
     std::lock_guard<std::mutex> lock(objects_name_->list_lock);
@@ -667,21 +667,11 @@ void ZgwConn::ListMultiPartsUpload() {
         }
       }
 
-      libzgw::ZgwObject object(bucket_name_, name);
-      s = store_->GetObject(&object, false);
-      if (!s.ok()) {
-        if (s.IsNotFound()) {
-          continue;
-        }
-        resp_->SetStatusCode(500);
-        LOG(ERROR) << "ListMultiPartsUpload failed: " << s.ToString();
-        return;
-      }
-      objects.push_back(object);
+      candidate_names.push_back(name);
     }
   }
 
-  int extra_num = commonprefixes.size() + objects.size() - max_uploads;
+  int extra_num = commonprefixes.size() + candidate_names.size() - max_uploads;
   is_trucated = extra_num > 0;
   if (is_trucated) {
     if (commonprefixes.size() >= extra_num) {
@@ -692,11 +682,11 @@ void ZgwConn::ListMultiPartsUpload() {
       commonprefixes.clear();
       extra_num -= commonprefixes.size();
       if (extra_num < 0) extra_num = 0;
-      if (objects.size() <= extra_num) {
-        objects.clear();
+      if (candidate_names.size() <= extra_num) {
+        candidate_names.clear();
       } else {
         while (extra_num--)
-          objects.pop_back();
+          candidate_names.pop_back();
       }
     }
   }
@@ -705,11 +695,19 @@ void ZgwConn::ListMultiPartsUpload() {
   if (is_trucated) {
     if (!commonprefixes.empty()) {
       next_key_marker = commonprefixes.empty() ? "" : *commonprefixes.rbegin();
-    } else if (!objects.empty()) {
-      next_key_marker = objects.back().name();
+    } else if (!candidate_names.empty()) {
+      next_key_marker = candidate_names.back();
       next_key_marker = next_key_marker.substr(2, next_key_marker.size() - 32 -2);
     }
   }
+
+  s = store_->ListObjects(bucket_name_, candidate_names, &objects);
+  if (!s.ok()) {
+    resp_->SetStatusCode(500);
+    LOG(ERROR) << "ListMultiPartsUpload failed: " << s.ToString();
+    return;
+  }
+
   std::map<std::string, std::string> args {
     {"Bucket", bucket_name_},
     {"KeyMarker", key_marker},
@@ -1043,6 +1041,7 @@ void ZgwConn::ListObjectHandle() {
   // Get objects meta from zp
   Status s;
   std::set<std::string> commonprefixes;
+  std::vector<std::string> candidate_names;
   std::vector<libzgw::ZgwObject> objects;
   {
     std::lock_guard<std::mutex> lock(objects_name_->list_lock);
@@ -1063,23 +1062,12 @@ void ZgwConn::ListObjectHandle() {
         }
       }
 
-      libzgw::ZgwObject object(bucket_name_, name);
-      s = store_->GetObject(&object, false);
-      if (!s.ok()) {
-        if (s.IsNotFound()) {
-          continue;
-        }
-        resp_->SetStatusCode(500);
-        LOG(ERROR) << "ListObjects failed: " << s.ToString();
-        return;
-      }
-      objects.push_back(object);
+      candidate_names.push_back(name);
     }
   }
-  DLOG(INFO) << "ListObjects: " << req_->path << " confirm get objects' meta from zp success";
 
   // Success Http response
-  int extra_num = commonprefixes.size() + objects.size() - max_keys;
+  int extra_num = commonprefixes.size() + candidate_names.size() - max_keys;
   is_trucated = extra_num > 0;
   if (is_trucated) {
     if (commonprefixes.size() >= extra_num) {
@@ -1090,11 +1078,11 @@ void ZgwConn::ListObjectHandle() {
       commonprefixes.clear();
       extra_num -= commonprefixes.size();
       if (extra_num < 0) extra_num = 0;
-      if (objects.size() <= extra_num) {
-        objects.clear();
+      if (candidate_names.size() <= extra_num) {
+        candidate_names.clear();
       } else {
         while (extra_num--)
-          objects.pop_back();
+          candidate_names.pop_back();
       }
     }
   }
@@ -1102,8 +1090,8 @@ void ZgwConn::ListObjectHandle() {
   if (is_trucated) {
     if (!commonprefixes.empty()) {
       next_marker = commonprefixes.empty() ? "" : *commonprefixes.rbegin();
-    } else if (!objects.empty()) {
-      next_marker = objects.back().name();
+    } else if (!candidate_names.empty()) {
+      next_marker = candidate_names.back();
     }
   }
   std::map<std::string, std::string> args{
@@ -1111,7 +1099,7 @@ void ZgwConn::ListObjectHandle() {
     {"Prefix", prefix},
     {"Marker", marker},
     {"NextMarker", next_marker},
-    {"KeyCount", std::to_string(commonprefixes.size() + objects.size())},
+    {"KeyCount", std::to_string(commonprefixes.size() + candidate_names.size())},
     {"Delimiter", delimiter},
     {"MaxKeys", std::to_string(max_keys)},
     {"IsTruncated", is_trucated ? "true" : "false"},
@@ -1120,6 +1108,15 @@ void ZgwConn::ListObjectHandle() {
   if (next_marker.empty()) {
     args.erase("NextMarker");
   }
+
+  s = store_->ListObjects(bucket_name_, candidate_names, &objects);
+  if (!s.ok()) {
+    resp_->SetStatusCode(500);
+    LOG(ERROR) << "ListObjects failed: " << s.ToString();
+    return;
+  }
+  DLOG(INFO) << "ListObjects: " << req_->path << " confirm get objects' meta from zp success";
+
   resp_->SetBody(xml::ListObjectsXml(objects, args, commonprefixes));
   resp_->SetStatusCode(200);
 }
@@ -1244,21 +1241,16 @@ void ZgwConn::ListBucketHandle() {
   // Load bucket info from zp
   Status s;
   std::vector<libzgw::ZgwBucket> buckets;
+  std::set<std::string> name_list;
   {
     std::lock_guard<std::mutex> lock(buckets_name_->list_lock);
-    for (auto &name : buckets_name_->name_list) {
-      libzgw::ZgwBucket bucket(name);
-      s = store_->GetBucket(&bucket);
-      if (!s.ok()) {
-        if (s.IsNotFound()) {
-          continue;
-        }
-        resp_->SetStatusCode(500);
-        LOG(ERROR) << "ListBuckets failed: " << s.ToString();
-        return;
-      }
-      buckets.push_back(bucket);
-    }
+    name_list = buckets_name_->name_list;
+  }
+  s = store_->ListBucket(name_list, &buckets);
+  if (!s.ok()) {
+    resp_->SetStatusCode(500);
+    LOG(ERROR) << "ListBuckets failed: " << s.ToString();
+    return;
   }
 
   // Zeppelin success, then build http body

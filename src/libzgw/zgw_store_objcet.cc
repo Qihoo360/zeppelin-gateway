@@ -177,6 +177,33 @@ Status ZgwStore::GetPartialObject(ZgwObject* object,
   return Status::OK();
 }
 
+Status ZgwStore::ListObjects(const std::string& bucket_name,
+                             const std::vector<std::string>& candidate_names,
+                             std::vector<ZgwObject>* objects) {
+  assert(objects);
+  Status s;
+  std::vector<std::string> keys;
+  std::map<std::string, std::string> values;
+  for (auto& name : candidate_names) {
+    ZgwObject o(bucket_name, name);
+    keys.push_back(o.MetaKey());
+    objects->push_back(std::move(o));
+  }
+  s = zp_->Mget(kZgwMetaTableName, keys, &values);
+  if (!s.ok()) {
+    return s;
+  }
+
+  for (auto& o : *objects) {
+    std::string meta_value = values[o.MetaKey()];
+    s = o.ParseMetaValue(&meta_value);
+    if (!s.ok()) {
+      return s;
+    }
+  }
+  return Status::OK();
+}
+
 Status ZgwStore::GetObject(ZgwObject* object, bool need_content) {
   // Get Object
   std::string meta_value;
@@ -261,15 +288,27 @@ Status ZgwStore::ListParts(const std::string& bucket_name, const std::string& in
     return s;
   }
 
+  std::vector<std::string> keys;
+  std::map<std::string, std::string> values;
   for (auto n : object.part_nums()) {
     std::string subobject_name = kInternalSubObjectNamePrefix +
       std::to_string(n) + internal_obname;
     ZgwObject subobject(bucket_name, subobject_name);
-    s = GetObject(&subobject, false);
+    keys.push_back(subobject.MetaKey());
+    parts->push_back(std::make_pair(n, std::move(subobject)));
+  }
+
+  s = zp_->Mget(kZgwMetaTableName, keys, &values);
+  if (!s.ok()) {
+    return s;
+  }
+
+  for (auto& p : *parts) {
+    std::string meta_value = values[p.second.MetaKey()];
+    s = p.second.ParseMetaValue(&meta_value);
     if (!s.ok()) {
       return s;
     }
-    parts->push_back(std::make_pair(n, subobject));
   }
 
   return Status::OK();

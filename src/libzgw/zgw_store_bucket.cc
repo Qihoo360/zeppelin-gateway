@@ -28,14 +28,29 @@ Status ZgwStore::DelBucket(const std::string &name) {
   return zp_->Delete(kZgwMetaTableName, ZgwBucket(name).MetaKey());
 }
 
-Status ZgwStore::GetBucket(ZgwBucket *bucket) {
-  assert(bucket);
-  std::string meta_value;
-  Status s = zp_->Get(kZgwMetaTableName, bucket->MetaKey(), &meta_value);
+Status ZgwStore::ListBucket(const std::set<std::string>& name_list,
+                            std::vector<ZgwBucket>* buckets) {
+  assert(buckets);
+  Status s;
+  std::vector<std::string> keys;
+  std::map<std::string, std::string> values;
+  for (auto& name : name_list) {
+    ZgwBucket b(name);
+    keys.push_back(b.MetaKey());
+    buckets->push_back(std::move(b));
+  }
+  s = zp_->Mget(kZgwMetaTableName, keys, &values);
   if (!s.ok()) {
     return s;
   }
-  return bucket->ParseMetaValue(meta_value);
+
+  for (auto& b : *buckets) {
+    s = b.ParseMetaValue(values[b.MetaKey()]);
+    if (!s.ok()) {
+      return s;
+    }
+  }
+  return Status::OK();
 }
 
 }  // namespace libzgw

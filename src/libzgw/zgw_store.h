@@ -40,12 +40,15 @@ public:
   
   // Operation On Buckets
   Status AddBucket(const std::string& bucket_name, const ZgwUserInfo& user_info);
-  Status GetBucket(ZgwBucket *bucket);
+  Status ListBucket(const std::set<std::string>& name_list, std::vector<ZgwBucket>* buckets);
   Status DelBucket(const std::string &bucket_name);
   
   // Operation On Objects
   Status AddObject(ZgwObject& object);
   Status GetObject(ZgwObject* object, bool need_content = false);
+  Status ListObjects(const std::string& bucket_name,
+                     const std::vector<std::string>&
+                     candidate_names, std::vector<ZgwObject>* objects);
   Status GetPartialObject(ZgwObject* object, std::vector<std::pair<int, uint32_t>>& segments);
   Status DelObject(const std::string &bucket_name, const std::string &object_name);
   Status UploadPart(const std::string& bucket_name, const std::string& internal_obname,
