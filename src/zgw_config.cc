@@ -8,6 +8,7 @@
 ZgwConfig::ZgwConfig(std::string path)
       : server_ip("0.0.0.0"),
         server_port(8099),
+        admin_port(8199),
         daemonize(false),
         minloglevel(0),
         worker_num(2),
@@ -28,6 +29,7 @@ int ZgwConfig::LoadConf() {
   slash::StringSplit(zp_meta_addr, '/', zp_meta_ip_ports);
   b_conf->GetConfStr("server_ip", &server_ip);
   b_conf->GetConfInt("server_port", &server_port);
+  b_conf->GetConfInt("admin_port", &admin_port);
   b_conf->GetConfBool("daemonize", &daemonize);
   b_conf->GetConfInt("minloglevel", &minloglevel);
   b_conf->GetConfInt("worker_num", &worker_num);
@@ -44,6 +46,7 @@ void ZgwConfig::Dump() {
   }
   std::cout << "server_ip: " << server_ip << std::endl;
   std::cout << "server_port: " << server_port << std::endl;
+  std::cout << "admin_port: " << admin_port << std::endl;
   std::cout << "daemonize: " << daemonize << std::endl;
   std::cout << "worker_num: " << worker_num << std::endl;
   std::cout << "log_path: " << log_path << std::endl;
