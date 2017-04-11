@@ -11,8 +11,8 @@
 
 #include "pink/include/pink_cli.h"
 
-#include "include/zp_meta.pb.h"
-#include "include/client.pb.h"
+#include "src/zp_meta.pb.h"
+#include "src/client.pb.h"
 #include "include/zp_table.h"
 #include "include/zp_conn.h"
 
@@ -38,6 +38,8 @@ public:
   Status Get(const std::string& table, const std::string& key,
       std::string* value);
   Status Delete(const std::string& table, const std::string& key);
+  Status Mget(const std::string& table, const std::vector<std::string>& keys,
+      std::map<std::string, std::string>* values);
 
   // meta cmd
   Status CreateTable(const std::string& table_name, int partition_num);
@@ -68,8 +70,10 @@ public:
 
  private:
   ZpCli* GetMetaConnection();
-  Status GetDataMaster(const std::string& table,
+  Status TryGetDataMaster(const std::string& table,
       const std::string& key, Node* master);
+  Status GetDataMaster(const std::string& table,
+      const std::string& key, Node* master, bool has_pull= false);
 
   Status SubmitDataCmd(const std::string& table,
       const std::string& key, bool has_pull = false);

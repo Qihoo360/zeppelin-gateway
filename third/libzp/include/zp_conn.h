@@ -11,7 +11,7 @@
 
 #include "pink/include/pink_cli.h"
 
-#include "include/zp_meta.pb.h"
+#include "src/zp_meta.pb.h"
 #include "include/zp_table.h"
 
 

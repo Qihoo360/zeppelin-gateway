@@ -3,11 +3,14 @@
  * "Author <hrxwwd@163.com>"
  */
 #include "include/zp_cluster.h"
-#include "zp_const.h"
 
 #include <google/protobuf/text_format.h>
 #include <iostream>
 #include <string>
+
+#include "slash/include/slash_string.h"
+
+#include "zp_const.h"
 
 namespace libzp {
 
@@ -98,6 +101,59 @@ Status Cluster::Get(const std::string& table, const std::string& key,
   } else {
     return Status::Corruption(data_res_.msg());
   }
+}
+
+Status Cluster::Mget(const std::string& table,
+    const std::vector<std::string>& keys,
+    std::map<std::string, std::string>* values) {
+  if (values == NULL) {
+    return Status::InvalidArgument("Null pointer");
+  }
+
+  Status s;
+  Node master;
+  // Build multi command to nodes: master node -> Command
+  std::unordered_map<std::string, client::CmdRequest*> key_distribute;
+  for (auto& k : keys) {
+    s = GetDataMaster(table, k, &master);
+    if (!s.ok()) {
+      return s;
+    }
+
+    std::string host = slash::IpPortString(master.ip, master.port);
+    if (key_distribute.find(host) == key_distribute.end()) {
+      client::CmdRequest* cptr = new client::CmdRequest(); 
+      cptr->set_type(client::Type::MGET);
+      client::CmdRequest_Mget* new_mget_cmd = cptr->mutable_mget();
+      new_mget_cmd->set_table_name(table);
+      key_distribute.insert(std::pair<std::string, client::CmdRequest*>(
+            host, cptr));
+    }
+    key_distribute[host]->mutable_mget()->add_keys(k);
+  }
+
+  // Distribute command
+  bool has_error = false;
+  for (auto& kd : key_distribute) {
+    data_cmd_.Clear();
+    data_cmd_.CopyFrom(*(kd.second));
+    s = SubmitDataCmd(table, kd.second->mget().keys(0));
+    if (!s.ok()
+        || data_res_.code() != client::StatusCode::kOk ) {
+      has_error = true;
+    } else {
+      for (auto& kv : data_res_.mget()) {
+        values->insert(std::pair<std::string, std::string>(kv.key(),
+              kv.value()));
+      }
+    }
+    delete kd.second;
+  }
+
+  if (has_error) {
+    return Status::Corruption("error happend");
+  }
+  return Status::OK();
 }
 
 Status Cluster::CreateTable(const std::string& table_name,
@@ -400,7 +456,7 @@ Status Cluster::InfoSpace(const std::string& table,
 Status Cluster::SubmitDataCmd(const std::string& table, const std::string& key,
     bool has_pull) {
   Node master;
-  Status s = GetDataMaster(table, key, &master);
+  Status s = TryGetDataMaster(table, key, &master);
   if (s.ok()) {
     s = TryDataRpc(master);
   }
@@ -517,7 +573,7 @@ ZpCli* Cluster::GetMetaConnection() {
   return meta_cli;
 }
 
-Status Cluster::GetDataMaster(const std::string& table,
+Status Cluster::TryGetDataMaster(const std::string& table,
     const std::string& key, Node* master) {
   std::unordered_map<std::string, Table*>::iterator it =
     tables_.find(table);
@@ -527,6 +583,21 @@ Status Cluster::GetDataMaster(const std::string& table,
   } else {
     return Status::NotFound("table does not exist");
   }
+}
+
+Status Cluster::GetDataMaster(const std::string& table,
+    const std::string& key, Node* master, bool has_pull) {
+  Status s = TryGetDataMaster(table, key, master);
+  if (s.ok()
+      || has_pull) {
+    return s;
+  }
+  
+  s = Pull(table);
+  if (!s.ok()) {
+    return s;
+  }
+  return GetDataMaster(table, key, master, true);
 }
 
 void Cluster::ResetClusterMap(const ZPMeta::MetaCmdResponse_Pull& pull) {
