@@ -14,7 +14,9 @@
 
 extern ZgwServer* g_zgw_server;
 
-static void ExtraBucketAndObject(const std::string& _path,
+namespace {
+
+void ExtraBucketAndObject(const std::string& _path,
                                  std::string* bucket_name, std::string* object_name) {
   std::string path = _path;
   if (path[0] != '/') {
@@ -33,14 +35,14 @@ static void ExtraBucketAndObject(const std::string& _path,
   }
 }
 
-static std::string http_nowtime(time_t t) {
+std::string http_nowtime(time_t t) {
   char buf[100] = {0};
   struct tm t_ = *gmtime(&t);
   strftime(buf, sizeof buf, "%a, %d %b %Y %H:%M:%S %Z", &t_);
   return std::string(buf);
 }
 
-static std::string md5(const std::string& content) {
+std::string md5(const std::string& content) {
   MD5_CTX md5_ctx;
   char buf[33] = {0};
   unsigned char md5[16] = {0};
@@ -53,7 +55,7 @@ static std::string md5(const std::string& content) {
   return std::string(buf);
 }
 
-static void DumpHttpRequest(const pink::HttpRequest* req) {
+void DumpHttpRequest(const pink::HttpRequest* req) {
   DLOG(INFO) << "handle get"<< std::endl;
   DLOG(INFO) << " + method: " << req->method;
   DLOG(INFO) << " + path: " << req->path;
@@ -76,6 +78,24 @@ static void DumpHttpRequest(const pink::HttpRequest* req) {
   }
   DLOG(INFO) << "------------------------------------- ";
 } 
+
+struct Timer {
+  Timer(const char* msg)
+      : msg_(msg) {
+    start = std::chrono::system_clock::now();
+  }
+
+  ~Timer() {
+    auto end = std::chrono::system_clock::now();
+    std::chrono::duration<double, std::milli> diff = end - start;
+    DLOG(INFO) << msg_ << "elapse " << diff.count() << " ms";
+  }
+
+  std::string msg_;
+  std::chrono::system_clock::time_point start;
+};
+
+}  // anoymous namespace
 
 void ZgwConn::PreProcessUrl() {
   bucket_name_ = UrlDecode(bucket_name_);
@@ -395,11 +415,8 @@ void ZgwConn::UploadPartHandle(const std::string& part_num, const std::string& u
   bool is_copy_op = !req_->headers["x-amz-copy-source"].empty();
   std::string object_content;
   if (is_copy_op) {
-    auto start = std::chrono::high_resolution_clock::now();
+    Timer t("UploadPart: GetSourceObject");
     bool res = GetSourceObject(&object_content);
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> diff = end - start;
-    DLOG(INFO) << "UploadPart: " << "GetSourceObject timeused " << diff.count() << " ms";
     DLOG(INFO) << "UploadPart: " << "SourceObject Size: " << object_content.size();
     if (!res) {
       return;
@@ -408,19 +425,17 @@ void ZgwConn::UploadPartHandle(const std::string& part_num, const std::string& u
     object_content = req_->content;
     DLOG(INFO) << "UploadPart: " << "Part Size: " << object_content.size();
   }
-  auto start = std::chrono::high_resolution_clock::now();
+  {
+  Timer t("UploadPart: Calc md5");
   etag.assign("\"" + md5(object_content) + "\"");
-  auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double, std::milli> diff = end - start;
-  DLOG(INFO) << "UploadPart: " << "Calc md5 timeused " << diff.count() << " ms";
+  }
   libzgw::ZgwObjectInfo ob_info(now, etag, object_content.size(), libzgw::kStandard,
                                 zgw_user_->user_info());
-  start = std::chrono::high_resolution_clock::now();
+  {
+  Timer t("UploadPart: UploadPart");
   s = store_->UploadPart(bucket_name_, internal_obname, ob_info, object_content,
                          std::atoi(part_num.c_str()));
-  end = std::chrono::high_resolution_clock::now();
-  diff = end - start;
-  DLOG(INFO) << "UploadPart: " << "UploadPar timeused " << diff.count() << " ms";
+  }
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "UploadPart data failed: " << s.ToString();
@@ -501,16 +516,12 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
 
   // Update object meta in zp
   std::string final_etag;
-  auto start = std::chrono::high_resolution_clock::now();
   s = store_->CompleteMultiUpload(bucket_name_, internal_obname, store_parts, &final_etag);
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "CompleteMultiUpload failed: " << s.ToString();
     return;
   }
-  auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double, std::milli> diff = end - start;
-  DLOG(INFO) << "CompleteMultiUpload: " << "timeused " << diff.count() << " ms";
   DLOG(INFO) << "CompleteMultiUpload: " << req_->path << " confirm zp's objects change name";
 
   objects_name_->Insert(object_name_);
@@ -838,17 +849,11 @@ void ZgwConn::GetObjectHandle(bool is_head_op) {
     for (auto& seg : segments) {
       std::cout << seg.first << " - " << seg.second << std::endl;
     }
-    auto start = std::chrono::high_resolution_clock::now();
+    Timer t("GetObject: GetPartialObject");
     s = store_->GetPartialObject(&object, segments);
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> diff = end - start;
-    DLOG(INFO) << "GetPartialObject: " << "GetPartialObjec timeused " << diff.count() << " ms";
   } else {
-    auto start = std::chrono::high_resolution_clock::now();
+    Timer t("GetObject: ");
     s = store_->GetObject(&object, need_content);
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> diff = end - start;
-    DLOG(INFO) << "GetObject: " << "GetSourceObject timeused " << diff.count() << " ms";
   }
   if (!s.ok()) {
     if (s.IsNotFound()) {
@@ -953,11 +958,8 @@ void ZgwConn::PutObjectHandle() {
   // Handle copy operation
   bool is_copy_op = !req_->headers["x-amz-copy-source"].empty();
   if (is_copy_op) {
-    auto start = std::chrono::high_resolution_clock::now();
+    Timer t("PutObject: GetSourceObject");
     bool res = GetSourceObject(&object_content);
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> diff = end - start;
-    DLOG(INFO) << "PutObject: " << "GetSourceObject timeused " << diff.count() << " ms";
     DLOG(INFO) << "PutObject: " << "SourceObject Size: " << object_content.size();
     if (!res) {
       return;
@@ -965,19 +967,17 @@ void ZgwConn::PutObjectHandle() {
   } else {
     object_content = req_->content;
   }
-  auto start = std::chrono::high_resolution_clock::now();
+  {
+  Timer t("PutObject: Calc md5");
   etag.assign("\"" + md5(object_content) + "\"");
-  auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double, std::milli> diff = end - start;
-  DLOG(INFO) << "PutObject: " << "Calc md5 timeused " << diff.count() << " ms";
+  }
   libzgw::ZgwObjectInfo ob_info(now, etag, object_content.size(), libzgw::kStandard,
                                 zgw_user_->user_info());
   libzgw::ZgwObject object(bucket_name_, object_name_, object_content, ob_info);
-  start = std::chrono::high_resolution_clock::now();
+  {
+  Timer t("PutObject: AddObject");
   s = store_->AddObject(object);
-  end = std::chrono::high_resolution_clock::now();
-  diff = end - start;
-  DLOG(INFO) << "PutObject: " << "AddObject timeused " << diff.count() << " ms";
+  }
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "Put object data failed: " << s.ToString();
@@ -1109,7 +1109,10 @@ void ZgwConn::ListObjectHandle() {
     args.erase("NextMarker");
   }
 
+  {
+  Timer t("ListObjects: ListObjects");
   s = store_->ListObjects(bucket_name_, candidate_names, &objects);
+  }
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "ListObjects failed: " << s.ToString();
