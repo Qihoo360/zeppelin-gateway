@@ -187,7 +187,8 @@ std::string UrlDecode(const std::string& url) {
       if (i + 3 > url.size()) {
         break;
       }
-      v.push_back(hex2char(url.substr(i + 1, 2)));
+      char c = hex2char(url.substr(i + 1, 2));
+      v.push_back(c);
       i += 3;
     } else {
       v.push_back(url[i++]);
@@ -232,7 +233,8 @@ std::string ZgwAuth::CreateCanonicalRequest(const pink::HttpRequest *req) {
   // <HTTPMethod>\n
   result.append(req->method + "\n");
   // <CanonicalURI>\n
-  result.append(UrlEncode(req->path) + "\n");
+  std::string a = UrlDecode(req->path);
+  result.append(UrlEncode(a) + "\n");
   // <CanonicalQueryString>\n
   for (auto &q : req->query_params) {
     if (q.first.compare("X-Amz-Signature") == 0) {

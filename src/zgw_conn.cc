@@ -1102,7 +1102,7 @@ void ZgwConn::ListObjectHandle() {
     {"KeyCount", std::to_string(commonprefixes.size() + candidate_names.size())},
     {"Delimiter", delimiter},
     {"MaxKeys", std::to_string(max_keys)},
-    {"IsTruncated", is_trucated ? "true" : "false"},
+    {"IsTruncated", (is_trucated && max_keys > 0) ? "true" : "false"},
     {"StartAfter", start_after}
   };
   if (next_marker.empty()) {
