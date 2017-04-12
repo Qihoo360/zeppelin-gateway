@@ -6,6 +6,7 @@
 #include <iostream>
 #include <fstream>
 #include <getopt.h>
+#include <unistd.h>
 #include <glog/logging.h>
 
 #include "slash/include/env.h"
@@ -112,6 +113,22 @@ static void daemonize(const std::string& pid_file) {
   } else {
     LOG(FATAL) << "close std fd failed" << std::endl;
   }
+
+  // change work directory
+  char buf[512] = {0};
+  if (readlink("/proc/self/exe", buf, 512) == -1) {
+    LOG(FATAL) << "Readlink error (" << strerror(errno) << "), path is " << "/proc/self/exe";
+  }
+  std::string exe_path(buf);
+  size_t pos = exe_path.find_last_of('/');
+  std::string bin_path = exe_path.substr(0, pos);
+  pos = bin_path.find_last_of('/');
+  std::string install_path = bin_path.substr(0, pos);
+  if (chdir(install_path.c_str()) == -1) {
+    LOG(FATAL) << "Change work directory failed: " << install_path;
+  }
+  LOG(INFO) << "Change work directory: " << install_path;
+
   // Write pid file
   std::ofstream of;
   of.open(pid_file.empty() ? kZgwPidFile : pid_file);
