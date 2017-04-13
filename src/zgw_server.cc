@@ -54,13 +54,16 @@ ZgwServer::ZgwServer(ZgwConfig *zgw_conf)
   conn_factory_ = new ZgwConnFactory();
   for (int i = 0; i < worker_num_; i++) {
     zgw_worker_thread_[i] = pink::NewWorkerThread(conn_factory_);
+    zgw_worker_thread_[i]->set_thread_name("WorkerThread");
   }
   std::set<std::string> ips;
   ips.insert(ip_);
   zgw_dispatch_thread_ = pink::NewDispatchThread(ips, port_, worker_num_, zgw_worker_thread_);
+  zgw_dispatch_thread_->set_thread_name("DispatchThread");
 
   admin_conn_factory_ = new AdminConnFactory();
   zgw_admin_thread_ = pink::NewHolyThread(admin_port_, admin_conn_factory_);
+  zgw_admin_thread_->set_thread_name("AdminThread");
 
   buckets_list_ = new libzgw::ListMap(libzgw::ListMap::kBuckets);
   objects_list_ = new libzgw::ListMap(libzgw::ListMap::kObjects);
@@ -77,6 +80,15 @@ ZgwServer::~ZgwServer() {
   delete admin_conn_factory_;
 
   LOG(INFO) << "ZgwServerThread " << pthread_self() << " exit!!!";
+}
+
+void ZgwServer::Exit() {
+  for (int i = 0; i < worker_num_; i++) {
+    zgw_worker_thread_[i]->StopThread();
+  }
+  zgw_dispatch_thread_->StopThread();
+  zgw_admin_thread_->StopThread();
+  should_exit_.store(true);
 }
 
 Status ZgwServer::Start() {

@@ -53,9 +53,7 @@ class ZgwServer {
     return !should_exit_.load();
   }
 
-  void Exit() {
-    should_exit_.store(true);
-  }
+  void Exit();
 
  private:
   ZgwConfig *zgw_conf_;
