@@ -10,6 +10,7 @@ static const std::string kBucketsListPre = "__Buckets_list_";
 static const std::string kObjectsListPre = "__Objects_list_";
 
 std::string NameList::MetaValue() const {
+  std::lock_guard<std::mutex> lock(list_lock);
   std::string value;
   slash::PutFixed32(&value, name_list.size());
   for (auto &name : name_list) {
@@ -19,6 +20,7 @@ std::string NameList::MetaValue() const {
 }
 
 Status NameList::ParseMetaValue(std::string *value) {
+  std::lock_guard<std::mutex> lock(list_lock);
   uint32_t count;
   slash::GetFixed32(value, &count);
   std::string name;
@@ -105,7 +107,6 @@ Status ListMap::InitNameList(const std::string &key, ZgwStore *store,
 }
 
 Status NameList::Load(ZgwStore *store) {
-  std::lock_guard<std::mutex> lock(list_lock);
   std::string meta_value;
   Status s = store->GetNameList(meta_key, &meta_value);
   if (s.ok()) {
@@ -117,7 +118,6 @@ Status NameList::Load(ZgwStore *store) {
 }
 
 Status NameList::Save(ZgwStore *store) {
-  std::lock_guard<std::mutex> lock(list_lock);
   if (dirty) {
     Status s = store->SaveNameList(meta_key, MetaValue());
     if (!s.ok()) {

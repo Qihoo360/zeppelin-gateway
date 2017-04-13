@@ -34,7 +34,7 @@ struct NameList {
 
   bool dirty;
   int ref;
-  std::mutex list_lock;
+  mutable std::mutex list_lock;
   std::string meta_key;
   std::set<std::string> name_list;
 };
