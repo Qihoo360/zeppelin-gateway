@@ -26,6 +26,10 @@ class ZgwBucket {
     return ctime_;
   }
 
+  ZgwUserInfo user_info() {
+    return user_info_;
+  }
+
   void SetUserInfo(const ZgwUserInfo &user_info) {
     user_info_ = user_info;
   }

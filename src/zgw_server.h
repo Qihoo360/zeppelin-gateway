@@ -13,6 +13,8 @@
 #include "libzgw/zgw_namelist.h"
 #include "zgw_const.h"
 #include "zgw_conn.h"
+#include "zgw_admin_conn.h"
+
 #include "zgw_config.h"
 
 using slash::Status;

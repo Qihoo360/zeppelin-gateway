@@ -39,6 +39,7 @@ public:
   Status GetNameList(const std::string &meta_key, std::string *meta_value);
   
   // Operation On Buckets
+  Status GetBucket(ZgwBucket* bucket);
   Status AddBucket(const std::string& bucket_name, const ZgwUserInfo& user_info);
   Status ListBucket(const std::set<std::string>& name_list, std::vector<ZgwBucket>* buckets);
   Status DelBucket(const std::string &bucket_name);

@@ -28,6 +28,19 @@ Status ZgwStore::DelBucket(const std::string &name) {
   return zp_->Delete(kZgwMetaTableName, ZgwBucket(name).MetaKey());
 }
 
+Status ZgwStore::GetBucket(ZgwBucket* bucket) {
+  assert(bucket);
+  Status s;
+  std::string meta_value;
+
+  s = zp_->Get(kZgwMetaTableName, bucket->MetaKey(), &meta_value);
+  if (!s.ok()) {
+    return s;
+  }
+
+  return bucket->ParseMetaValue(meta_value);
+}
+
 Status ZgwStore::ListBucket(const std::set<std::string>& name_list,
                             std::vector<ZgwBucket>* buckets) {
   assert(buckets);

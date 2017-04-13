@@ -148,7 +148,7 @@ std::string HMAC_SHA256(const std::string key, const std::string value, bool raw
 
   std::string res;
   if (raw) {
-    for (int i = 0; i < digest_len; ++i) {
+    for (unsigned int i = 0; i < digest_len; ++i) {
       res.append(1, digest[i]);
     }
     return res;
@@ -156,7 +156,7 @@ std::string HMAC_SHA256(const std::string key, const std::string value, bool raw
 
   // Hex
   char buf[65] = {0};
-  for (int i = 0; i < digest_len; ++i) {
+  for (unsigned int i = 0; i < digest_len; ++i) {
     sprintf(buf + i * 2, "%02x", (unsigned int)digest[i]);
   }
   delete[] digest;

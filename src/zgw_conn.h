@@ -6,19 +6,6 @@
 
 class ZgwWorkerThread;
 
-class AdminConn : public pink::HttpConn {
- public:
-  AdminConn(const int fd, const std::string &ip_port,
-            pink::Thread* worker);
- private:
-  virtual void DealMessage(const pink::HttpRequest* req,
-                           pink::HttpResponse* res) override;
-
-  void ListUsersHandle(pink::HttpResponse* resp);
-
-  libzgw::ZgwStore *store_;
-};
-
 class ZgwConn : public pink::HttpConn {
  public:
   ZgwConn(const int fd, const std::string &ip_port,
@@ -84,15 +71,10 @@ class ZgwConn : public pink::HttpConn {
 
 class ZgwConnFactory : public pink::ConnFactory {
  public:
-  virtual pink::PinkConn* NewPinkConn(int connfd, const std::string& ip_port, pink::Thread* thread) const {
+  virtual pink::PinkConn* NewPinkConn(int connfd,
+                                      const std::string& ip_port,
+                                      pink::Thread* thread) const {
     return new ZgwConn(connfd, ip_port, thread);
-  }
-};
-
-class AdminConnFactory : public pink::ConnFactory {
- public:
-  virtual pink::PinkConn* NewPinkConn(int connfd, const std::string& ip_port, pink::Thread* thread) const {
-    return new AdminConn(connfd, ip_port, thread);
   }
 };
 

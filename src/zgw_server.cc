@@ -2,8 +2,6 @@
 
 #include <glog/logging.h>
 
-#include "zgw_conn.h"
-
 Status ZgwServer::InitWorderThread(pink::Thread* worker,
                                    std::vector<std::string> &zp_meta_ip_ports) {
   // Open ZgwStore

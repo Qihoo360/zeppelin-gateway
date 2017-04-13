@@ -1,101 +1,16 @@
 #include "zgw_conn.h"
 
 #include <memory>
-#include <chrono>
 #include <cctype>
 #include <cstdint>
-#include <sys/time.h>
 
-#include <openssl/md5.h>
 #include "libzgw/zgw_namelist.h"
 #include "zgw_server.h"
 #include "zgw_auth.h"
 #include "zgw_xml.h"
+#include "zgw_util.h"
 
 extern ZgwServer* g_zgw_server;
-
-namespace {
-
-void ExtraBucketAndObject(const std::string& _path,
-                                 std::string* bucket_name, std::string* object_name) {
-  std::string path = _path;
-  if (path[0] != '/') {
-    path = "/" + path;
-  }
-  size_t pos = path.find('/', 1);
-  if (pos == std::string::npos) {
-    bucket_name->assign(path.substr(1));
-    object_name->clear();
-  } else {
-    bucket_name->assign(path.substr(1, pos - 1));
-    object_name->assign(path.substr(pos + 1));
-  }
-  if (!object_name->empty() && object_name->back() == '/') {
-    object_name->erase(object_name->size() - 1);
-  }
-}
-
-std::string http_nowtime(time_t t) {
-  char buf[100] = {0};
-  struct tm t_ = *gmtime(&t);
-  strftime(buf, sizeof buf, "%a, %d %b %Y %H:%M:%S %Z", &t_);
-  return std::string(buf);
-}
-
-std::string md5(const std::string& content) {
-  MD5_CTX md5_ctx;
-  char buf[33] = {0};
-  unsigned char md5[16] = {0};
-  MD5_Init(&md5_ctx);
-  MD5_Update(&md5_ctx, content.c_str(), content.size());
-  MD5_Final(md5, &md5_ctx);
-  for (int i = 0; i < 16; i++) {
-    sprintf(buf + i * 2, "%02x", md5[i]);
-  }
-  return std::string(buf);
-}
-
-void DumpHttpRequest(const pink::HttpRequest* req) {
-  DLOG(INFO) << "handle get"<< std::endl;
-  DLOG(INFO) << " + method: " << req->method;
-  DLOG(INFO) << " + path: " << req->path;
-  DLOG(INFO) << " + version: " << req->version;
-  if (req->content.size() > 50) {
-    DLOG(INFO) << " + content: " << req->content.substr(0, 50);
-  } else {
-    DLOG(INFO) << " + content: " << req->content;
-  }
-  DLOG(INFO) << " + headers: ";
-  DLOG(INFO) << "------------------------------------- ";
-  for (auto h : req->headers) {
-    DLOG(INFO) << "   + " << h.first << "=>" << h.second;
-  }
-  DLOG(INFO) << "------------------------------------- ";
-  DLOG(INFO) << "------------------------------------- ";
-  DLOG(INFO) << " + query_params: ";
-  for (auto q : req->query_params) {
-    DLOG(INFO) << "   + " << q.first << "=>" << q.second;
-  }
-  DLOG(INFO) << "------------------------------------- ";
-} 
-
-struct Timer {
-  Timer(const char* msg)
-      : msg_(msg) {
-    start = std::chrono::system_clock::now();
-  }
-
-  ~Timer() {
-    auto end = std::chrono::system_clock::now();
-    std::chrono::duration<double, std::milli> diff = end - start;
-    DLOG(INFO) << msg_ << "elapse " << diff.count() << " ms";
-  }
-
-  std::string msg_;
-  std::chrono::system_clock::time_point start;
-};
-
-}  // anoymous namespace
 
 void ZgwConn::PreProcessUrl() {
   bucket_name_ = UrlDecode(bucket_name_);
@@ -133,65 +48,6 @@ ZgwConn::ZgwConn(const int fd,
 	store_ = g_zgw_server->GetWorkerStore(worker);
 }
 
-AdminConn::AdminConn(const int fd,
-                     const std::string &ip_port,
-                     pink::Thread* worker)
-      : HttpConn(fd, ip_port, worker) {
-	store_ = g_zgw_server->admin_store();
-}
-
-void AdminConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp) {
-  Status s;
-  std::string command, params;
-  ExtraBucketAndObject(req->path, &command, &params);
-  // Users operation, without authorization for now
-  if (req->method == "GET" &&
-      command == "admin_list_users") {
-    ListUsersHandle(resp);
-    return;
-  } else if (req->method == "PUT" &&
-             command == "admin_put_user") {
-    if (params.empty()) {
-      resp->SetStatusCode(400);
-      return;
-    }
-    std::string access_key;
-    std::string secret_key;
-    s = store_->AddUser(params, &access_key, &secret_key);
-    if (!s.ok()) {
-      resp->SetStatusCode(500);
-      resp->SetBody(s.ToString());
-    } else {
-      resp->SetStatusCode(200);
-      resp->SetBody(access_key + "\r\n" + secret_key);
-    }
-    return;
-  }
-}
-
-void AdminConn::ListUsersHandle(pink::HttpResponse* resp) {
-  std::set<libzgw::ZgwUser *> user_list; // name : keys
-  Status s = store_->ListUsers(&user_list);
-  if (!s.ok()) {
-    resp->SetStatusCode(500);
-    resp->SetBody(s.ToString());
-  } else {
-    resp->SetStatusCode(200);
-    std::string body;
-    for (auto &user : user_list) {
-      const auto &info = user->user_info();
-      body.append("disply_name: " + info.disply_name + "\r\n");
-
-      for (auto &key_pair : user->access_keys()) {
-        body.append(key_pair.first + "\r\n"); // access key
-        body.append(key_pair.second + "\r\n"); // secret key
-      }
-      body.append("\r\n");
-    }
-    resp->SetBody(body);
-  }
-}
-
 void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp) {
   // DumpHttpRequest(req);
 
@@ -215,7 +71,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   if (!zgw_auth.ParseAuthInfo(req_, &access_key_) ||
       !store_->GetUser(access_key_, &zgw_user_).ok()) {
     resp_->SetStatusCode(403);
-    resp_->SetBody(xml::ErrorXml(xml::InvalidAccessKeyId, ""));
+    resp_->SetBody(xml::ErrorXml(xml::InvalidAccessKeyId));
     DLOG(INFO) << "InvalidAccessKeyId";
     return;
   }
@@ -223,7 +79,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   // Authorize request
   if (!zgw_auth.Auth(req_, zgw_user_->secret_key(access_key_))) {
     resp_->SetStatusCode(403);
-    resp_->SetBody(xml::ErrorXml(xml::SignatureDoesNotMatch, ""));
+    resp_->SetBody(xml::ErrorXml(xml::SignatureDoesNotMatch));
     DLOG(INFO) << "Auth failed: " << ip_port() << " " << req_->headers["authorization"];
     DLOG(INFO) << "Auth failed creq: " << zgw_auth.canonical_request();
     return;
@@ -270,7 +126,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     } else {
       // Unknow request
       resp_->SetStatusCode(405);
-      resp_->SetBody(xml::ErrorXml(xml::MethodNotAllowed, ""));
+      resp_->SetBody(xml::ErrorXml(xml::MethodNotAllowed));
     }
   } else if (IsValidBucket()) {
     switch(method) {
@@ -352,7 +208,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   } else {
     // Unknow request
     resp_->SetStatusCode(501);
-    resp_->SetBody(xml::ErrorXml(xml::NotImplemented, ""));
+    resp_->SetBody(xml::ErrorXml(xml::NotImplemented));
   }
 
   // Unref namelist
@@ -464,7 +320,7 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
   if (!xml::ParseCompleteMultipartUploadXml(req_->content, &recv_parts) ||
       recv_parts.empty()) {
     resp_->SetStatusCode(400);
-    resp_->SetBody(xml::ErrorXml(xml::MalformedXML, ""));
+    resp_->SetBody(xml::ErrorXml(xml::MalformedXML));
     return;
   }
   std::vector<std::pair<int, libzgw::ZgwObject>> store_parts;
@@ -480,25 +336,25 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
   }
   if (recv_parts.size() != store_parts.size()) {
     resp_->SetStatusCode(400);
-    resp_->SetBody(xml::ErrorXml(xml::InvalidPart, ""));
+    resp_->SetBody(xml::ErrorXml(xml::InvalidPart));
   }
   for (size_t i = 0; i < recv_parts.size(); i++) {
     // check part num order and existance
     if (existed_parts.find(recv_parts[i].first) == existed_parts.end()) {
       resp_->SetStatusCode(400);
-      resp_->SetBody(xml::ErrorXml(xml::InvalidPart, ""));
+      resp_->SetBody(xml::ErrorXml(xml::InvalidPart));
       return;
     }
     if (recv_parts[i].first != store_parts[i].first) {
       resp_->SetStatusCode(400);
-      resp_->SetBody(xml::ErrorXml(xml::InvalidPartOrder, ""));
+      resp_->SetBody(xml::ErrorXml(xml::InvalidPartOrder));
       return;
     }
     // Check etag
     const libzgw::ZgwObjectInfo& info = store_parts[i].second.info();
     if (info.etag != recv_parts[i].second) {
       resp_->SetStatusCode(400);
-      resp_->SetBody(xml::ErrorXml(xml::InvalidPart, ""));
+      resp_->SetBody(xml::ErrorXml(xml::InvalidPart));
       return;
     }
   }
@@ -576,7 +432,7 @@ void ZgwConn::ListParts(const std::string& upload_id) {
   int max_parts = 0;
   if (!mus.empty()) {
     max_parts = std::atoi(mus.c_str());
-    if (max_parts == 0 && !isdigit(mus[0])) {
+    if (max_parts <= 0 && !isdigit(mus[0])) {
       resp_->SetStatusCode(400);
       resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "max-parts"));
       return;
@@ -594,7 +450,7 @@ void ZgwConn::ListParts(const std::string& upload_id) {
   }
 
   for (auto& part : parts) {
-    if (needed_parts.size() >= max_parts) {
+    if (needed_parts.size() >= static_cast<size_t>(max_parts)) {
       if (max_parts > 0)
         is_trucated = true;
       break;
@@ -641,7 +497,7 @@ void ZgwConn::ListMultiPartsUpload() {
   int max_uploads = 0;
   if (!mus.empty()) {
     max_uploads = std::atoi(mus.c_str());
-    if (max_uploads == 0 && !isdigit(mus[0])) {
+    if (max_uploads <= 0 && !isdigit(mus[0])) {
       resp_->SetStatusCode(400);
       resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "max-uploads"));
       return;
@@ -660,20 +516,27 @@ void ZgwConn::ListMultiPartsUpload() {
   {
     std::lock_guard<std::mutex> lock(objects_name_->list_lock);
     for (auto &name : objects_name_->name_list) {
-      if (name.compare(0, 2, libzgw::kInternalObjectNamePrefix) != 0 ||
-          (!prefix.empty() && name.substr(2, prefix.size()) != prefix)) {
+      if (name.compare(0, 2, libzgw::kInternalObjectNamePrefix) != 0) {
+        // Skip ordinary object
         continue;
       }
+      if (!prefix.empty() &&
+          name.substr(2, std::min(name.size(), prefix.size())) != prefix) {
+        // Skip prefix
+        continue;
+      }
+      size_t marker_size = 2 + key_marker.size() + upload_id_marker.size();
       if (!key_marker.empty() &&
           !upload_id_marker.empty() &&
-          name.substr(0, 2 + key_marker.size() + upload_id_marker.size()) <=
+          name.substr(0, std::min(name.size(), marker_size)) <=
           ("__" + key_marker + upload_id_marker)) {
         continue;
       }
       if (!delimiter.empty()) {
-        size_t pos;
-        if ((pos = name.find_first_of(delimiter, 2 + prefix.size())) != std::string::npos) {
-          commonprefixes.insert(name.substr(2, pos - 2 + 1));
+        size_t pos = name.find_first_of(delimiter, 2 + prefix.size());
+        if (pos != std::string::npos) {
+          commonprefixes.insert(name.substr(2, std::min(name.size(),
+                                                        pos - 2 + 1)));
           continue;
         }
       }
@@ -682,17 +545,19 @@ void ZgwConn::ListMultiPartsUpload() {
     }
   }
 
-  int extra_num = commonprefixes.size() + candidate_names.size() - max_uploads;
-  is_trucated = extra_num > 0;
+  int diff = commonprefixes.size() + candidate_names.size()
+    - static_cast<size_t>(max_uploads);
+  is_trucated = diff > 0;
   if (is_trucated) {
+    size_t extra_num = diff;
     if (commonprefixes.size() >= extra_num) {
-      for (auto it = commonprefixes.rbegin(); extra_num--; --it) {
-        commonprefixes.erase(*it);
+      for (auto it = commonprefixes.rbegin();
+           it != commonprefixes.rend() && extra_num--;) {
+        commonprefixes.erase(*(it++));
       }
     } else {
-      commonprefixes.clear();
       extra_num -= commonprefixes.size();
-      if (extra_num < 0) extra_num = 0;
+      commonprefixes.clear();
       if (candidate_names.size() <= extra_num) {
         candidate_names.clear();
       } else {
@@ -702,13 +567,16 @@ void ZgwConn::ListMultiPartsUpload() {
     }
   }
 
-  std::string next_key_marker = "";
+  is_trucated = is_trucated && max_uploads > 0;
+  std::string next_key_marker;
   if (is_trucated) {
     if (!commonprefixes.empty()) {
-      next_key_marker = commonprefixes.empty() ? "" : *commonprefixes.rbegin();
+      next_key_marker = *commonprefixes.rbegin();
     } else if (!candidate_names.empty()) {
       next_key_marker = candidate_names.back();
-      next_key_marker = next_key_marker.substr(2, next_key_marker.size() - 32 -2);
+      size_t marker_size = next_key_marker.size() - 32 -2;
+      next_key_marker =
+        next_key_marker.substr(2, std::min(next_key_marker.size(), marker_size));
     }
   }
 
@@ -724,11 +592,18 @@ void ZgwConn::ListMultiPartsUpload() {
     {"KeyMarker", key_marker},
     {"Prefix", prefix},
     {"Delimiter", delimiter},
-    {"NextKeyMarker", next_key_marker},
-    {"NextUploadIdMarker", (!is_trucated || objects.empty()) ? "" : objects.back().upload_id()},
     {"MaxUploads", std::to_string(max_uploads)},
     {"IsTruncated", is_trucated ? "true" : "false"},
   };
+
+  if (!next_key_marker.empty()) {
+    args.insert(std::make_pair("NextKeyMarker", next_key_marker));
+    std::string upload_id;
+    if (is_trucated && !objects.empty()) {
+      upload_id = objects.back().upload_id();
+    }
+    args.insert(std::make_pair("NextUploadIdMarker", upload_id));
+  }
   resp_->SetStatusCode(200);
   resp_->SetBody(xml::ListMultipartUploadsResultXml(objects, args, commonprefixes));
 }
@@ -743,7 +618,7 @@ void ZgwConn::DelMultiObjectsHandle() {
   std::vector<std::string> keys;
   if (!xml::ParseDelMultiObjectXml(req_->content, &keys)) {
     resp_->SetStatusCode(400);
-    resp_->SetBody(xml::ErrorXml(xml::MalformedXML, ""));
+    resp_->SetBody(xml::ErrorXml(xml::MalformedXML));
   }
   std::vector<std::string> success_keys;
   std::map<std::string, std::string> error_keys;
@@ -813,7 +688,7 @@ bool ZgwConn::ParseRange(const std::string& range,
     uint32_t end = UINT32_MAX;
     int res = sscanf(elem.c_str(), "%d-%d", &start, &end);
     if (res > 0) {
-      if (end < start) {
+      if (start > 0 && end < static_cast<uint32_t>(start)) {
         resp_->SetStatusCode(416);
         resp_->SetBody(xml::ErrorXml(xml::InvalidRange, bucket_name_));
         return false;
@@ -1019,7 +894,7 @@ void ZgwConn::ListObjectHandle() {
   int max_keys = 0;
   if (!mks.empty()) {
     max_keys = std::atoi(mks.c_str());
-    if (max_keys == 0 && !isdigit(mks[0])) {
+    if (max_keys <= 0 && !isdigit(mks[0])) {
       resp_->SetStatusCode(400);
       resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "max-keys"));
       return;
@@ -1029,8 +904,8 @@ void ZgwConn::ListObjectHandle() {
   }
   std::string marker = req_->query_params["marker"];
   std::string start_after = req_->query_params["start-after"];
-  std::string type = req_->query_params["list-type"];
-  if (!type.empty() && type != "2") {
+  std::string is_listv2 = req_->query_params["list-type"];
+  if (!is_listv2.empty() && is_listv2 != "2") {
     resp_->SetStatusCode(400);
     resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "list-type"));
     return;
@@ -1046,18 +921,29 @@ void ZgwConn::ListObjectHandle() {
   {
     std::lock_guard<std::mutex> lock(objects_name_->list_lock);
     for (auto &name : objects_name_->name_list) {
-      if (name.compare(0, 2, libzgw::kInternalObjectNamePrefix) == 0 ||
-          (!prefix.empty() && name.substr(0, prefix.size()) != prefix))  {
+      if (name.compare(0, 2, libzgw::kInternalObjectNamePrefix) == 0) {
+        // Skip Internal Object
         continue;
       }
-      if ((!start_after.empty() && name.substr(0, marker.size()) < start_after) ||
-          (!marker.empty() && name.substr(0, marker.size()) <= marker)) {
+      if (!prefix.empty() &&
+          name.substr(0, std::min(name.size(), prefix.size())) != prefix) {
+        // Skip prefix
+        continue;
+      }
+      if (!start_after.empty() && !is_listv2.empty() &&
+          name.substr(0, std::min(name.size(), start_after.size())) < start_after) {
+        // Skip start after v2
+        continue;
+      }
+      if (!marker.empty() && is_listv2.empty() &&
+          name.substr(0, std::min(name.size(), marker.size())) <= marker) {
+        // Skip marker v1
         continue;
       }
       if (!delimiter.empty()) {
-        size_t pos;
-        if ((pos = name.find_first_of(delimiter, prefix.size())) != std::string::npos) {
-          commonprefixes.insert(name.substr(0, pos + 1));
+        size_t pos = name.find_first_of(delimiter, prefix.size());
+        if (pos != std::string::npos) {
+          commonprefixes.insert(name.substr(0, std::min(name.size(), pos + 1)));
           continue;
         }
       }
@@ -1067,46 +953,67 @@ void ZgwConn::ListObjectHandle() {
   }
 
   // Success Http response
-  int extra_num = commonprefixes.size() + candidate_names.size() - max_keys;
-  is_trucated = extra_num > 0;
+  int diff = commonprefixes.size() + candidate_names.size()
+    - static_cast<size_t>(max_keys);
+  is_trucated = diff > 0;
+  std::string next_token;
   if (is_trucated) {
+    size_t extra_num = diff;
     if (commonprefixes.size() >= extra_num) {
-      for (auto it = commonprefixes.rbegin(); extra_num--; --it) {
-        commonprefixes.erase(*it);
+      for (auto it = commonprefixes.rbegin();
+           it != commonprefixes.rend() && extra_num--;) {
+        next_token = *(it++);
+        commonprefixes.erase(next_token);
       }
     } else {
-      commonprefixes.clear();
+      // extra_num > commonprefixes.size()
       extra_num -= commonprefixes.size();
-      if (extra_num < 0) extra_num = 0;
+      commonprefixes.clear();
       if (candidate_names.size() <= extra_num) {
         candidate_names.clear();
       } else {
-        while (extra_num--)
+        while (extra_num--) {
+          next_token = candidate_names.back();
           candidate_names.pop_back();
+        }
       }
     }
   }
-  std::string next_marker = "";
-  if (is_trucated) {
+  // Is not trucated if max keys equal zero
+  is_trucated = is_trucated && max_keys > 0;
+  std::string next_marker;
+  if (is_trucated &&
+      !delimiter.empty()) {
     if (!commonprefixes.empty()) {
-      next_marker = commonprefixes.empty() ? "" : *commonprefixes.rbegin();
+      next_marker = *commonprefixes.rbegin();
     } else if (!candidate_names.empty()) {
       next_marker = candidate_names.back();
     }
   }
-  std::map<std::string, std::string> args{
+
+  if (!is_trucated) {
+    next_token.clear();
+  }
+
+  std::map<std::string, std::string> args {
     {"Name", bucket_name_},
     {"Prefix", prefix},
-    {"Marker", marker},
-    {"NextMarker", next_marker},
-    {"KeyCount", std::to_string(commonprefixes.size() + candidate_names.size())},
     {"Delimiter", delimiter},
     {"MaxKeys", std::to_string(max_keys)},
-    {"IsTruncated", (is_trucated && max_keys > 0) ? "true" : "false"},
-    {"StartAfter", start_after}
+    {"IsTruncated", is_trucated ? "true" : "false"},
   };
-  if (next_marker.empty()) {
-    args.erase("NextMarker");
+  if (is_listv2.empty()) {
+    // ListObject v1
+    args.insert(std::make_pair("Marker", marker));
+    if (!next_marker.empty()) {
+      args.insert(std::make_pair("NextMarker", next_marker));
+    }
+  } else {
+    // ListObject v2
+    args.insert(std::make_pair("StartAfter", start_after));
+    int key_count = commonprefixes.size() + candidate_names.size();
+    args.insert(std::make_pair("KeyCount", std::to_string(key_count)));
+    args.insert(std::make_pair("NextContinuationToken", next_token));
   }
 
   {
@@ -1135,8 +1042,21 @@ void ZgwConn::DelBucketHandle() {
   DLOG(INFO) << "DeleteBucket: " << req_->path << " confirm bucket exist";
   // Need not check return value
 
-  // AbortAllMultiPartUpload
   Status s;
+  // CheckOwner
+  libzgw::ZgwBucket bucket(bucket_name_);
+  s = store_->GetBucket(&bucket);
+  if (!s.ok()) {
+    resp_->SetStatusCode(500);
+    LOG(ERROR) << "DeleteBucket: Get bucekt meta failed: " << s.ToString();
+  }
+  if (zgw_user_->user_info().user_id != bucket.user_info().user_id) {
+    resp_->SetStatusCode(403);
+    resp_->SetBody(xml::ErrorXml(xml::AccessDenied));
+    LOG(ERROR) << "DeleteBucket: not own by user: " << zgw_user_->user_info().disply_name;
+  }
+
+  // AbortAllMultiPartUpload
   if (objects_name_ != NULL && !objects_name_->IsEmpty()) {
     bool has_normal_object = false;
     std::lock_guard<std::mutex> lock(objects_name_->list_lock);
@@ -1213,7 +1133,7 @@ void ZgwConn::PutBucketHandle() {
     }
     if (already_exist) {
       resp_->SetStatusCode(409);
-      resp_->SetBody(xml::ErrorXml(xml::BucketAlreadyExists, ""));
+      resp_->SetBody(xml::ErrorXml(xml::BucketAlreadyExists));
       return;
     }
   }
