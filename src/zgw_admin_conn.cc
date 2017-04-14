@@ -52,6 +52,8 @@ void AdminConn::ListStatusHandle(pink::HttpResponse* resp) {
     resp->SetStatusCode(500);
     resp->SetBody(s.ToString());
   }
+  // Buckets qps
+  body.append("Global qps: " + std::to_string(g_zgw_server->qps()) + "\r\n");
   // Buckets nums
   std::string access_key;
   for (auto& user : user_list) {
@@ -83,12 +85,10 @@ void AdminConn::ListStatusHandle(pink::HttpResponse* resp) {
       }
       body.append("    Bucket: " + name + " has "
                   + std::to_string(objects_name_->name_list.size())
-                  + " Objects\r\n");
+                  + " Objects.\r\n");
       g_zgw_server->objects_list()->Unref(store_, name);
     }
   }
-
-  // Buckets qps
   // Bucket space TODO (gaodq)
   resp->SetBody(body);
   resp->SetStatusCode(200);

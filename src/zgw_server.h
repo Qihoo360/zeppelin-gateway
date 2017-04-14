@@ -3,6 +3,7 @@
 
 #include <string>
 #include <map>
+#include <pthread.h>
 
 #include <glog/logging.h>
 #include "pink/include/server_thread.h"
@@ -25,11 +26,11 @@ class ZgwServer {
   virtual ~ZgwServer();
   Status Start();
 
-  std::string local_ip() {
+  std::string local_ip() const {
     return ip_;
   }
 
-  int local_port() {
+  int local_port() const {
     return port_;
   }
 
@@ -48,6 +49,9 @@ class ZgwServer {
   libzgw::ZgwStore* admin_store() {
     return admin_store_;
   }
+
+  uint64_t qps();
+  void AddQueryNum();
 
   libzgw::ZgwStore* GetWorkerStore(pink::Thread* worker);
 
@@ -80,6 +84,11 @@ class ZgwServer {
   libzgw::ListMap* buckets_list_;
   libzgw::ListMap* objects_list_;
   slash::RecordMutex object_mutex_;
+
+  uint64_t last_query_num_;
+  uint64_t cur_query_num_;
+  uint64_t last_time_us_;
+  pthread_rwlock_t qps_lock_;
 
   Status InitWorderThread(pink::Thread* worker,
                           std::vector<std::string> &zp_meta_ip_ports);

@@ -50,6 +50,7 @@ ZgwConn::ZgwConn(const int fd,
 
 void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp) {
   // DumpHttpRequest(req);
+  g_zgw_server->AddQueryNum();
 
   // Copy req and resp
   req_ = const_cast<pink::HttpRequest *>(req);
