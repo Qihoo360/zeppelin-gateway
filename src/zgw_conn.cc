@@ -49,6 +49,7 @@ ZgwConn::ZgwConn(const int fd,
 }
 
 void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp) {
+  Timer t("DealMessage " + ip_port() + ":");
   // DumpHttpRequest(req);
   g_zgw_server->AddQueryNum();
 
@@ -68,6 +69,8 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
 
   Status s;
   // Get access key from request and secret key from zp
+  {
+  Timer t("Authorization" + ip_port() + ":");
   ZgwAuth zgw_auth;
   if (!zgw_auth.ParseAuthInfo(req_, &access_key_) ||
       !store_->GetUser(access_key_, &zgw_user_).ok()) {
@@ -86,16 +89,21 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     return;
   }
   DLOG(INFO) << "Auth passed: " << ip_port() << " " << req_->headers["authorization"];
+  }
 
   // Get buckets namelist and ref
+  {
+  Timer t("Ref Bucket listname: ");
   s = g_zgw_server->buckets_list()->Ref(store_, access_key_, &buckets_name_);
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "List buckets name list failed: " << s.ToString();
     return;
   }
+  }
 
   if (!bucket_name_.empty() && buckets_name_->IsExist(bucket_name_)) {
+    Timer t("Ref Object listname: ");
     // Get objects namelist and ref
     s = g_zgw_server->objects_list()->Ref(store_, bucket_name_, &objects_name_);
     if (!s.ok()) {
@@ -213,6 +221,8 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   }
 
   // Unref namelist
+  {
+  Timer t("Unref namelist: ");
   Status s1 = Status::OK();
   s = g_zgw_server->buckets_list()->Unref(store_, access_key_);
   if (!bucket_name_.empty()) {
@@ -222,6 +232,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     resp_->SetStatusCode(500);
     LOG(ERROR) << "Unref namelist failed: " << s.ToString();
     return;
+  }
   }
 
   resp_->SetHeaders("Date", http_nowtime(time(NULL)));
@@ -289,7 +300,7 @@ void ZgwConn::UploadPartHandle(const std::string& part_num, const std::string& u
   libzgw::ZgwObjectInfo ob_info(now, etag, object_content.size(), libzgw::kStandard,
                                 zgw_user_->user_info());
   {
-  Timer t("UploadPart: UploadPart");
+  Timer t("UploadPart: UploadPart to zp");
   s = store_->UploadPart(bucket_name_, internal_obname, ob_info, object_content,
                          std::atoi(part_num.c_str()));
   }
@@ -308,6 +319,7 @@ void ZgwConn::UploadPartHandle(const std::string& part_num, const std::string& u
 }
 
 void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
+  Status s;
   std::string internal_obname = libzgw::kInternalObjectNamePrefix + object_name_ + upload_id;
   if (!objects_name_->IsExist(internal_obname)) {
     resp_->SetStatusCode(404);
@@ -325,7 +337,10 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
     return;
   }
   std::vector<std::pair<int, libzgw::ZgwObject>> store_parts;
-  Status s = store_->ListParts(bucket_name_, internal_obname, &store_parts);
+  {
+  Timer t("CompleteMultiUpload: ListParts");
+  s = store_->ListParts(bucket_name_, internal_obname, &store_parts);
+  }
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "CompleteMultiUpload failed in list object parts: " << s.ToString();
@@ -373,7 +388,10 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
 
   // Update object meta in zp
   std::string final_etag;
+  {
+  Timer t("CompleteMultiUpload: CompleteMultiUpload to zp");
   s = store_->CompleteMultiUpload(bucket_name_, internal_obname, store_parts, &final_etag);
+  }
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "CompleteMultiUpload failed: " << s.ToString();
@@ -420,6 +438,7 @@ void ZgwConn::AbortMultiUpload(const std::string& upload_id) {
 }
 
 void ZgwConn::ListParts(const std::string& upload_id) {
+  Status s;
   std::string internal_obname = libzgw::kInternalObjectNamePrefix + object_name_ + upload_id;
   if (!objects_name_->IsExist(internal_obname)) {
     resp_->SetStatusCode(404);
@@ -443,7 +462,10 @@ void ZgwConn::ListParts(const std::string& upload_id) {
   }
   bool is_trucated = false;
   std::vector<std::pair<int, libzgw::ZgwObject>> parts, needed_parts;
-  Status s = store_->ListParts(bucket_name_, internal_obname, &parts);
+  {
+  Timer t("ListParts: ListParts from zp");
+  s = store_->ListParts(bucket_name_, internal_obname, &parts);
+  }
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "ListParts failed: " << s.ToString();
@@ -581,7 +603,10 @@ void ZgwConn::ListMultiPartsUpload() {
     }
   }
 
+  {
+  Timer t("ListObjects: ListObjects from zp");
   s = store_->ListObjects(bucket_name_, candidate_names, &objects);
+  }
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "ListMultiPartsUpload failed: " << s.ToString();
@@ -803,7 +828,8 @@ bool ZgwConn::GetSourceObject(std::string* content) {
   }
   bool need_partial = !segments.empty();
   if (need_partial) {
-    DLOG(INFO) << "Copy partial source object: " << source << " " << segments[0].first << "-" << segments[0].second;
+    DLOG(INFO) << "Get partial object: " << source << " " << segments[0].first << "-" << segments[0].second;
+    Timer t("GetObject: GetPartialObject from zp");
     s = store_->GetPartialObject(&src_object, segments);
     if (s.IsEndFile()) {
       resp_->SetStatusCode(416);
@@ -811,6 +837,7 @@ bool ZgwConn::GetSourceObject(std::string* content) {
       return false;
     }
   } else {
+    Timer t("GetObject: GetObject from zp");
     s = store_->GetObject(&src_object, true);
   }
   if (!s.ok()) {

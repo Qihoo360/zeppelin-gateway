@@ -19,10 +19,14 @@ struct Timer {
     start = std::chrono::system_clock::now();
   }
 
+  Timer(const std::string& msg)
+      : Timer(msg.c_str()) {
+  }
+
   ~Timer() {
     auto end = std::chrono::system_clock::now();
     std::chrono::duration<double, std::milli> diff = end - start;
-    DLOG(INFO) << msg_ << "elapse " << diff.count() << " ms";
+    DLOG(INFO) << msg_ << " elapse " << diff.count() << " ms";
   }
 
   std::string msg_;
