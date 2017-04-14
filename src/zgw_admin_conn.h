@@ -13,8 +13,13 @@ class AdminConn : public pink::HttpConn {
                            pink::HttpResponse* res) override;
 
   void ListUsersHandle(pink::HttpResponse* resp);
+  void ListStatusHandle(pink::HttpResponse* resp);
 
   libzgw::ZgwStore *store_;
+
+  // Get from zp
+  libzgw::NameList *buckets_name_;
+  libzgw::NameList *objects_name_;
 };
 
 class AdminConnFactory : public pink::ConnFactory {

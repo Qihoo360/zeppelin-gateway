@@ -46,7 +46,6 @@ class ZgwConn : public pink::HttpConn {
     kUnsupport,
   };
 
-  ZgwWorkerThread *worker_;
   libzgw::ZgwStore *store_;
 
   // Parse from http request
