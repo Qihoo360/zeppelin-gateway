@@ -4,6 +4,8 @@
 
 #include "slash/include/slash_coding.h"
 
+using slash::Slice;
+
 namespace libzgw {
 
 static const std::string kBucketsListPre = "__Buckets_list_";
@@ -23,13 +25,14 @@ Status NameList::ParseMetaValue(std::string *value) {
   std::lock_guard<std::mutex> lock(list_lock);
   uint32_t count;
   slash::GetFixed32(value, &count);
-  std::string name;
+  Slice svalue(*value);
+  Slice name;
   for (uint32_t i = 0; i < count; i++) {
-    bool res = slash::GetLengthPrefixedString(value, &name);
+    bool res = slash::GetLengthPrefixedSlice(&svalue, &name);
     if (!res) {
       return Status::Corruption("Parse name failed");
     }
-    name_list.insert(name);
+    name_list.insert(name.ToString());
   }
 
   return Status::OK();
