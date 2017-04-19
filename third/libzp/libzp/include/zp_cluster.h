@@ -11,12 +11,17 @@
 
 #include "pink/include/pink_cli.h"
 
-#include "src/zp_meta.pb.h"
-#include "src/client.pb.h"
-#include "include/zp_table.h"
-#include "include/zp_conn.h"
+#include "libzp/src/zp_meta.pb.h"
+#include "libzp/src/client.pb.h"
+#include "libzp/include/zp_table.h"
+#include "libzp/include/zp_conn.h"
 
 namespace libzp {
+
+using ZPMeta::MetaCmd;
+using ZPMeta::MetaCmdResponse;
+using client::CmdRequest;
+using client::CmdResponse;
 
 struct Options {
   std::vector<Node> meta_addr;

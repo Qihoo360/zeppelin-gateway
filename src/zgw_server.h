@@ -10,20 +10,19 @@
 #include "slash/include/slash_status.h"
 #include "slash/include/slash_mutex.h"
 
-#include "libzgw/zgw_store.h"
-#include "libzgw/zgw_namelist.h"
-#include "zgw_const.h"
-#include "zgw_conn.h"
-#include "zgw_admin_conn.h"
+#include "src/libzgw/zgw_store.h"
+#include "src/libzgw/zgw_namelist.h"
+#include "src/zgw_const.h"
+#include "src/zgw_conn.h"
+#include "src/zgw_admin_conn.h"
 
-#include "zgw_config.h"
+#include "src/zgw_config.h"
 
 using slash::Status;
 
 class MyThreadEnvHandle : public pink::ThreadEnvHandle {
  public:
-  MyThreadEnvHandle(const ZgwConfig* zgw_conf)
-      : zgw_conf_(zgw_conf) {
+  MyThreadEnvHandle() {
   }
 
   virtual ~MyThreadEnvHandle() {
@@ -35,13 +34,12 @@ class MyThreadEnvHandle : public pink::ThreadEnvHandle {
   virtual int SetEnv(void** env) const;
 
  private:
-  const ZgwConfig* zgw_conf_;
   mutable std::vector<libzgw::ZgwStore*> stores_;
 };
 
 class ZgwServer {
  public:
-  explicit ZgwServer(ZgwConfig *zgw_conf);
+  explicit ZgwServer();
   virtual ~ZgwServer();
   Status Start();
 
@@ -53,16 +51,32 @@ class ZgwServer {
     return port_;
   }
 
-  libzgw::ListMap *objects_list() {
-    return objects_list_;
+  Status RefAndGetBucketList(libzgw::ZgwStore* store,
+                              const std::string& access_key,
+                              libzgw::NameList** buckets_name) {
+    return buckets_list_->Ref(store, access_key, buckets_name);
   }
 
-  libzgw::ListMap *buckets_list() {
-    return buckets_list_;
+  Status RefAndGetObjectList(libzgw::ZgwStore* store,
+                              const std::string& bucket_name,
+                              libzgw::NameList** objects_name) {
+    return objects_list_->Ref(store, bucket_name, objects_name);
   }
 
-  slash::RecordMutex *object_mutex() {
-    return &object_mutex_;
+  Status UnrefBucketList(libzgw::ZgwStore* store, const std::string& access_key) {
+    return buckets_list_->Unref(store, access_key);
+  }
+
+  Status UnrefObjectList(libzgw::ZgwStore* store, const std::string& bucket_name) {
+    return buckets_list_->Unref(store, bucket_name);
+  }
+
+  void ObjectLock(const std::string& full_object_name) {
+    object_mutex_.Lock(full_object_name);
+  }
+
+  void ObjectUnlock(const std::string& full_object_name) {
+    object_mutex_.Unlock(full_object_name);
   }
 
   uint64_t qps();
@@ -75,7 +89,6 @@ class ZgwServer {
   void Exit();
 
  private:
-  ZgwConfig *zgw_conf_;
   // Server related
 	std::vector<std::string> zp_meta_ip_ports_;
   std::string ip_;
@@ -84,10 +97,10 @@ class ZgwServer {
   int worker_num_;
   int port_;
   std::mutex worker_store_mutex_;
-  ZgwConnFactory *conn_factory_;
+  ZgwConnFactory* conn_factory_;
 
   int admin_port_;
-  AdminConnFactory *admin_conn_factory_;
+  AdminConnFactory* admin_conn_factory_;
   pink::ServerThread* zgw_dispatch_thread_;
   pink::ServerThread* zgw_admin_thread_;
 

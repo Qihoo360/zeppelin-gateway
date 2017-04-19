@@ -6,11 +6,11 @@
 
 #include "slash/include/slash_status.h"
 
-#include "zp_cluster.h"
-#include "zgw_bucket.h"
-#include "zgw_object.h"
-#include "zgw_user.h"
-#include "zgw_namelist.h"
+#include "libzp/include/zp_cluster.h"
+#include "src/libzgw/zgw_bucket.h"
+#include "src/libzgw/zgw_object.h"
+#include "src/libzgw/zgw_user.h"
+#include "src/libzgw/zgw_namelist.h"
 
 using slash::Status;
 
@@ -35,8 +35,8 @@ public:
                  std::string *access_key, std::string *secret_key);
   Status GetUser(const std::string &access_key, ZgwUser **user);
   Status ListUsers(std::set<ZgwUser *> *user_list);
-  Status SaveNameList(const std::string &meta_key, const std::string &meta_value);
-  Status GetNameList(const std::string &meta_key, std::string *meta_value);
+  Status SaveNameList(const NameList* nlist);
+  Status GetNameList(NameList* nlist);
   
   // Operation On Buckets
   Status GetBucket(ZgwBucket* bucket);

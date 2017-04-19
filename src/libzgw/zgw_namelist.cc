@@ -1,4 +1,4 @@
-#include "zgw_namelist.h"
+#include "src/libzgw/zgw_namelist.h"
 
 #include <iostream>
 
@@ -15,13 +15,13 @@ std::string NameList::MetaValue() const {
   std::lock_guard<std::mutex> lock(list_lock);
   std::string value;
   slash::PutFixed32(&value, name_list.size());
-  for (auto &name : name_list) {
+  for (const auto& name : name_list) {
     slash::PutLengthPrefixedString(&value, name);
   }
   return value;
 }
 
-Status NameList::ParseMetaValue(std::string *value) {
+Status NameList::ParseMetaValue(std::string* value) {
   std::lock_guard<std::mutex> lock(list_lock);
   uint32_t count;
   slash::GetFixed32(value, &count);
@@ -50,36 +50,34 @@ Status ListMap::Ref(ZgwStore *store, const std::string key, NameList **names) {
     }
   }
   NameList *nl = map_list_[key];
-  nl->ref += 1;
-  std::cout << key + " after Ref: " << nl->ref << std::endl;
+  nl->Ref();
   *names = nl;
 
   return Status::OK();
 }
 
 Status ListMap::Unref(ZgwStore *store, const std::string &key) {
-  ref_lock_.lock();
+  Status s = Status::OK();
+  std::lock_guard<std::mutex> lock(ref_lock_);
   if (map_list_.find(key) == map_list_.end()) {
     // Ignore
-    ref_lock_.unlock();
-    return Status::OK();
+    return s;
   }
   NameList *nl = map_list_[key];
-  nl->ref -= 1;
-  std::cout << key + " after Unref: " << nl->ref << std::endl;
+  bool should_flush = nl->Unref();
 
-  if (nl->ref <= 0) {
-    nl->ref = 0; // Avoid multi unref
-    Status s = nl->Save(store);
-    if (!s.ok()) {
-      ref_lock_.unlock();
-      return s;
+  if (should_flush) {
+    if (nl->dirty()) {
+      s = store->SaveNameList(nl);
+      if (!s.ok()) {
+        return s;
+      }
+      nl->SetDirty(false);
     }
     delete nl;
     map_list_.erase(key);
   }
-  ref_lock_.unlock();
-  return Status::OK();
+  return s;
 }
 
 Status ListMap::InitNameList(const std::string &key, ZgwStore *store,
@@ -97,50 +95,27 @@ Status ListMap::InitNameList(const std::string &key, ZgwStore *store,
   } else {
     return Status::NotSupported("Unknow key type");
   }
-  Status s = new_list->Load(store);
+  Status s = store->GetNameList(new_list);
   if (!s.ok()) {
     delete new_list;
     return s;
   }
 
-  new_list->ref = 0;
-  map_list_[key] = new_list;
+  map_list_.insert(std::make_pair(key, new_list));
 
-  return Status::OK();
-}
-
-Status NameList::Load(ZgwStore *store) {
-  std::string meta_value;
-  Status s = store->GetNameList(meta_key, &meta_value);
-  if (s.ok()) {
-    return ParseMetaValue(&meta_value);
-  } else if (s.IsNotFound()) {
-    return Status::OK();
-  }
-  return s;
-}
-
-Status NameList::Save(ZgwStore *store) {
-  if (dirty) {
-    Status s = store->SaveNameList(meta_key, MetaValue());
-    if (!s.ok()) {
-      return s;
-    }
-    dirty = false;
-  }
   return Status::OK();
 }
 
 void NameList::Insert(const std::string &value) {
   std::lock_guard<std::mutex> lock(list_lock);
   name_list.insert(value);
-  dirty = true;
+  dirty_ = true;
 }
 
 void NameList::Delete(const std::string &value) {
   std::lock_guard<std::mutex> lock(list_lock);
   name_list.erase(value);
-  dirty = true;
+  dirty_ = true;
 }
 
 bool NameList::IsExist(const std::string &value) {

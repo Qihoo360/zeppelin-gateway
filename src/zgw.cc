@@ -11,21 +11,22 @@
 
 #include "slash/include/env.h"
 #include "slash/include/slash_string.h"
-#include "zgw_server.h"
-#include "zgw_config.h"
-#include "zgw_const.h"
+#include "src/zgw_server.h"
+#include "src/zgw_config.h"
+#include "src/zgw_const.h"
 
 ZgwServer* g_zgw_server;
+ZgwConfig* g_zgw_conf;
 
-static void GlogInit(ZgwConfig *zgw_conf) {
-  std::string log_path = zgw_conf->log_path;
+static void GlogInit() {
+  std::string log_path = g_zgw_conf->log_path;
   if (!slash::FileExists(log_path)) {
     slash::CreatePath(log_path);
   }
 
   FLAGS_alsologtostderr = true;
   FLAGS_log_dir = log_path;
-  FLAGS_minloglevel = zgw_conf->minloglevel;
+  FLAGS_minloglevel = g_zgw_conf->minloglevel;
   FLAGS_max_log_size = 1800;
 
   ::google::InitGoogleLogging("zgw");
@@ -141,29 +142,28 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  ZgwConfig *zgw_conf;
-  ZgwConfigInit(&zgw_conf, argc, argv);
+  ZgwConfigInit(&g_zgw_conf, argc, argv);
 
-  GlogInit(zgw_conf);
+  GlogInit();
   ZgwSignalSetup();
 
-  if (zgw_conf->daemonize) {
+  if (g_zgw_conf->daemonize) {
     std::cout << "Running as daemon" << std::endl;
-    daemonize(zgw_conf->pid_file);
+    daemonize(g_zgw_conf->pid_file);
   }
 
-  LOG(INFO) << "Start Server on " << zgw_conf->server_ip <<
-    ":" << zgw_conf->server_port;
-  LOG(INFO) << "admin port on:" << zgw_conf->admin_port;
+  LOG(INFO) << "Start Server on " << g_zgw_conf->server_ip <<
+    ":" << g_zgw_conf->server_port;
+  LOG(INFO) << "admin port on:" << g_zgw_conf->admin_port;
 
-  g_zgw_server = new ZgwServer(zgw_conf);
+  g_zgw_server = new ZgwServer();
   Status s = g_zgw_server->Start();
   if (!s.ok()) {
     LOG(ERROR) << "Start Server failed: " << s.ToString();
   }
 
   delete g_zgw_server;
-  delete zgw_conf;
+  delete g_zgw_conf;
   ::google::ShutdownGoogleLogging();
   return 0;
 }

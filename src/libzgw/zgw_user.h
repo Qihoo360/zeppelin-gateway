@@ -49,7 +49,7 @@ class ZgwUser {
   }
   ~ZgwUser() {}
 
-  const ZgwUserInfo &user_info() const {
+  ZgwUserInfo user_info() const {
     return info_;
   }
 

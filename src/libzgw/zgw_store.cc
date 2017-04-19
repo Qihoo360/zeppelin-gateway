@@ -1,4 +1,4 @@
-#include "zgw_store.h"
+#include "src/libzgw/zgw_store.h"
 
 #include <unistd.h>
 
@@ -6,13 +6,23 @@
 
 namespace libzgw {
 
-Status ZgwStore::Open(const std::vector<std::string>& ip_ports, ZgwStore** ptr) {
-  *ptr = new ZgwStore();
-  assert(*ptr);
-  Status s = (*ptr)->Init(ip_ports);
-  if (!s.ok()) {
-    delete *ptr;
+ZgwStore::ZgwStore() {
+}
+
+ZgwStore::~ZgwStore() {
+  delete zp_;
+  for (auto &item : access_key_user_map_) {
+    delete item.second;
   }
+}
+
+Status ZgwStore::Open(const std::vector<std::string>& ip_ports, ZgwStore** ptr) {
+  ZgwStore* zgw_store = new ZgwStore();
+  Status s = zgw_store->Init(ip_ports);
+  if (!s.ok()) {
+    delete zgw_store;
+  }
+  *ptr = zgw_store;
   return s;
 }
 
@@ -79,14 +89,24 @@ Status ZgwStore::Init(const std::vector<std::string>& ip_ports) {
   return Status::OK();
 }
 
-ZgwStore::ZgwStore() {
+Status ZgwStore::SaveNameList(const NameList* nlist) {
+  Status s;
+  s = zp_->Set(kZgwMetaTableName, nlist->MetaKey(), nlist->MetaValue());
+  if (!s.ok()) {
+    return s;
+  }
 }
 
-ZgwStore::~ZgwStore() {
-  delete zp_;
-  for (auto &item : access_key_user_map_) {
-    delete item.second;
+Status ZgwStore::GetNameList(NameList* nlist) {
+  Status s;
+  std::string meta_value;
+  s = zp_->Get(kZgwMetaTableName, nlist->MetaKey(), &meta_value);
+  if (s.ok()) {
+    return nlist->ParseMetaValue(&meta_value);
+  } else if (s.IsNotFound()) {
+    return Status::OK();
   }
+  return s;
 }
 
 }  // namespace libzgw

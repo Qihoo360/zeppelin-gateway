@@ -7,31 +7,42 @@ ifeq ($(__PERF), 1)
 else
 	CXXFLAGS = -O2 -g -pipe -fPIC -W -Wwrite-strings -Wpointer-arith -Wreorder -Wswitch -Wsign-promo -Wredundant-decls -Wformat -Wall -D_GNU_SOURCE -D__STDC_FORMAT_MACROS -std=c++11 -gdwarf-2 -Wno-redundant-decls -Wno-sign-compare
 endif
-THIRD_PATH = ../
+
+ifndef SLASH_PATH
+SLASH_PATH = ../../slash
+endif
+
+ifndef PINK_PATH 
+PINK_PATH = ../../pink
+endif
+
+ifndef GLOG_PATH 
+GLOG_PATH = ../../glog
+endif
+
 SRC_DIR := ./src/
 INC_DIR := ./include/
-OUTPUT := ./output/
+OUTPUT := ./lib/
 
 
-INCLUDE_PATH = -I./ \
-			   -I./include \
-			   -I$(THIRD_PATH)/glog/src \
-			   -I$(THIRD_PATH)/slash \
-			   -I$(THIRD_PATH)/pink 
+INCLUDE_PATH = -I../ \
+							 -I src/ \
+							 -I$(GLOG_PATH)/src \
+							 -I$(SLASH_PATH) \
+							 -I$(PINK_PATH)
 
 
-LIB_PATH = -L./ \
-		   -L/usr/local/lib/google/ \
-		   -L$(THIRD_PATH)/slash/slash/lib/ \
-		   -L$(THIRD_PATH)/pink/slash/lib/ 
+LIB_PATH = -L/usr/local/lib/google/ \
+					 -L$(SLASH_PATH)/slash/lib/ \
+					 -L$(PINK_PATH)/pink/lib/ 
 
 
 
 LIBS = -lpthread \
-	   -lprotobuf \
-	   -lglog \
-	   -lslash \
-		 -lpink
+			 -lprotobuf \
+			 -lglog \
+			 -lslash \
+			 -lpink
 
 LIBRARY = libzp.a
 
@@ -50,12 +61,10 @@ all: $(LIBRARY)
 
 $(LIBRARY): $(OBJS)
 	rm -rf $(OUTPUT)
-	mkdir -p $(OUTPUT)/include
-	mkdir -p $(OUTPUT)/lib
+	mkdir $(OUTPUT)
 	rm -rf $@
 	ar -rcs $@ $(OBJS)
-	cp -r ./include $(OUTPUT)/
-	mv $@ $(OUTPUT)/lib/
+	mv $@ $(OUTPUT)
 
 
 $(OBJECT): $(OBJS)

@@ -1,9 +1,9 @@
-#include "zgw_store.h"
+#include "src/libzgw/zgw_store.h"
 
 #include <unistd.h>
 
 #include "slash/include/slash_string.h"
-#include "zgw_user.h"
+#include "src/libzgw/zgw_user.h"
 
 namespace libzgw {
  
@@ -12,16 +12,6 @@ Status ZgwStore::AddBucket(const std::string& bucket_name, const ZgwUserInfo& us
   ZgwBucket bucket(bucket_name);
   bucket.SetUserInfo(user_info);
   return zp_->Set(kZgwMetaTableName, bucket.MetaKey(), bucket.MetaValue());
-}
-
-Status ZgwStore::SaveNameList(const std::string &meta_key,
-                              const std::string &meta_value) {
-  return zp_->Set(kZgwMetaTableName, meta_key, meta_value);
-}
-
-Status ZgwStore::GetNameList(const std::string &meta_key,
-                             std::string *meta_value) {
-  return zp_->Get(kZgwMetaTableName, meta_key, meta_value);
 }
 
 Status ZgwStore::DelBucket(const std::string &name) {

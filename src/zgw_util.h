@@ -7,11 +7,11 @@
 #include <glog/logging.h>
 #include "pink/include/http_conn.h"
 
-void ExtraBucketAndObject(const std::string& _path,
+extern void ExtraBucketAndObject(const std::string& _path,
                           std::string* bucket_name, std::string* object_name);
-std::string http_nowtime(time_t t);
-std::string md5(const std::string& content);
-void DumpHttpRequest(const pink::HttpRequest* req);
+extern std::string http_nowtime(time_t t);
+extern std::string md5(const std::string& content);
+extern void DumpHttpRequest(const pink::HttpRequest* req);
 
 struct Timer {
   Timer(const char* msg)

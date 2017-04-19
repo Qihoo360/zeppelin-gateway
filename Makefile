@@ -18,7 +18,7 @@ VERSION = -D_GITVER_=$(shell git rev-list HEAD | head -n1) \
 LIB_PATH = -L$(THIRD_DIR)/slash/slash/lib \
 					 -L$(THIRD_DIR)/pink/pink/lib \
 					 -L$(THIRD_DIR)/glog/.libs \
-					 -L$(THIRD_DIR)/libzp/output/lib
+					 -L$(THIRD_DIR)/libzp/libzp/lib
 
 LIBS = -lzp \
 			 -lslash \
@@ -28,10 +28,10 @@ LIBS = -lzp \
 			 -lcrypto \
 			 -lpthread
 
-INCLUDE_PATH = -I$(THIRD_DIR)/slash \
+INCLUDE_PATH = -I. \
+							 -I$(THIRD_DIR)/slash \
 							 -I$(THIRD_DIR)/pink \
 							 -I$(THIRD_DIR)/rapidxml \
-							 -I$(THIRD_DIR)/libzp/include \
 							 -I$(THIRD_DIR)/libzp \
 							 -I$(THIRD_DIR)/glog/src \
 
@@ -46,8 +46,8 @@ OBJS = $(patsubst %.cc,%.o,$(BASE_BOJS))
 
 PINK = $(THIRD_DIR)/pink/pink/lib/libpink.a
 SLASH = $(THIRD_DIR)/slash/slash/lib/libslash.a
-LIBZP = $(THIRD_DIR)/libzp/output/lib/libzp.a
-GLOG = $(THIRD_DIR)/glog/.libs/libglog.so.0
+LIBZP = $(THIRD_DIR)/libzp/libzp/lib/libzp.a
+GLOG = $(THIRD_DIR)/glog/.libs/libglog.a
 
 all: $(OBJECT)
 	rm -rf $(OUTPUT)
@@ -74,7 +74,7 @@ $(PINK):
 	make -C $(THIRD_DIR)/pink/pink __PERF=$(__PERF) SLASH_PATH=../../slash
 
 $(LIBZP):
-	make -C $(THIRD_DIR)/libzp __PERF=$(__PERF)
+	make -C $(THIRD_DIR)/libzp/libzp __PERF=$(__PERF) SLASH_PATH=../../slash PINK_PATH=../../pink
 
 $(GLOG):
 	if [ ! -f $(GLOG) ]; then \
@@ -91,4 +91,4 @@ clean:
 distclean: clean
 	make -C $(THIRD_DIR)/slash/slash clean
 	make -C $(THIRD_DIR)/pink/pink clean
-	make -C $(THIRD_DIR)/libzp clean
+	make -C $(THIRD_DIR)/libzp/libzp clean

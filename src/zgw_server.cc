@@ -1,12 +1,14 @@
-#include "zgw_server.h"
+#include "src/zgw_server.h"
 
 #include <glog/logging.h>
 #include "slash/include/slash_mutex.h"
 #include "slash/include/env.h"
 
+extern ZgwConfig* g_zgw_conf;
+
 int MyThreadEnvHandle::SetEnv(void** env) const {
   libzgw::ZgwStore* store;
-  Status s = libzgw::ZgwStore::Open(zgw_conf_->zp_meta_ip_ports, &store);
+  Status s = libzgw::ZgwStore::Open(g_zgw_conf->zp_meta_ip_ports, &store);
   if (!s.ok()) {
     LOG(FATAL) << "Can not open ZgwStore: " << s.ToString();
     return -1;
@@ -15,13 +17,12 @@ int MyThreadEnvHandle::SetEnv(void** env) const {
   return 0;
 }
 
-ZgwServer::ZgwServer(ZgwConfig *zgw_conf)
-    : zgw_conf_(zgw_conf),
-      ip_(zgw_conf->server_ip),
+ZgwServer::ZgwServer()
+    : ip_(g_zgw_conf->server_ip),
       should_exit_(false),
-      worker_num_(zgw_conf->worker_num),
-      port_(zgw_conf->server_port),
-      admin_port_(zgw_conf->admin_port),
+      worker_num_(g_zgw_conf->worker_num),
+      port_(g_zgw_conf->server_port),
+      admin_port_(g_zgw_conf->admin_port),
       last_query_num_(0),
       cur_query_num_(0),
       last_time_us_(0) {
@@ -32,7 +33,7 @@ ZgwServer::ZgwServer(ZgwConfig *zgw_conf)
     worker_num_ = kMaxWorkerThread;
   }
 
-  MyThreadEnvHandle* thandle = new MyThreadEnvHandle(zgw_conf_);
+  MyThreadEnvHandle* thandle = new MyThreadEnvHandle();
 
   conn_factory_ = new ZgwConnFactory();
   std::set<std::string> ips;

@@ -16,7 +16,7 @@
 
 #include "pink/include/pink_cli.h"
 
-#include "zp_meta.pb.h"
+#include "libzp/src/zp_meta.pb.h"
 
 namespace libzp {
 
