@@ -2,7 +2,7 @@
  * "Copyright [2016] qihoo"
  * "Author <hrxwwd@163.com>"
  */
-#include "include/zp_table.h"
+#include "libzp/include/zp_table.h"
 
 namespace libzp {
 

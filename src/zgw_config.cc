@@ -1,9 +1,9 @@
-#include "zgw_config.h"
+#include "src/zgw_config.h"
 
 #include <iostream>
 
 #include "slash/include/slash_string.h"
-#include "zgw_const.h"
+#include "src/zgw_const.h"
 
 ZgwConfig::ZgwConfig(std::string path)
       : server_ip("0.0.0.0"),
@@ -18,6 +18,7 @@ ZgwConfig::ZgwConfig(std::string path)
 }
 
 ZgwConfig::~ZgwConfig() {
+  delete b_conf;
 }
 
 int ZgwConfig::LoadConf() {
@@ -40,15 +41,5 @@ int ZgwConfig::LoadConf() {
 }
 
 void ZgwConfig::Dump() {
-  std::cout << "zp_meta_addr: " << std::endl;
-  for (auto &ipports : zp_meta_ip_ports) {
-    std::cout << "\t\t" << ipports << std::endl;
-  }
-  std::cout << "server_ip: " << server_ip << std::endl;
-  std::cout << "server_port: " << server_port << std::endl;
-  std::cout << "admin_port: " << admin_port << std::endl;
-  std::cout << "daemonize: " << daemonize << std::endl;
-  std::cout << "worker_num: " << worker_num << std::endl;
-  std::cout << "log_path: " << log_path << std::endl;
-  std::cout << "pid_file: " << pid_file << std::endl;
+  b_conf->DumpConf();
 }

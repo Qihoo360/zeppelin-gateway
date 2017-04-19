@@ -5,9 +5,7 @@
 #include <vector>
 #include <map>
 
-#include "libzgw/zgw_store.h"
-
-namespace xml {
+#include "src/libzgw/zgw_store.h"
 
 enum ErrorType {
   InvalidAccessKeyId,
@@ -40,7 +38,8 @@ extern std::string ListMultipartUploadsResultXml(const std::vector<libzgw::ZgwOb
                                                  const std::map<std::string, std::string> &args,
                                                  const std::set<std::string>& commonprefixes);
 extern std::string ListPartsResultXml(const std::vector<std::pair<int, libzgw::ZgwObject>> &objects,
-                                      const libzgw::ZgwUser *user, const std::map<std::string, std::string> &args);
+                                      const libzgw::ZgwUserInfo& user_info,
+                                      const std::map<std::string, std::string> &args);
 extern std::string CompleteMultipartUploadResultXml(const std::string& bucket_name,
                                                     const std::string& object_name,
                                                     const std::string& final_etag);
@@ -50,6 +49,5 @@ extern std::string DeleteResultXml(const std::vector<std::string>& success_keys,
 extern bool ParseCompleteMultipartUploadXml(const std::string& xml,
                                             std::vector<std::pair<int, std::string>> *parts);
 extern bool ParseDelMultiObjectXml(const std::string& xml, std::vector<std::string> *keys);
-}  // namespace xml
 
 #endif

@@ -1,4 +1,4 @@
-#include "zgw_object.h"
+#include "src/libzgw/zgw_object.h"
 #include "slash/include/slash_coding.h"
 
 namespace libzgw {

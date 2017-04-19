@@ -2,7 +2,7 @@
  * "Copyright [2016] qihoo"
  * "Author <hrxwwd@163.com>"
  */
-#include "include/zp_cluster.h"
+#include "libzp/include/zp_cluster.h"
 
 #include <google/protobuf/text_format.h>
 #include <iostream>
@@ -10,7 +10,7 @@
 
 #include "slash/include/slash_string.h"
 
-#include "zp_const.h"
+#include "libzp/src/zp_const.h"
 
 namespace libzp {
 

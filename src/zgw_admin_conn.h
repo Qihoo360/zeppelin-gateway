@@ -2,7 +2,7 @@
 #define ZGW_ADMIN_CONN_H
 
 #include "pink/include/http_conn.h"
-#include "libzgw/zgw_store.h"
+#include "src/libzgw/zgw_store.h"
 
 class AdminConn : public pink::HttpConn {
  public:

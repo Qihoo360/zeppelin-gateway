@@ -1,12 +1,10 @@
-#include "zgw_xml.h"
+#include "src/zgw_xml.h"
 
 #include <exception>
 
-#include "rapidxml.hpp"
-#include "rapidxml_print.hpp"
-#include "rapidxml_utils.hpp"
-
-namespace xml {
+#include "rapidxml/rapidxml.hpp"
+#include "rapidxml/rapidxml_print.hpp"
+#include "rapidxml/rapidxml_utils.hpp"
 
 using namespace rapidxml;
 
@@ -342,7 +340,8 @@ std::string ListMultipartUploadsResultXml(const std::vector<libzgw::ZgwObject> &
 }
 
 std::string ListPartsResultXml(const std::vector<std::pair<int, libzgw::ZgwObject>>& objects,
-                               const libzgw::ZgwUser* user, const std::map<std::string, std::string>& args) {
+                               const libzgw::ZgwUserInfo& user_info,
+                               const std::map<std::string, std::string>& args) {
   // <Root>
   xml_document<> doc;
   xml_node<> *rot =
@@ -359,7 +358,6 @@ std::string ListPartsResultXml(const std::vector<std::pair<int, libzgw::ZgwObjec
     rnode->append_node(doc.allocate_node(node_element, it.first.c_str(), it.second.c_str()));
   }
 
-  const libzgw::ZgwUserInfo &user_info = user->user_info();
   xml_node<> *id = doc.allocate_node(node_element, "ID", user_info.user_id.data());
   xml_node<> *disply_name = doc.allocate_node(node_element, "DisplayName", user_info.disply_name.data());
   xml_node<> *id1 = doc.allocate_node(node_element, "ID", user_info.user_id.data());
@@ -548,5 +546,3 @@ std::string iso8601_time(time_t sec, suseconds_t usec) {
   sprintf(buf, "%s.%03dZ", buf, milli);
   return std::string(buf);
 }
-
-}  // namespace xml

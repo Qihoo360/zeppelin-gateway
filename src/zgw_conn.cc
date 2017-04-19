@@ -1,14 +1,14 @@
-#include "zgw_conn.h"
+#include "src/zgw_conn.h"
 
 #include <memory>
 #include <cctype>
 #include <cstdint>
 
-#include "libzgw/zgw_namelist.h"
-#include "zgw_server.h"
-#include "zgw_auth.h"
-#include "zgw_xml.h"
-#include "zgw_util.h"
+#include "src/libzgw/zgw_namelist.h"
+#include "src/zgw_server.h"
+#include "src/zgw_auth.h"
+#include "src/zgw_xml.h"
+#include "src/zgw_util.h"
 
 extern ZgwServer* g_zgw_server;
 
@@ -75,7 +75,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   if (!zgw_auth.ParseAuthInfo(req_, &access_key_) ||
       !store_->GetUser(access_key_, &zgw_user_).ok()) {
     resp_->SetStatusCode(403);
-    resp_->SetBody(xml::ErrorXml(xml::InvalidAccessKeyId));
+    resp_->SetBody(ErrorXml(InvalidAccessKeyId));
     DLOG(INFO) << "InvalidAccessKeyId";
     return;
   }
@@ -83,7 +83,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   // Authorize request
   if (!zgw_auth.Auth(req_, zgw_user_->secret_key(access_key_))) {
     resp_->SetStatusCode(403);
-    resp_->SetBody(xml::ErrorXml(xml::SignatureDoesNotMatch));
+    resp_->SetBody(ErrorXml(SignatureDoesNotMatch));
     DLOG(INFO) << "Auth failed: " << ip_port() << " " << req_->headers["authorization"];
     DLOG(INFO) << "Auth failed creq: " << zgw_auth.canonical_request();
     return;
@@ -94,7 +94,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   // Get buckets namelist and ref
   {
   Timer t("Ref Bucket listname: ");
-  s = g_zgw_server->buckets_list()->Ref(store_, access_key_, &buckets_name_);
+  s = g_zgw_server->RefAndGetBucketList(store_, access_key_, &buckets_name_);
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "List buckets name list failed: " << s.ToString();
@@ -105,11 +105,11 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   if (!bucket_name_.empty() && buckets_name_->IsExist(bucket_name_)) {
     Timer t("Ref Object listname: ");
     // Get objects namelist and ref
-    s = g_zgw_server->objects_list()->Ref(store_, bucket_name_, &objects_name_);
+    s = g_zgw_server->RefAndGetObjectList(store_, bucket_name_, &objects_name_);
     if (!s.ok()) {
       resp_->SetStatusCode(500);
       LOG(ERROR) << "List objects name list failed: " << s.ToString();
-      s = g_zgw_server->buckets_list()->Unref(store_, access_key_);
+      s = g_zgw_server->UnrefBucketList(store_, access_key_);
       return;
     }
   }
@@ -135,7 +135,7 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     } else {
       // Unknow request
       resp_->SetStatusCode(405);
-      resp_->SetBody(xml::ErrorXml(xml::MethodNotAllowed));
+      resp_->SetBody(ErrorXml(MethodNotAllowed));
     }
   } else if (IsValidBucket()) {
     switch(method) {
@@ -171,10 +171,10 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
     // Check whether bucket existed in namelist meta
     if (!buckets_name_->IsExist(bucket_name_)) {
       resp_->SetStatusCode(404);
-      resp_->SetBody(xml::ErrorXml(xml::NoSuchBucket, bucket_name_));
+      resp_->SetBody(ErrorXml(NoSuchBucket, bucket_name_));
     } else {
       DLOG(INFO) << "Object Op: " << req_->path << " confirm bucket exist";
-      g_zgw_server->object_mutex()->Lock(bucket_name_ + object_name_);
+      g_zgw_server->ObjectLock(bucket_name_ + object_name_);
       switch(method) {
         case kGet:
           if (req_->query_params.find("uploadId") != req_->query_params.end()) {
@@ -212,21 +212,21 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
         default:
           break;
       }
-      g_zgw_server->object_mutex()->Unlock(bucket_name_ + object_name_);
+      g_zgw_server->ObjectUnlock(bucket_name_ + object_name_);
     }
   } else {
     // Unknow request
     resp_->SetStatusCode(501);
-    resp_->SetBody(xml::ErrorXml(xml::NotImplemented));
+    resp_->SetBody(ErrorXml(NotImplemented));
   }
 
   // Unref namelist
   {
   Timer t("Unref namelist: ");
   Status s1 = Status::OK();
-  s = g_zgw_server->buckets_list()->Unref(store_, access_key_);
+  s = g_zgw_server->UnrefBucketList(store_, access_key_);
   if (!bucket_name_.empty()) {
-    s1 = g_zgw_server->objects_list()->Unref(store_, bucket_name_);
+    s1 = g_zgw_server->UnrefObjectList(store_, bucket_name_);
   }
   if (!s.ok() || !s1.ok()) {
     resp_->SetStatusCode(500);
@@ -262,7 +262,7 @@ void ZgwConn::InitialMultiUpload() {
   DLOG(INFO) << "Insert into namelist: " << internal_obname;
 
   // Success Response
-  resp_->SetBody(xml::InitiateMultipartUploadResultXml(bucket_name_,
+  resp_->SetBody(InitiateMultipartUploadResultXml(bucket_name_,
                                                        object_name_, upload_id));
   resp_->SetStatusCode(200);
 }
@@ -271,7 +271,7 @@ void ZgwConn::UploadPartHandle(const std::string& part_num, const std::string& u
   std::string internal_obname = libzgw::kInternalObjectNamePrefix + object_name_ + upload_id;
   if (!objects_name_->IsExist(internal_obname)) {
     resp_->SetStatusCode(404);
-    resp_->SetBody(xml::ErrorXml(xml::NoSuchUpload, upload_id));
+    resp_->SetBody(ErrorXml(NoSuchUpload, upload_id));
     return;
   }
 
@@ -312,7 +312,7 @@ void ZgwConn::UploadPartHandle(const std::string& part_num, const std::string& u
   DLOG(INFO) << "UploadPart: " << req_->path << " confirm add to zp success";
 
   if (is_copy_op) {
-    resp_->SetBody(xml::CopyObjectResultXml(now, etag));
+    resp_->SetBody(CopyObjectResultXml(now, etag));
   }
   resp_->SetHeaders("ETag", etag);
   resp_->SetStatusCode(200);
@@ -323,17 +323,17 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
   std::string internal_obname = libzgw::kInternalObjectNamePrefix + object_name_ + upload_id;
   if (!objects_name_->IsExist(internal_obname)) {
     resp_->SetStatusCode(404);
-    resp_->SetBody(xml::ErrorXml(xml::NoSuchUpload, upload_id));
+    resp_->SetBody(ErrorXml(NoSuchUpload, upload_id));
     return;
   }
   DLOG(INFO) << "CompleteMultiUpload: " << req_->path << " confirm upload id exist";
 
   // Check every part's etag and part num
   std::vector<std::pair<int, std::string>> recv_parts;
-  if (!xml::ParseCompleteMultipartUploadXml(req_->content, &recv_parts) ||
+  if (!ParseCompleteMultipartUploadXml(req_->content, &recv_parts) ||
       recv_parts.empty()) {
     resp_->SetStatusCode(400);
-    resp_->SetBody(xml::ErrorXml(xml::MalformedXML));
+    resp_->SetBody(ErrorXml(MalformedXML));
     return;
   }
   std::vector<std::pair<int, libzgw::ZgwObject>> store_parts;
@@ -352,25 +352,25 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
   }
   if (recv_parts.size() != store_parts.size()) {
     resp_->SetStatusCode(400);
-    resp_->SetBody(xml::ErrorXml(xml::InvalidPart));
+    resp_->SetBody(ErrorXml(InvalidPart));
   }
   for (size_t i = 0; i < recv_parts.size(); i++) {
     // check part num order and existance
     if (existed_parts.find(recv_parts[i].first) == existed_parts.end()) {
       resp_->SetStatusCode(400);
-      resp_->SetBody(xml::ErrorXml(xml::InvalidPart));
+      resp_->SetBody(ErrorXml(InvalidPart));
       return;
     }
     if (recv_parts[i].first != store_parts[i].first) {
       resp_->SetStatusCode(400);
-      resp_->SetBody(xml::ErrorXml(xml::InvalidPartOrder));
+      resp_->SetBody(ErrorXml(InvalidPartOrder));
       return;
     }
     // Check etag
     const libzgw::ZgwObjectInfo& info = store_parts[i].second.info();
     if (info.etag != recv_parts[i].second) {
       resp_->SetStatusCode(400);
-      resp_->SetBody(xml::ErrorXml(xml::InvalidPart));
+      resp_->SetBody(ErrorXml(InvalidPart));
       return;
     }
   }
@@ -406,7 +406,7 @@ void ZgwConn::CompleteMultiUpload(const std::string& upload_id) {
   final_etag.erase(final_etag.size() - 1); // erase last '"'
   final_etag += "-" + std::to_string(store_parts.size()) + "\"";
   resp_->SetHeaders("ETag", final_etag);
-  resp_->SetBody(xml::CompleteMultipartUploadResultXml(bucket_name_,
+  resp_->SetBody(CompleteMultipartUploadResultXml(bucket_name_,
                                                        object_name_,
                                                        final_etag));
 }
@@ -415,7 +415,7 @@ void ZgwConn::AbortMultiUpload(const std::string& upload_id) {
   std::string internal_obname = libzgw::kInternalObjectNamePrefix + object_name_ + upload_id;
   if (!objects_name_->IsExist(internal_obname)) {
     resp_->SetStatusCode(404);
-    resp_->SetBody(xml::ErrorXml(xml::NoSuchUpload, upload_id));
+    resp_->SetBody(ErrorXml(NoSuchUpload, upload_id));
     return;
   }
 
@@ -442,7 +442,7 @@ void ZgwConn::ListParts(const std::string& upload_id) {
   std::string internal_obname = libzgw::kInternalObjectNamePrefix + object_name_ + upload_id;
   if (!objects_name_->IsExist(internal_obname)) {
     resp_->SetStatusCode(404);
-    resp_->SetBody(xml::ErrorXml(xml::NoSuchUpload, upload_id));
+    resp_->SetBody(ErrorXml(NoSuchUpload, upload_id));
     return;
   }
   DLOG(INFO) << "ListParts: " << req_->path << " confirm upload exist";
@@ -454,7 +454,7 @@ void ZgwConn::ListParts(const std::string& upload_id) {
     max_parts = std::atoi(mus.c_str());
     if (max_parts <= 0 && !isdigit(mus[0])) {
       resp_->SetStatusCode(400);
-      resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "max-parts"));
+      resp_->SetBody(ErrorXml(InvalidArgument, "max-parts"));
       return;
     }
   } else {
@@ -497,14 +497,14 @@ void ZgwConn::ListParts(const std::string& upload_id) {
     {"IsTruncated", is_trucated ? "true" : "false"},
   };
   resp_->SetStatusCode(200);
-  resp_->SetBody(xml::ListPartsResultXml(needed_parts, zgw_user_, args));
+  resp_->SetBody(ListPartsResultXml(needed_parts, zgw_user_->user_info(), args));
 }
 
 void ZgwConn::ListMultiPartsUpload() {
   // Check whether bucket existed in namelist meta
   if (!buckets_name_->IsExist(bucket_name_)) {
     resp_->SetStatusCode(404);
-    resp_->SetBody(xml::ErrorXml(xml::NoSuchBucket, bucket_name_));
+    resp_->SetBody(ErrorXml(NoSuchBucket, bucket_name_));
     return;
   }
   DLOG(INFO) << "ListMultiPartsUpload: " << req_->path << " confirm bucket exist";
@@ -512,7 +512,7 @@ void ZgwConn::ListMultiPartsUpload() {
   std::string delimiter = req_->query_params["delimiter"];
   if (!delimiter.empty() && delimiter.size() != 1) {
     resp_->SetStatusCode(400);
-    resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "delimiter"));
+    resp_->SetBody(ErrorXml(InvalidArgument, "delimiter"));
     return;
   }
   std::string prefix = req_->query_params["prefix"];
@@ -522,7 +522,7 @@ void ZgwConn::ListMultiPartsUpload() {
     max_uploads = std::atoi(mus.c_str());
     if (max_uploads <= 0 && !isdigit(mus[0])) {
       resp_->SetStatusCode(400);
-      resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "max-uploads"));
+      resp_->SetBody(ErrorXml(InvalidArgument, "max-uploads"));
       return;
     }
   } else {
@@ -631,20 +631,20 @@ void ZgwConn::ListMultiPartsUpload() {
     args.insert(std::make_pair("NextUploadIdMarker", upload_id));
   }
   resp_->SetStatusCode(200);
-  resp_->SetBody(xml::ListMultipartUploadsResultXml(objects, args, commonprefixes));
+  resp_->SetBody(ListMultipartUploadsResultXml(objects, args, commonprefixes));
 }
 
 void ZgwConn::DelMultiObjectsHandle() {
   if (!buckets_name_->IsExist(bucket_name_)) {
     resp_->SetStatusCode(404);
-    resp_->SetBody(xml::ErrorXml(xml::NoSuchBucket, bucket_name_));
+    resp_->SetBody(ErrorXml(NoSuchBucket, bucket_name_));
     return;
   }
 
   std::vector<std::string> keys;
-  if (!xml::ParseDelMultiObjectXml(req_->content, &keys)) {
+  if (!ParseDelMultiObjectXml(req_->content, &keys)) {
     resp_->SetStatusCode(400);
-    resp_->SetBody(xml::ErrorXml(xml::MalformedXML));
+    resp_->SetBody(ErrorXml(MalformedXML));
   }
   std::vector<std::string> success_keys;
   std::map<std::string, std::string> error_keys;
@@ -661,7 +661,7 @@ void ZgwConn::DelMultiObjectsHandle() {
     objects_name_->Delete(key);
     success_keys.push_back(key);
   }
-  resp_->SetBody(xml::DeleteResultXml(success_keys, error_keys));
+  resp_->SetBody(DeleteResultXml(success_keys, error_keys));
   resp_->SetStatusCode(200);
 }
 
@@ -703,7 +703,7 @@ bool ZgwConn::ParseRange(const std::string& range,
   size_t pos = range.find("bytes=");
   if (pos == std::string::npos) {
     resp_->SetStatusCode(400);
-    resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "range"));
+    resp_->SetBody(ErrorXml(InvalidArgument, "range"));
     return false;
   }
   std::string range_header = range.substr(6);
@@ -716,7 +716,7 @@ bool ZgwConn::ParseRange(const std::string& range,
     if (res > 0) {
       if (start > 0 && end < static_cast<uint32_t>(start)) {
         resp_->SetStatusCode(416);
-        resp_->SetBody(xml::ErrorXml(xml::InvalidRange, bucket_name_));
+        resp_->SetBody(ErrorXml(InvalidRange, bucket_name_));
         return false;
       }
       segments->push_back(std::make_pair(start, end));
@@ -731,7 +731,7 @@ void ZgwConn::GetObjectHandle(bool is_head_op) {
 
   if (!objects_name_->IsExist(object_name_)) {
     resp_->SetStatusCode(404);
-    resp_->SetBody(xml::ErrorXml(xml::NoSuchKey, object_name_));
+    resp_->SetBody(ErrorXml(NoSuchKey, object_name_));
     return;
   }
   DLOG(INFO) << "GetObject: " << req_->path << " confirm object exist";
@@ -761,7 +761,7 @@ void ZgwConn::GetObjectHandle(bool is_head_op) {
       LOG(WARNING) << "Data size maybe strip count error";
     } else if (s.IsEndFile()) {
       resp_->SetStatusCode(416);
-      resp_->SetBody(xml::ErrorXml(xml::InvalidRange, bucket_name_));
+      resp_->SetBody(ErrorXml(InvalidRange, bucket_name_));
       return;
     } else {
       resp_->SetStatusCode(500);
@@ -795,17 +795,17 @@ bool ZgwConn::GetSourceObject(std::string* content) {
   DLOG(INFO) << "Copy source object: " << src_bucket_name << " " << src_object_name;
   if (src_bucket_name.empty() || src_object_name.empty()) {
     resp_->SetStatusCode(400);
-    resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "x-amz-copy-source"));
+    resp_->SetBody(ErrorXml(InvalidArgument, "x-amz-copy-source"));
     return false;
   }
   if (!buckets_name_->IsExist(src_bucket_name)) {
     resp_->SetStatusCode(404);
-    resp_->SetBody(xml::ErrorXml(xml::NoSuchBucket, src_bucket_name));
+    resp_->SetBody(ErrorXml(NoSuchBucket, src_bucket_name));
     return false;
   }
 
   libzgw::NameList *tmp_obnames = NULL;
-  Status s = g_zgw_server->objects_list()->Ref(store_, src_bucket_name, &tmp_obnames);
+  Status s = g_zgw_server->RefAndGetObjectList(store_, src_bucket_name, &tmp_obnames);
   if (!s.ok()) {
     resp_->SetStatusCode(500);
     LOG(ERROR) << "Ref objects name list failed: " << s.ToString();
@@ -813,11 +813,11 @@ bool ZgwConn::GetSourceObject(std::string* content) {
   }
   if (tmp_obnames == NULL || !tmp_obnames->IsExist(src_object_name)) {
     resp_->SetStatusCode(404);
-    resp_->SetBody(xml::ErrorXml(xml::NoSuchKey, src_object_name));
-    g_zgw_server->objects_list()->Unref(store_, src_bucket_name);
+    resp_->SetBody(ErrorXml(NoSuchKey, src_object_name));
+    g_zgw_server->UnrefObjectList(store_, src_bucket_name);
     return false;
   }
-  g_zgw_server->objects_list()->Unref(store_, src_bucket_name);
+  g_zgw_server->UnrefObjectList(store_, src_bucket_name);
 
   // Get source object
   libzgw::ZgwObject src_object(src_bucket_name, src_object_name);
@@ -833,7 +833,7 @@ bool ZgwConn::GetSourceObject(std::string* content) {
     s = store_->GetPartialObject(&src_object, segments);
     if (s.IsEndFile()) {
       resp_->SetStatusCode(416);
-      resp_->SetBody(xml::ErrorXml(xml::InvalidRange, bucket_name_));
+      resp_->SetBody(ErrorXml(InvalidRange, bucket_name_));
       return false;
     }
   } else {
@@ -894,7 +894,7 @@ void ZgwConn::PutObjectHandle() {
   DLOG(INFO) << "PutObject: " << req_->path << " confirm add to namelist success";
 
   if (is_copy_op) {
-    resp_->SetBody(xml::CopyObjectResultXml(now, etag));
+    resp_->SetBody(CopyObjectResultXml(now, etag));
   }
   resp_->SetHeaders("ETag", etag);
   resp_->SetStatusCode(200);
@@ -906,7 +906,7 @@ void ZgwConn::ListObjectHandle() {
   // Check whether bucket existed in namelist meta
   if (!buckets_name_->IsExist(bucket_name_)) {
     resp_->SetStatusCode(404);
-    resp_->SetBody(xml::ErrorXml(xml::NoSuchBucket, bucket_name_));
+    resp_->SetBody(ErrorXml(NoSuchBucket, bucket_name_));
     return;
   }
   DLOG(INFO) << "ListObjects: " << req_->path << " confirm bucket exist";
@@ -914,7 +914,7 @@ void ZgwConn::ListObjectHandle() {
   std::string delimiter = req_->query_params["delimiter"];
   if (!delimiter.empty() && delimiter.size() != 1) {
     resp_->SetStatusCode(400);
-    resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "delimiter"));
+    resp_->SetBody(ErrorXml(InvalidArgument, "delimiter"));
     return;
   }
   std::string prefix = req_->query_params["prefix"];
@@ -924,7 +924,7 @@ void ZgwConn::ListObjectHandle() {
     max_keys = std::atoi(mks.c_str());
     if (max_keys <= 0 && !isdigit(mks[0])) {
       resp_->SetStatusCode(400);
-      resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "max-keys"));
+      resp_->SetBody(ErrorXml(InvalidArgument, "max-keys"));
       return;
     }
   } else {
@@ -935,7 +935,7 @@ void ZgwConn::ListObjectHandle() {
   std::string is_listv2 = req_->query_params["list-type"];
   if (!is_listv2.empty() && is_listv2 != "2") {
     resp_->SetStatusCode(400);
-    resp_->SetBody(xml::ErrorXml(xml::InvalidArgument, "list-type"));
+    resp_->SetBody(ErrorXml(InvalidArgument, "list-type"));
     return;
   }
 
@@ -1055,7 +1055,7 @@ void ZgwConn::ListObjectHandle() {
   }
   DLOG(INFO) << "ListObjects: " << req_->path << " confirm get objects' meta from zp success";
 
-  resp_->SetBody(xml::ListObjectsXml(objects, args, commonprefixes));
+  resp_->SetBody(ListObjectsXml(objects, args, commonprefixes));
   resp_->SetStatusCode(200);
 }
 
@@ -1064,7 +1064,7 @@ void ZgwConn::DelBucketHandle() {
   // Check whether bucket existed in namelist meta
   if (!buckets_name_->IsExist(bucket_name_)) {
     resp_->SetStatusCode(404);
-    resp_->SetBody(xml::ErrorXml(xml::NoSuchBucket, bucket_name_));
+    resp_->SetBody(ErrorXml(NoSuchBucket, bucket_name_));
     return;
   }
   DLOG(INFO) << "DeleteBucket: " << req_->path << " confirm bucket exist";
@@ -1080,7 +1080,7 @@ void ZgwConn::DelBucketHandle() {
   }
   if (zgw_user_->user_info().user_id != bucket.user_info().user_id) {
     resp_->SetStatusCode(403);
-    resp_->SetBody(xml::ErrorXml(xml::AccessDenied));
+    resp_->SetBody(ErrorXml(AccessDenied));
     LOG(ERROR) << "DeleteBucket: not own by user: " << zgw_user_->user_info().disply_name;
   }
 
@@ -1105,7 +1105,7 @@ void ZgwConn::DelBucketHandle() {
       objects_name_->name_list.clear();
     } else {
       resp_->SetStatusCode(409);
-      resp_->SetBody(xml::ErrorXml(xml::BucketNotEmpty, bucket_name_));
+      resp_->SetBody(ErrorXml(BucketNotEmpty, bucket_name_));
       LOG(ERROR) << "DeleteBucket: BucketNotEmpty";
       return;
     }
@@ -1129,7 +1129,7 @@ void ZgwConn::PutBucketHandle() {
   // Check whether bucket existed in namelist meta
   if (buckets_name_->IsExist(bucket_name_)) {
     resp_->SetStatusCode(409);
-    resp_->SetBody(xml::ErrorXml(xml::BucketAlreadyOwnedByYou, ""));
+    resp_->SetBody(ErrorXml(BucketAlreadyOwnedByYou, ""));
     return;
   }
 
@@ -1144,7 +1144,7 @@ void ZgwConn::PutBucketHandle() {
   bool already_exist = false;
   for (auto user : user_list) {
     auto access_key = user->access_key();
-    s = g_zgw_server->buckets_list()->Ref(store_, access_key, &tmp_bk_list);
+    s = g_zgw_server->RefAndGetBucketList(store_, access_key, &tmp_bk_list);
     if (!s.ok()) {
       resp_->SetStatusCode(500);
       LOG(ERROR) << "Create bucket failed: " << s.ToString();
@@ -1153,7 +1153,7 @@ void ZgwConn::PutBucketHandle() {
     if (tmp_bk_list->IsExist(bucket_name_)) {
       already_exist = true;
     }
-    s = g_zgw_server->buckets_list()->Unref(store_, access_key);
+    s = g_zgw_server->UnrefBucketList(store_, access_key);
     if (!s.ok()) {
       resp_->SetStatusCode(500);
       LOG(ERROR) << "Create bucket failed: " << s.ToString();
@@ -1161,7 +1161,7 @@ void ZgwConn::PutBucketHandle() {
     }
     if (already_exist) {
       resp_->SetStatusCode(409);
-      resp_->SetBody(xml::ErrorXml(xml::BucketAlreadyExists));
+      resp_->SetBody(ErrorXml(BucketAlreadyExists));
       return;
     }
   }
@@ -1208,5 +1208,5 @@ void ZgwConn::ListBucketHandle() {
 
   const libzgw::ZgwUserInfo &info = zgw_user_->user_info();
   resp_->SetStatusCode(200);
-  resp_->SetBody(xml::ListBucketXml(info, buckets));
+  resp_->SetBody(ListBucketXml(info, buckets));
 }

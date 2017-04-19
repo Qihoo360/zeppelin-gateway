@@ -1,7 +1,7 @@
-#include "zgw_admin_conn.h"
+#include "src/zgw_admin_conn.h"
 
-#include "zgw_util.h"
-#include "zgw_server.h"
+#include "src/zgw_util.h"
+#include "src/zgw_server.h"
 
 extern ZgwServer* g_zgw_server;
 
@@ -61,7 +61,7 @@ void AdminConn::ListStatusHandle(pink::HttpResponse* resp) {
     for (auto& key_pair : user->access_keys()) {
       access_key = key_pair.first; // access key
     }
-    s = g_zgw_server->buckets_list()->Ref(store_, access_key, &buckets_name_);
+    s = g_zgw_server->RefAndGetBucketList(store_, access_key, &buckets_name_);
     if (!s.ok()) {
       resp->SetStatusCode(500);
       LOG(ERROR) << "ListStatus: list bucket name failed: " << s.ToString();
@@ -75,9 +75,9 @@ void AdminConn::ListStatusHandle(pink::HttpResponse* resp) {
       std::lock_guard<std::mutex> lock(buckets_name_->list_lock);
       name_list = buckets_name_->name_list;
     }
-    g_zgw_server->buckets_list()->Unref(store_, access_key);
+    g_zgw_server->UnrefBucketList(store_, access_key);
     for (const auto& name : name_list) {
-      s = g_zgw_server->objects_list()->Ref(store_, name, &objects_name_);
+      s = g_zgw_server->RefAndGetObjectList(store_, name, &objects_name_);
       if (!s.ok()) {
         resp->SetStatusCode(500);
         LOG(ERROR) << "ListStatus: list object name failed: " << s.ToString();
@@ -86,7 +86,7 @@ void AdminConn::ListStatusHandle(pink::HttpResponse* resp) {
       body.append("    Bucket: " + name + " has "
                   + std::to_string(objects_name_->name_list.size())
                   + " Objects.\r\n");
-      g_zgw_server->objects_list()->Unref(store_, name);
+      g_zgw_server->UnrefObjectList(store_, name);
     }
   }
   // Bucket space TODO (gaodq)

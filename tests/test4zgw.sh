@@ -95,4 +95,4 @@ cases="\
   s3tests.functional.test_s3:test_multi_object_delete \
   s3tests.functional.test_s3:test_object_write_read_update_read_delete"
 
-S3_USE_SIGV4=1 S3TEST_CONF=test4zgw.conf virtualenv/bin/nosetests $cases -a auth_aws4 -x --debug-log=./tests.log --cover-html --process-timeout=10
+S3_USE_SIGV4=1 S3TEST_CONF=test4zgw.conf virtualenv/bin/nosetests $cases -a auth_aws4 -x --debug-log=./tests.log --cover-html --process-timeout=10 --processes=10

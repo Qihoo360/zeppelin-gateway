@@ -1,9 +1,9 @@
-#include "zgw_store.h"
+#include "src/libzgw/zgw_store.h"
 
 #include <unistd.h>
 
 #include "slash/include/slash_string.h"
-#include "zgw_user.h"
+#include "src/libzgw/zgw_user.h"
 
 namespace libzgw {
 

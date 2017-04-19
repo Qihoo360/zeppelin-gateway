@@ -2,13 +2,13 @@
 #define ZGW_CONN_H
 
 #include "pink/include/http_conn.h"
-#include "libzgw/zgw_store.h"
+#include "src/libzgw/zgw_store.h"
 
 class ZgwWorkerThread;
 
 class ZgwConn : public pink::HttpConn {
  public:
-  ZgwConn(const int fd, const std::string &ip_port,
+  ZgwConn(const int fd, const std::string& ip_port,
           pink::Thread* worker);
 
  private:
@@ -46,19 +46,19 @@ class ZgwConn : public pink::HttpConn {
     kUnsupport,
   };
 
-  libzgw::ZgwStore *store_;
+  libzgw::ZgwStore* store_;
 
   // Parse from http request
   std::string access_key_;
-  pink::HttpRequest *req_;
-  pink::HttpResponse *resp_;
+  pink::HttpRequest* req_;
+  pink::HttpResponse* resp_;
   std::string bucket_name_;
   std::string object_name_;
 
   // Get from zp
-  libzgw::NameList *buckets_name_;
-  libzgw::NameList *objects_name_;
-  libzgw::ZgwUser *zgw_user_;
+  libzgw::NameList* buckets_name_;
+  libzgw::NameList* objects_name_;
+  libzgw::ZgwUser* zgw_user_;
 
   void PreProcessUrl();
   bool IsValidBucket();
