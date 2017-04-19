@@ -1,10 +1,12 @@
 # zeppelin-gateway
+
+[![Build Status](https://travis-ci.org/Qihoo360/zeppelin-gateway.svg?branch=master)](https://travis-ci.org/Qihoo360/zeppelin-gateway)
+
 Object Gateway Provide Applications with a RESTful Gateway to zeppelin
 
+[API Documents](https://qihoo360.github.io/zeppelin-gateway/)
 
 ### FEATURES SUPPORT
-
-
 
 | Feature                   | Status         |
 | :------------------------ | :------------- |
