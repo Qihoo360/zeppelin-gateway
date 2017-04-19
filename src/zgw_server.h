@@ -20,6 +20,25 @@
 
 using slash::Status;
 
+class MyThreadEnvHandle : public pink::ThreadEnvHandle {
+ public:
+  MyThreadEnvHandle(const ZgwConfig* zgw_conf)
+      : zgw_conf_(zgw_conf) {
+  }
+
+  virtual ~MyThreadEnvHandle() {
+    for (auto s : stores_) {
+      delete s;
+    }
+  }
+
+  virtual int SetEnv(void** env) const;
+
+ private:
+  const ZgwConfig* zgw_conf_;
+  mutable std::vector<libzgw::ZgwStore*> stores_;
+};
+
 class ZgwServer {
  public:
   explicit ZgwServer(ZgwConfig *zgw_conf);
@@ -46,14 +65,8 @@ class ZgwServer {
     return &object_mutex_;
   }
 
-  libzgw::ZgwStore* admin_store() {
-    return admin_store_;
-  }
-
   uint64_t qps();
   void AddQueryNum();
-
-  libzgw::ZgwStore* GetWorkerStore(pink::Thread* worker);
 
   bool running() const {
     return !should_exit_.load();
@@ -71,12 +84,9 @@ class ZgwServer {
   int worker_num_;
   int port_;
   std::mutex worker_store_mutex_;
-  std::map<pink::Thread*, libzgw::ZgwStore*> worker_store_;
   ZgwConnFactory *conn_factory_;
-  pink::Thread* zgw_worker_thread_[kMaxWorkerThread];
 
   int admin_port_;
-  libzgw::ZgwStore* admin_store_;
   AdminConnFactory *admin_conn_factory_;
   pink::ServerThread* zgw_dispatch_thread_;
   pink::ServerThread* zgw_admin_thread_;
@@ -89,10 +99,6 @@ class ZgwServer {
   uint64_t cur_query_num_;
   uint64_t last_time_us_;
   pthread_rwlock_t qps_lock_;
-
-  Status InitWorderThread(pink::Thread* worker,
-                          std::vector<std::string> &zp_meta_ip_ports);
-  Status InitAdminThread();
 };
 
 #endif

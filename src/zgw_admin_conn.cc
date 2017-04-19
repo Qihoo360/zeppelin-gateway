@@ -9,7 +9,7 @@ AdminConn::AdminConn(const int fd,
                      const std::string &ip_port,
                      pink::Thread* worker)
       : HttpConn(fd, ip_port, worker) {
-	store_ = g_zgw_server->admin_store();
+	store_ = static_cast<libzgw::ZgwStore*>(worker->get_private());
 }
 
 void AdminConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp) {

@@ -4,40 +4,15 @@
 #include "slash/include/slash_mutex.h"
 #include "slash/include/env.h"
 
-Status ZgwServer::InitWorderThread(pink::Thread* worker,
-                                   std::vector<std::string> &zp_meta_ip_ports) {
-  // Open ZgwStore
+int MyThreadEnvHandle::SetEnv(void** env) const {
   libzgw::ZgwStore* store;
-  Status s =
-    libzgw::ZgwStore::Open(zp_meta_ip_ports, &store); 
+  Status s = libzgw::ZgwStore::Open(zgw_conf_->zp_meta_ip_ports, &store);
   if (!s.ok()) {
     LOG(FATAL) << "Can not open ZgwStore: " << s.ToString();
-    return s;
+    return -1;
   }
-  std::lock_guard<std::mutex> lock(worker_store_mutex_);
-  worker_store_.insert(std::make_pair(worker, store));
-
-  return Status::OK();
-}
-
-libzgw::ZgwStore* ZgwServer::GetWorkerStore(pink::Thread* worker) {
-  std::lock_guard<std::mutex> lock(worker_store_mutex_);
-  if (worker_store_.find(worker) != worker_store_.end()) {
-    return worker_store_[worker];
-  }
-  return NULL;
-}
-
-Status ZgwServer::InitAdminThread() {
-  // Open ZgwStore
-  Status s =
-    libzgw::ZgwStore::Open(zgw_conf_->zp_meta_ip_ports, &admin_store_); 
-  if (!s.ok()) {
-    LOG(FATAL) << "Can not open ZgwStore: " << s.ToString();
-    return s;
-  }
-
-  return Status::OK();
+  *env = static_cast<void*>(store);
+  return 0;
 }
 
 ZgwServer::ZgwServer(ZgwConfig *zgw_conf)
@@ -56,18 +31,20 @@ ZgwServer::ZgwServer(ZgwConfig *zgw_conf)
     LOG(WARNING) << "Exceed max worker thread num: " << kMaxWorkerThread;
     worker_num_ = kMaxWorkerThread;
   }
+
+  MyThreadEnvHandle* thandle = new MyThreadEnvHandle(zgw_conf_);
+
   conn_factory_ = new ZgwConnFactory();
-  for (int i = 0; i < worker_num_; i++) {
-    zgw_worker_thread_[i] = pink::NewWorkerThread(conn_factory_);
-    zgw_worker_thread_[i]->set_thread_name("WorkerThread");
-  }
   std::set<std::string> ips;
   ips.insert(ip_);
-  zgw_dispatch_thread_ = pink::NewDispatchThread(ips, port_, worker_num_, zgw_worker_thread_);
+  zgw_dispatch_thread_ = pink::NewDispatchThread(ips, port_,
+                                                 worker_num_, conn_factory_,
+                                                 0, nullptr, thandle);
   zgw_dispatch_thread_->set_thread_name("DispatchThread");
 
   admin_conn_factory_ = new AdminConnFactory();
-  zgw_admin_thread_ = pink::NewHolyThread(admin_port_, admin_conn_factory_);
+  zgw_admin_thread_ = pink::NewHolyThread(admin_port_, admin_conn_factory_,
+                                          0, nullptr, thandle);
   zgw_admin_thread_->set_thread_name("AdminThread");
 
   buckets_list_ = new libzgw::ListMap(libzgw::ListMap::kBuckets);
@@ -75,10 +52,6 @@ ZgwServer::ZgwServer(ZgwConfig *zgw_conf)
 }
 
 ZgwServer::~ZgwServer() {
-  for (int i = 0; i < worker_num_; i++) {
-    delete worker_store_[zgw_worker_thread_[i]];
-    delete zgw_worker_thread_[i];
-  }
   delete zgw_dispatch_thread_;
   delete zgw_admin_thread_;
   delete conn_factory_;
@@ -106,9 +79,6 @@ void ZgwServer::AddQueryNum() {
 }
 
 void ZgwServer::Exit() {
-  for (int i = 0; i < worker_num_; i++) {
-    zgw_worker_thread_[i]->StopThread();
-  }
   zgw_dispatch_thread_->StopThread();
   zgw_admin_thread_->StopThread();
   should_exit_.store(true);
@@ -116,18 +86,7 @@ void ZgwServer::Exit() {
 
 Status ZgwServer::Start() {
   Status s;
-  LOG(INFO) << "Waiting for ZgwServerThread Init, About "<< worker_num_ * 10 << "s";
-  for (int i = 0; i < worker_num_; i++) {
-    s = InitWorderThread(zgw_worker_thread_[i], zgw_conf_->zp_meta_ip_ports);
-    if (!s.ok()) {
-      return s;
-    }
-  }
-
-  s = InitAdminThread();
-  if (!s.ok()) {
-    return s;
-  }
+  LOG(INFO) << "Waiting for ZgwServerThread Init, maybe "<< worker_num_ * 10 << "s";
   
   if (zgw_dispatch_thread_->StartThread() != 0) {
     return Status::Corruption("Launch DispatchThread failed");
@@ -135,6 +94,7 @@ Status ZgwServer::Start() {
   if (zgw_admin_thread_->StartThread() != 0) {
     return Status::Corruption("Launch AdminThread failed");
   }
+
   LOG(INFO) << "ZgwServerThread Init Success!";
 
   while (running()) {
