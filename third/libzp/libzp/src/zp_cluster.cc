@@ -14,6 +14,45 @@
 
 namespace libzp {
 
+struct CmdRpcArg {
+  Cluster* cluster;
+  std::string table;
+  std::string key;
+  client::CmdRequest* request;
+  client::CmdResponse* response;
+  Status result;
+
+  CmdRpcArg(Cluster* c, const std::string& t, const std::string& k)
+    : cluster(c), table(t), key(k),
+    result(Status::Incomplete("Not complete")),
+    cond_(&mu_), done_(false) {
+      request = new client::CmdRequest();
+      response = new client::CmdResponse();
+    }
+  
+  ~CmdRpcArg() {
+    delete request;
+    delete response;
+  }
+
+  void WaitRpcDone() {
+    slash::MutexLock l(&mu_);
+    while (!done_) {
+      cond_.Wait();  
+    }
+  }
+  void RpcDone() {
+    slash::MutexLock l(&mu_);
+    done_ = true;
+    cond_.Signal();
+  }
+
+private:
+  slash::Mutex mu_;
+  slash::CondVar cond_;
+  bool done_;
+};
+
 Cluster::Cluster(const Options& options)
   : epoch_(0) {
     meta_addr_ = options.meta_addr;
@@ -30,6 +69,10 @@ Cluster::Cluster(const std::string& ip, int port)
   }
 
 Cluster::~Cluster() {
+  for (auto& bg : cmd_workers_) {
+    delete bg.second;
+  }
+
   std::unordered_map<std::string, Table*>::iterator iter = tables_.begin();
   while (iter != tables_.end()) {
     delete iter->second;
@@ -40,7 +83,7 @@ Cluster::~Cluster() {
 }
 
 Status Cluster::Set(const std::string& table, const std::string& key,
-    const std::string& value) {
+    const std::string& value, int32_t ttl) {
   Status s;
   data_cmd_.Clear();
   data_cmd_.set_type(client::Type::SET);
@@ -48,8 +91,11 @@ Status Cluster::Set(const std::string& table, const std::string& key,
   set_info->set_table_name(table);
   set_info->set_key(key);
   set_info->set_value(value);
+  if (ttl >= 0) {
+    set_info->mutable_expire()->set_ttl(ttl);
+  }
 
-  s = SubmitDataCmd(table, key);
+  s = SubmitDataCmd(table, key, data_cmd_, &data_res_);
   if (!s.ok()) {
     return Status::IOError(s.ToString());
   }
@@ -68,7 +114,7 @@ Status Cluster::Delete(const std::string& table, const std::string& key) {
   del_info->set_table_name(table);
   del_info->set_key(key);
 
-  s = SubmitDataCmd(table, key);
+  s = SubmitDataCmd(table, key, data_cmd_, &data_res_);
   if (!s.ok()) {
     return Status::IOError(s.ToString());
   }
@@ -88,7 +134,7 @@ Status Cluster::Get(const std::string& table, const std::string& key,
   get_cmd->set_table_name(table);
   get_cmd->set_key(key);
 
-  s = SubmitDataCmd(table, key);
+  s = SubmitDataCmd(table, key, data_cmd_, &data_res_);
   if (!s.ok()) {
     return Status::IOError(s.ToString());
   }
@@ -113,47 +159,67 @@ Status Cluster::Mget(const std::string& table,
   Status s;
   Node master;
   // Build multi command to nodes: master node -> Command
-  std::unordered_map<std::string, client::CmdRequest*> key_distribute;
+  std::map<Node, CmdRpcArg*> key_distribute;
   for (auto& k : keys) {
     s = GetDataMaster(table, k, &master);
     if (!s.ok()) {
       return s;
     }
 
-    std::string host = slash::IpPortString(master.ip, master.port);
-    if (key_distribute.find(host) == key_distribute.end()) {
-      client::CmdRequest* cptr = new client::CmdRequest(); 
-      cptr->set_type(client::Type::MGET);
-      client::CmdRequest_Mget* new_mget_cmd = cptr->mutable_mget();
+    if (key_distribute.find(master) == key_distribute.end()) {
+      CmdRpcArg* arg = new CmdRpcArg(this, table, k);
+      arg->request->set_type(client::Type::MGET);
+      client::CmdRequest_Mget* new_mget_cmd = arg->request->mutable_mget();
       new_mget_cmd->set_table_name(table);
-      key_distribute.insert(std::pair<std::string, client::CmdRequest*>(
-            host, cptr));
+      key_distribute.insert(std::pair<Node, CmdRpcArg*>(
+            master, arg));
     }
-    key_distribute[host]->mutable_mget()->add_keys(k);
+    key_distribute[master]->request->mutable_mget()->add_keys(k);
   }
 
   // Distribute command
+  DistributeDataRpc(key_distribute);
+
   bool has_error = false;
   for (auto& kd : key_distribute) {
-    data_cmd_.Clear();
-    data_cmd_.CopyFrom(*(kd.second));
-    s = SubmitDataCmd(table, kd.second->mget().keys(0));
-    if (!s.ok()
-        || data_res_.code() != client::StatusCode::kOk ) {
+    client::CmdResponse *res = kd.second->response;
+    if (!kd.second->result.ok()
+        || res->code() != client::StatusCode::kOk ) {
       has_error = true;
-    } else {
-      for (auto& kv : data_res_.mget()) {
-        values->insert(std::pair<std::string, std::string>(kv.key(),
-              kv.value()));
-      }
+    }
+    for (auto& kv : res->mget()) {
+      values->insert(std::pair<std::string, std::string>(kv.key(),
+            kv.value()));
     }
     delete kd.second;
   }
-
   if (has_error) {
-    return Status::Corruption("error happend");
+    return Status::Corruption("mget error happened");
   }
   return Status::OK();
+}
+
+void Cluster::DoSubmitDataCmd(void* arg) {
+  CmdRpcArg *carg = static_cast<CmdRpcArg*>(arg);
+  carg->result = carg->cluster->SubmitDataCmd(carg->table, carg->key,
+      *(carg->request), carg->response);
+  carg->RpcDone();
+}
+
+void Cluster::DistributeDataRpc(
+    const std::map<Node, CmdRpcArg*>& key_distribute) {
+  for (auto& kd : key_distribute) {
+    if (cmd_workers_.find(kd.first) == cmd_workers_.end()) {
+      pink::BGThread* bg = new pink::BGThread();
+      bg->StartThread();
+      cmd_workers_.insert(std::pair<Node, pink::BGThread*>(kd.first, bg));
+    }
+    cmd_workers_[kd.first]->Schedule(DoSubmitDataCmd, kd.second);
+  }
+
+  for (auto& kd : key_distribute) {
+    kd.second->WaitRpcDone();
+  }
 }
 
 Status Cluster::CreateTable(const std::string& table_name,
@@ -170,6 +236,24 @@ Status Cluster::CreateTable(const std::string& table_name,
     return Status::IOError(ret.ToString());
   }
 
+  if (meta_res_.code() != ZPMeta::StatusCode::OK) {
+    return Status::Corruption(meta_res_.msg());
+  } else {
+    return Status::OK();
+  }
+}
+
+Status Cluster::DropTable(const std::string& table_name) {
+  meta_cmd_.Clear();
+  meta_cmd_.set_type(ZPMeta::Type::DROPTABLE);
+  ZPMeta::MetaCmd_DropTable* drop_table = meta_cmd_.mutable_drop_table();
+  drop_table->set_name(table_name);
+
+  slash::Status ret = SubmitMetaCmd();
+
+  if (!ret.ok()) {
+    return Status::IOError(ret.ToString());
+  }
   if (meta_res_.code() != ZPMeta::StatusCode::OK) {
     return Status::Corruption(meta_res_.msg());
   } else {
@@ -369,7 +453,7 @@ Status Cluster::InfoQps(const std::string& table, int* qps, int* total_query) {
   while (node_iter != related_nodes.end()) {
     data_cmd_.Clear();
     data_cmd_.set_type(client::Type::INFOSTATS);
-    s = TryDataRpc(*node_iter);
+    s = TryDataRpc(*node_iter, data_cmd_, &data_res_);
     node_iter++;
     if (s.IsIOError() || s.IsCorruption()) {
       continue;
@@ -393,7 +477,7 @@ Status Cluster::InfoOffset(const Node& node, const std::string& table,
   Pull(table);
   data_cmd_.Clear();
   data_cmd_.set_type(client::Type::INFOPARTITION);
-  s = TryDataRpc(node);
+  s = TryDataRpc(node, data_cmd_, &data_res_);
 
   for (int i = 0; i < data_res_.info_partition_size(); i++) {
     std::string name = data_res_.info_partition(i).table_name();
@@ -432,7 +516,7 @@ Status Cluster::InfoSpace(const std::string& table,
   while (node_iter != related_nodes.end()) {
     data_cmd_.Clear();
     data_cmd_.set_type(client::Type::INFOCAPACITY);
-    s = TryDataRpc(*node_iter);
+    s = TryDataRpc(*node_iter, data_cmd_, &data_res_);
     if (s.IsIOError() || s.IsCorruption()) {
       node_iter++;
       continue;
@@ -454,11 +538,12 @@ Status Cluster::InfoSpace(const std::string& table,
 }
 
 Status Cluster::SubmitDataCmd(const std::string& table, const std::string& key,
+    client::CmdRequest& req, client::CmdResponse *res,
     bool has_pull) {
   Node master;
   Status s = TryGetDataMaster(table, key, &master);
   if (s.ok()) {
-    s = TryDataRpc(master);
+    s = TryDataRpc(master, req, res);
   }
   if ((s.ok() && data_res_.code() == client::StatusCode::kOk) // Success
       || has_pull) { // Already pull once
@@ -470,23 +555,25 @@ Status Cluster::SubmitDataCmd(const std::string& table, const std::string& key,
   if (!s.ok()) {
     return s;
   }
-  return SubmitDataCmd(table, key, true);
+  return SubmitDataCmd(table, key, req, res, true);
 }
 
-Status Cluster::TryDataRpc(const Node& master, int attempt) {
+Status Cluster::TryDataRpc(const Node& master,
+    client::CmdRequest& req, client::CmdResponse *res,
+    int attempt) {
   ZpCli* data_cli = data_pool_->GetConnection(master);
   if (!data_cli) {
     return Status::Corruption("Failed to get data cli");
   }
 
-  Status s = data_cli->cli->Send(&data_cmd_);
+  Status s = data_cli->cli->Send(&req);
   if (s.ok()) {
-    s = data_cli->cli->Recv(&data_res_);
+    s = data_cli->cli->Recv(res);
   }
   if (!s.ok()) {
     data_pool_->RemoveConnection(data_cli);
     if (attempt <= kDataAttempt) {
-      return TryDataRpc(master, attempt + 1);
+      return TryDataRpc(master, req, res, attempt + 1);
     }
   }
   return s;
@@ -602,6 +689,10 @@ Status Cluster::GetDataMaster(const std::string& table,
 
 void Cluster::ResetClusterMap(const ZPMeta::MetaCmdResponse_Pull& pull) {
   epoch_ = pull.version();
+  for (auto& table : tables_) {
+    delete table.second;
+  }
+  tables_.clear();
   for (int i = 0; i < pull.info_size(); i++) {
     std::cout << "reset table:" << pull.info(i).name() << std::endl;
     auto it = tables_.find(pull.info(i).name());
@@ -632,12 +723,18 @@ Status Client::Connect() {
   return s;
 }
 
-Status Client::Set(const std::string& key, const std::string& value) {
-  return cluster_->Set(table_, key, value);
+Status Client::Set(const std::string& key, const std::string& value,
+    int32_t ttl) {
+  return cluster_->Set(table_, key, value, ttl);
 }
 
 Status Client::Get(const std::string& key, std::string* value) {
   return cluster_->Get(table_, key, value);
+}
+
+Status Client::Mget(const std::vector<std::string>& keys,
+    std::map<std::string, std::string>* values) {
+  return cluster_->Mget(table_, keys, values);
 }
 
 Status Client::Delete(const std::string& key) {

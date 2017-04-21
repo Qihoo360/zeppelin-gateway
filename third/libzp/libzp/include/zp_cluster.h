@@ -5,11 +5,13 @@
 #ifndef CLIENT_INCLUDE_ZP_CLUSTER_H_
 #define CLIENT_INCLUDE_ZP_CLUSTER_H_
 
+#include <map>
 #include <string>
 #include <vector>
 #include <unordered_map>
 
 #include "pink/include/pink_cli.h"
+#include "pink/include/bg_thread.h"
 
 #include "libzp/src/zp_meta.pb.h"
 #include "libzp/src/client.pb.h"
@@ -29,6 +31,8 @@ struct Options {
   }
 };
 
+struct CmdRpcArg;
+
 class Cluster {
 public:
   explicit Cluster(const Options& options);
@@ -39,7 +43,7 @@ public:
 
   // data cmd
   Status Set(const std::string& table, const std::string& key,
-      const std::string& value);
+      const std::string& value, int32_t ttl = -1);
   Status Get(const std::string& table, const std::string& key,
       std::string* value);
   Status Delete(const std::string& table, const std::string& key);
@@ -48,6 +52,7 @@ public:
 
   // meta cmd
   Status CreateTable(const std::string& table_name, int partition_num);
+  Status DropTable(const std::string& table_name);
   Status Pull(const std::string& table);
   Status SetMaster(const std::string& table, const int partition,
       const Node& ip_port);
@@ -74,15 +79,21 @@ public:
       const std::string& key);
 
  private:
+  static void DoSubmitDataCmd(void* arg);
+  void DistributeDataRpc(
+      const std::map<Node, CmdRpcArg*>& key_distribute);
+  
   ZpCli* GetMetaConnection();
   Status TryGetDataMaster(const std::string& table,
       const std::string& key, Node* master);
   Status GetDataMaster(const std::string& table,
       const std::string& key, Node* master, bool has_pull= false);
 
-  Status SubmitDataCmd(const std::string& table,
-      const std::string& key, bool has_pull = false);
-  Status TryDataRpc(const Node& node, int attempt = 0);
+  Status SubmitDataCmd(const std::string& table, const std::string& key,
+      client::CmdRequest& req, client::CmdResponse *res, bool has_pull = false);
+  Status TryDataRpc(const Node& master,
+      client::CmdRequest& req, client::CmdResponse *res,
+      int attempt = 0);
   Status SubmitMetaCmd(int attempt = 0);
   void ResetClusterMap(const ZPMeta::MetaCmdResponse_Pull& pull);
 
@@ -90,6 +101,7 @@ public:
   int64_t epoch_;
   std::vector<Node> meta_addr_;
   std::unordered_map<std::string, Table*> tables_;
+  std::map<Node, pink::BGThread*> cmd_workers_;
 
   // connection pool
   ConnectionPool* meta_pool_;
@@ -111,8 +123,11 @@ class Client {
   Status Connect();
 
   // data cmd
-  Status Set(const std::string& key, const std::string& value);
+  Status Set(const std::string& key, const std::string& value,
+      int32_t ttl = -1);
   Status Get(const std::string& key, std::string* value);
+  Status Mget(const std::vector<std::string>& keys,
+      std::map<std::string, std::string>* values);
   Status Delete(const std::string& key);
 
 
