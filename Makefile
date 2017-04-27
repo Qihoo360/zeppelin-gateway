@@ -7,33 +7,47 @@ else
 endif
 OBJECT = zgw_server
 
+ifndef SLASH_PATH
+SLASH_PATH = $(realpath ./third/slash)
+endif
+
+ifndef PINK_PATH 
+PINK_PATH = $(realpath ./third/pink)
+endif
+
+ifndef ZP_PATH
+ZP_PATH = $(realpath ./third/zeppelin-client/libzp)
+endif
+
+ifndef GLOG_PATH
+GLOG_PATH = $(realpath ./third/glog)
+endif
 
 SRC_DIR = ./src
 LIBZGW_DIR = ./src/libzgw
-THIRD_DIR = ./third
 OUTPUT = ./output
 VERSION = -D_GITVER_=$(shell git rev-list HEAD | head -n1) \
 					-D_COMPILEDATE_=$(shell date +%FT%T%z)
 
-LIB_PATH = -L$(THIRD_DIR)/slash/slash/lib \
-					 -L$(THIRD_DIR)/pink/pink/lib \
-					 -L$(THIRD_DIR)/glog/.libs \
-					 -L$(THIRD_DIR)/libzp/libzp/lib
+LIB_PATH = -L$(SLASH_PATH)/slash/lib \
+					 -L$(PINK_PATH)/pink/lib \
+					 -L$(GLOG_PATH)/.libs \
+					 -L$(ZP_PATH)/libzp/lib
 
 LIBS = -lzp \
-			 -lslash \
 			 -lpink \
+			 -lslash \
 			 -lglog \
 			 -lprotobuf \
 			 -lcrypto \
 			 -lpthread
 
 INCLUDE_PATH = -I. \
-							 -I$(THIRD_DIR)/slash \
-							 -I$(THIRD_DIR)/pink \
-							 -I$(THIRD_DIR)/rapidxml \
-							 -I$(THIRD_DIR)/libzp \
-							 -I$(THIRD_DIR)/glog/src \
+							 -I$(SLASH_PATH) \
+							 -I$(PINK_PATH) \
+							 -I./third/rapidxml \
+							 -I$(ZP_PATH) \
+							 -I$(GLOG_PATH)/src \
 
 .PHONY: all clean
 
@@ -44,10 +58,10 @@ BASE_BOJS += $(wildcard $(SRC_DIR)/*.c)
 BASE_BOJS += $(wildcard $(SRC_DIR)/*.cpp)
 OBJS = $(patsubst %.cc,%.o,$(BASE_BOJS))
 
-PINK = $(THIRD_DIR)/pink/pink/lib/libpink.a
-SLASH = $(THIRD_DIR)/slash/slash/lib/libslash.a
-LIBZP = $(THIRD_DIR)/libzp/libzp/lib/libzp.a
-GLOG = $(THIRD_DIR)/glog/.libs/libglog.a
+PINK = $(PINK_PATH)/pink/lib/libpink.a
+SLASH = $(SLASH_PATH)/slash/lib/libslash.a
+LIBZP = $(ZP_PATH)/libzp/lib/libzp.a
+GLOG = $(GLOG_PATH)/.libs/libglog.a
 
 all: $(OBJECT)
 	rm -rf $(OUTPUT)
@@ -68,17 +82,17 @@ $(OBJS): %.o : %.cc
 	$(CXX) $(CXXFLAGS) -c $< -o $@ $(INCLUDE_PATH) $(VERSION)
 
 $(SLASH):
-	make -C $(THIRD_DIR)/slash/slash __PERF=$(__PERF)
+	make -C $(SLASH_PATH)/slash __PERF=$(__PERF)
 
 $(PINK):
-	make -C $(THIRD_DIR)/pink/pink __PERF=$(__PERF) SLASH_PATH=../../slash
+	make -C $(PINK_PATH)/pink __PERF=$(__PERF) SLASH_PATH=$(SLASH_PATH)
 
 $(LIBZP):
-	make -C $(THIRD_DIR)/libzp/libzp __PERF=$(__PERF) SLASH_PATH=../../slash PINK_PATH=../../pink
+	make -C $(ZP_PATH)/libzp __PERF=$(__PERF) SLASH_PATH=$(SLASH_PATH) PINK_PATH=$(PINK_PATH)
 
 $(GLOG):
 	if [ ! -f $(GLOG) ]; then \
-		cd $(THIRD_DIR)/glog; \
+		cd $(GLOG_PATH); \
 		autoreconf -ivf; ./configure; make; echo '*' > .gitignore;\
 	fi; 
 
@@ -89,6 +103,6 @@ clean:
 	rm -rf $(OBJECT)
 
 distclean: clean
-	make -C $(THIRD_DIR)/slash/slash clean
-	make -C $(THIRD_DIR)/pink/pink clean
-	make -C $(THIRD_DIR)/libzp/libzp clean
+	make -C $(SLASH_PATH)/slash clean
+	make -C $(PINK_PATH)/pink distclean
+	make -C $(ZP_PATH)/libzp distclean
