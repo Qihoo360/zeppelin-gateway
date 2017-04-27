@@ -185,6 +185,23 @@ std::string ListBucketXml(const libzgw::ZgwUserInfo &info,
   return res_xml;
 }
 
+std::string GetBucketLocationXml() {
+  xml_document<> doc;
+  xml_node<> *rot =
+    doc.allocate_node(node_pi, doc.allocate_string(xml_header.c_str()));
+  doc.append_node(rot);
+
+  xml_node<> *rnode = doc.allocate_node(node_element, "LocationConstraint", "EU");
+  xml_attribute<> *attr = doc.allocate_attribute("xmlns", xml_ns.c_str());
+  rnode->append_attribute(attr);
+
+  doc.append_node(rnode);
+
+  std::string res_xml;
+  print(std::back_inserter(res_xml), doc, 0);
+  return res_xml; 
+}
+
 // ListObjects XML Parser
 std::string ListObjectsXml(const std::vector<libzgw::ZgwObject> &objects,
                            const std::map<std::string, std::string> &args,
