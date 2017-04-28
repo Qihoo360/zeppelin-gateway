@@ -104,5 +104,5 @@ clean:
 
 distclean: clean
 	make -C $(SLASH_PATH)/slash clean
-	make -C $(PINK_PATH)/pink distclean
-	make -C $(ZP_PATH)/libzp distclean
+	make -C $(PINK_PATH)/pink distclean SLASH_PATH=$(SLASH_PATH)
+	make -C $(ZP_PATH)/libzp clean SLASH_PATH=$(SLASH_PATH) PINK_PATH=$(PINK_PATH)
