@@ -29,6 +29,7 @@ enum ErrorType {
 extern std::string ErrorXml(ErrorType etype, const std::string& extra_info = "");
 extern std::string ListBucketXml(const libzgw::ZgwUserInfo &info,
                                  const std::vector<libzgw::ZgwBucket> &buckets);
+extern std::string GetBucketLocationXml();
 extern std::string ListObjectsXml(const std::vector<libzgw::ZgwObject> &objects,
                                   const std::map<std::string, std::string> &args,
                                   const std::set<std::string>& commonprefixes);

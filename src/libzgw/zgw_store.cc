@@ -90,11 +90,7 @@ Status ZgwStore::Init(const std::vector<std::string>& ip_ports) {
 }
 
 Status ZgwStore::SaveNameList(const NameList* nlist) {
-  Status s;
-  s = zp_->Set(kZgwMetaTableName, nlist->MetaKey(), nlist->MetaValue());
-  if (!s.ok()) {
-    return s;
-  }
+  return zp_->Set(kZgwMetaTableName, nlist->MetaKey(), nlist->MetaValue());
 }
 
 Status ZgwStore::GetNameList(NameList* nlist) {

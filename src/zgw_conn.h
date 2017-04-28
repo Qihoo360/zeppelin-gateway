@@ -31,6 +31,7 @@ class ZgwConn : public pink::HttpConn {
   void PutBucketHandle();
   void DelBucketHandle();
   void ListObjectHandle();
+  void GetBucketLocationHandle();
   void ListMultiPartsUpload();
 
   // Operation On Service

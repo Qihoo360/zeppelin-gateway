@@ -140,8 +140,10 @@ void ZgwConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp
   } else if (IsValidBucket()) {
     switch(method) {
       case kGet:
-        if (req_->query_params.find("uploads") != req_->query_params.end()) {
+        if (req_->query_params.count("uploads")) {
           ListMultiPartsUpload();
+        } else if (req_->query_params.count("location")) {
+          GetBucketLocationHandle();
         } else {
           ListObjectHandle();
         }
@@ -897,6 +899,21 @@ void ZgwConn::PutObjectHandle() {
     resp_->SetBody(CopyObjectResultXml(now, etag));
   }
   resp_->SetHeaders("ETag", etag);
+  resp_->SetStatusCode(200);
+}
+
+void ZgwConn::GetBucketLocationHandle() {
+  DLOG(INFO) << "GetBucketLocation: " << bucket_name_;
+  // Check whether bucket existed in namelist meta
+  if (!buckets_name_->IsExist(bucket_name_)) {
+    resp_->SetStatusCode(404);
+    resp_->SetBody(ErrorXml(NoSuchBucket, bucket_name_));
+    return;
+  }
+  DLOG(INFO) << "GetBucketLocation: " << req_->path << " confirm bucket exist";
+
+  resp_->SetHeaders("Content-Type", "text/plain");
+  resp_->SetBody(GetBucketLocationXml());
   resp_->SetStatusCode(200);
 }
 

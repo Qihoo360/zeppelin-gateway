@@ -68,7 +68,7 @@ class ZgwServer {
   }
 
   Status UnrefObjectList(libzgw::ZgwStore* store, const std::string& bucket_name) {
-    return buckets_list_->Unref(store, bucket_name);
+    return objects_list_->Unref(store, bucket_name);
   }
 
   void ObjectLock(const std::string& full_object_name) {
