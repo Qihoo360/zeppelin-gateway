@@ -98,37 +98,37 @@ define({ "api": [
     },
     "success": {
       "fields": {
-        "Request Elements": [
+        "Response Elements": [
           {
-            "group": "Request Elements",
+            "group": "Response Elements",
             "type": "String",
             "optional": false,
             "field": "CommonPrefixes",
             "description": "<p>根据delimiter分组的各组</p> "
           },
           {
-            "group": "Request Elements",
+            "group": "Response Elements",
             "type": "String",
             "optional": false,
             "field": "IsTruncated",
             "description": "<p>Objects列表是否截断</p> "
           },
           {
-            "group": "Request Elements",
+            "group": "Response Elements",
             "type": "String",
             "optional": false,
             "field": "Marker",
             "description": "<p>标记返回的Objects list从哪里开始</p> "
           },
           {
-            "group": "Request Elements",
+            "group": "Response Elements",
             "type": "String",
             "optional": false,
             "field": "NextMarker",
             "description": "<p>如果返回列表被截断，该字段说明是从哪里截断</p> "
           },
           {
-            "group": "Request Elements",
+            "group": "Response Elements",
             "type": "String",
             "optional": false,
             "field": "Prefix",
@@ -140,6 +140,138 @@ define({ "api": [
         {
           "title": "Sample-Response:",
           "content": "HTTP/1.1 200 OK\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">\n  <Name>bucket</Name>\n  <Prefix/>\n  <Marker/>\n  <MaxKeys>1000</MaxKeys>\n  <IsTruncated>false</IsTruncated>\n  <Contents>\n    <Key>my-image.jpg</Key>\n    <LastModified>2009-10-12T17:50:30.000Z</LastModified>\n    <ETag>&quot;fba9dede5f27731c9771645a39863328&quot;</ETag>\n    <Size>434234</Size>\n    <StorageClass>STANDARD</StorageClass>\n    <Owner>\n      <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>\n      <DisplayName>mtd@amazon.com</DisplayName>\n    </Owner>\n    </Contents>\n  <Contents>\n    <Key>my-third-image.jpg</Key>\n    <LastModified>2009-10-12T17:50:30.000Z</LastModified>\n    <ETag>&quot;1b2cf535f27731c974343645a3985328&quot;</ETag>\n    <Size>64994</Size>\n    <StorageClass>STANDARD_IA</StorageClass>\n    <Owner>\n      <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>\n      <DisplayName>mtd@amazon.com</DisplayName>\n    </Owner>\n  </Contents>\n</ListBucketResult>",
+          "type": "json"
+        }
+      ]
+    },
+    "error": {
+      "examples": [
+        {
+          "title": "Error-Response-NoSuchBucket",
+          "content": "HTTP/1.1 404 Not Found\n<?xml version='1.0' encoding='utf-8' ?>\n<Error>\n  <Code>NoSuchBucket</Code>\n  <Message>The specified bucket does not exist.</Message>\n  <BucketName>bk2</BucketName>\n  <RequestId>tx00000000000000000113c-0058a43a07-7deaf-sh-bt-1</RequestId>\n  <HostId7deaf-sh-bt-1-sh/>\n</Error>",
+          "type": "xml"
+        }
+      ]
+    },
+    "filename": "src/buckets_api.js",
+    "groupTitle": "Buckets"
+  },
+  {
+    "type": "get",
+    "url": "/:bucket_name?list-type=2",
+    "title": "GET Bucket (list object version 2)",
+    "version": "0.1.0",
+    "name": "GET_Bucket__list_object_version_2_",
+    "group": "Buckets",
+    "description": "<p>List 1000 Objects at most in bucket.</p> ",
+    "parameter": {
+      "fields": {
+        "Url Parameters": [
+          {
+            "group": "Url Parameters",
+            "type": "String",
+            "optional": false,
+            "field": "bucket_name",
+            "description": "<p>Bucket&#39;s Name</p> "
+          },
+          {
+            "group": "Url Parameters",
+            "type": "Number",
+            "size": "0-1000",
+            "optional": true,
+            "field": "max-keys",
+            "description": "<p>需要返回的最大数量</p> "
+          },
+          {
+            "group": "Url Parameters",
+            "type": "Number",
+            "size": "2",
+            "optional": false,
+            "field": "list-type",
+            "description": "<p>ListObjects的版本号，有的话只能是2</p> "
+          },
+          {
+            "group": "Url Parameters",
+            "type": "String",
+            "optional": true,
+            "field": "delimiter",
+            "description": "<p>根据此字符进行前缀分组</p> "
+          },
+          {
+            "group": "Url Parameters",
+            "type": "String",
+            "optional": true,
+            "field": "start-after",
+            "description": "<p>以此值列出排序Objects</p> "
+          },
+          {
+            "group": "Url Parameters",
+            "type": "String",
+            "optional": true,
+            "field": "prefix",
+            "description": "<p>列出name符合此prefix的Objects</p> "
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Sample-Request:",
+          "content": "GET /bucket HTTP/1.1\nHost: www.sample-host.com\nDate: Wed, 12 Oct 2009 17:50:00 GMT\nAuthorization: authorization string\nContent-Type: text/plain",
+          "type": "json"
+        }
+      ]
+    },
+    "success": {
+      "fields": {
+        "Response Elements": [
+          {
+            "group": "Response Elements",
+            "type": "String",
+            "optional": false,
+            "field": "CommonPrefixes",
+            "description": "<p>根据delimiter分组的各组</p> "
+          },
+          {
+            "group": "Response Elements",
+            "type": "String",
+            "optional": false,
+            "field": "IsTruncated",
+            "description": "<p>Objects列表是否截断</p> "
+          },
+          {
+            "group": "Response Elements",
+            "type": "String",
+            "optional": false,
+            "field": "StartAfter",
+            "description": "<p>标记返回的Objects list从哪里开始</p> "
+          },
+          {
+            "group": "Response Elements",
+            "type": "String",
+            "optional": false,
+            "field": "NextContinuationToken",
+            "description": "<p>如果返回列表被截断，该字段说明是从哪里截断</p> "
+          },
+          {
+            "group": "Response Elements",
+            "type": "String",
+            "optional": false,
+            "field": "Prefix",
+            "description": "<p>返回列表所用的prefix</p> "
+          },
+          {
+            "group": "Response Elements",
+            "type": "Number",
+            "optional": false,
+            "field": "KeyCount",
+            "description": "<p>此次返回列表Key的数目</p> "
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Sample-Response:",
+          "content": "HTTP/1.1 200 OK\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">\n  <Name>bucket</Name>\n  <Prefix/>\n  <StartAfter/>\n  <KeyCount>2</KeyCount>\n  <MaxKeys>1000</MaxKeys>\n  <IsTruncated>false</IsTruncated>\n  <Contents>\n    <Key>my-image.jpg</Key>\n    <LastModified>2009-10-12T17:50:30.000Z</LastModified>\n    <ETag>&quot;fba9dede5f27731c9771645a39863328&quot;</ETag>\n    <Size>434234</Size>\n    <StorageClass>STANDARD</StorageClass>\n    <Owner>\n      <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>\n      <DisplayName>mtd@amazon.com</DisplayName>\n    </Owner>\n    </Contents>\n  <Contents>\n    <Key>my-third-image.jpg</Key>\n    <LastModified>2009-10-12T17:50:30.000Z</LastModified>\n    <ETag>&quot;1b2cf535f27731c974343645a3985328&quot;</ETag>\n    <Size>64994</Size>\n    <StorageClass>STANDARD_IA</StorageClass>\n    <Owner>\n      <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>\n      <DisplayName>mtd@amazon.com</DisplayName>\n    </Owner>\n  </Contents>\n</ListBucketResult>",
           "type": "json"
         }
       ]
@@ -716,6 +848,107 @@ define({ "api": [
         {
           "title": "Sample-Response:",
           "content": "HTTP/1.1 200 OK\nDate:  Mon, 1 Nov 2010 20:34:56 GMT\nContent-Length: 197\nConnection: keep-alive\nServer: AmazonS3\n\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<InitiateMultipartUploadResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">\n  <Bucket>example-bucket</Bucket>\n  <Key>example-object</Key>\n  <UploadId>VXBsb2FkIElEIGZvciA2aWWpbmcncyBteS1tb3ZpZS5tMnRzIHVwbG9hZA</UploadId>\n</InitiateMultipartUploadResult>",
+          "type": "json"
+        }
+      ]
+    },
+    "filename": "src/objects_api.js",
+    "groupTitle": "Objects"
+  },
+  {
+    "type": "get",
+    "url": "/:bucket_name/:object_name?uploadId=:upload_id",
+    "title": "List Parts",
+    "version": "0.1.0",
+    "name": "List_Parts",
+    "group": "Objects",
+    "description": "<p>List object&#39;s 1000 parts at most.</p> ",
+    "parameter": {
+      "fields": {
+        "Url Parameters": [
+          {
+            "group": "Url Parameters",
+            "type": "String",
+            "optional": false,
+            "field": "bucket_name",
+            "description": "<p>Bucket&#39;s Name</p> "
+          },
+          {
+            "group": "Url Parameters",
+            "type": "String",
+            "optional": false,
+            "field": "object_name",
+            "description": "<p>Object&#39;s Name</p> "
+          },
+          {
+            "group": "Url Parameters",
+            "type": "String",
+            "optional": false,
+            "field": "upload_id",
+            "description": "<p>multiupload task&#39;s id</p> "
+          },
+          {
+            "group": "Url Parameters",
+            "type": "Number",
+            "size": "0-1000",
+            "optional": true,
+            "field": "max-parts",
+            "description": "<p>需要返回的最大数量</p> "
+          },
+          {
+            "group": "Url Parameters",
+            "type": "String",
+            "optional": true,
+            "field": "part-number-marker",
+            "description": "<p>以此marker列出Objects</p> "
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Sample-Request:",
+          "content": "GET /mybucket/my-movie.m2ts?uploadId=VCVsb2FkIElEIGZvciBlbZZpbmcncyBteS1tb3ZpZS5tMnRzIHVwbG9hZR HTTP/1.1\nHost: www.sample-host.com\nDate: Wed, 28 Oct 2009 22:32:00 GMT\nAuthorization: authorization string",
+          "type": "json"
+        }
+      ]
+    },
+    "success": {
+      "fields": {
+        "Response Elements": [
+          {
+            "group": "Response Elements",
+            "type": "String",
+            "optional": false,
+            "field": "PartNumberMarker",
+            "description": "<p>标记返回的list从哪里开始</p> "
+          },
+          {
+            "group": "Response Elements",
+            "type": "String",
+            "optional": false,
+            "field": "NextPartNumberMarker",
+            "description": "<p>如果返回列表被截断，该字段说明是从哪里截断</p> "
+          },
+          {
+            "group": "Response Elements",
+            "type": "String",
+            "optional": false,
+            "field": "MaxParts",
+            "description": "<p>用户需要返回的最大值</p> "
+          },
+          {
+            "group": "Response Elements",
+            "type": "String",
+            "optional": false,
+            "field": "IsTruncated",
+            "description": "<p>列表是否截断</p> "
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Sample-Response:",
+          "content": "HTTP/1.1 200 OK\nx-amz-request-id: 0A49CE4060975EAC\nDate: Wed, 12 Oct 2009 17:50:00 GMT\nContent-Length: 985\nConnection: keep-alive\nServer: AmazonS3\n\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListPartsResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">\n  <Bucket>example-bucket</Bucket>\n  <Key>example-object</Key>\n  <UploadId>XXBsb2FkIElEIGZvciBlbHZpbmcncyVcdS1tb3ZpZS5tMnRzEEEwbG9hZA</\nUploadId>\n  <Initiator>\n      <ID>arn:aws:iam::111122223333:user/some-user-11116a31-17b5-4fb7-9df5-\nb288870f11xx</ID>\n      <DisplayName>umat-user-11116a31-17b5-4fb7-9df5-b288870f11xx</\nDisplayName>\n  </Initiator>\n  <Owner>\n    <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>\n    <DisplayName>someName</DisplayName>\n  </Owner>\n  <StorageClass>STANDARD</StorageClass>\n  <PartNumberMarker>1</PartNumberMarker>\n  <NextPartNumberMarker>3</NextPartNumberMarker>\n  <MaxParts>2</MaxParts>\n  <IsTruncated>true</IsTruncated>\n  <Part>\n    <PartNumber>2</PartNumber>\n    <LastModified>2010-11-10T20:48:34.000Z</LastModified>\n    <ETag>\"7778aef83f66abc1fa1e8477f296d394\"</ETag>\n    <Size>10485760</Size>\n  </Part>\n  <Part>\n    <PartNumber>3</PartNumber>\n    <LastModified>2010-11-10T20:48:33.000Z</LastModified>\n    <ETag>\"aaaa18db4cc2f85cedef654fccc4a4x8\"</ETag>\n    <Size>10485760</Size>\n  </Part>\n</ListPartsResult>",
           "type": "json"
         }
       ]

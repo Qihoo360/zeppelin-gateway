@@ -303,6 +303,74 @@
  */
 
 /**
+ * @api {get} /:bucket_name/:object_name?uploadId=:upload_id List Parts
+ * @apiVersion 0.1.0
+ * @apiName List Parts
+ * @apiGroup Objects
+ * @apiDescription List object's 1000 parts at most.
+ *
+ * @apiParam (Url Parameters) {String} bucket_name Bucket's Name
+ * @apiParam (Url Parameters) {String} object_name Object's Name
+ * @apiParam (Url Parameters) {String} upload_id multiupload task's id
+ * @apiParam (Url Parameters) {Number{0-1000}}  [max-parts] 需要返回的最大数量
+ * @apiParam (Url Parameters) {String} [part-number-marker] 以此marker列出Objects
+ *
+ * @apiSuccess (Response Elements) {String} PartNumberMarker 标记返回的list从哪里开始
+ * @apiSuccess (Response Elements) {String} NextPartNumberMarker 如果返回列表被截断，该字段说明是从哪里截断
+ * @apiSuccess (Response Elements) {String} MaxParts 用户需要返回的最大值
+ * @apiSuccess (Response Elements) {String} IsTruncated 列表是否截断
+ *
+ * @apiParamExample Sample-Request:
+ *    GET /mybucket/my-movie.m2ts?uploadId=VCVsb2FkIElEIGZvciBlbZZpbmcncyBteS1tb3ZpZS5tMnRzIHVwbG9hZR HTTP/1.1
+ *    Host: www.sample-host.com
+ *    Date: Wed, 28 Oct 2009 22:32:00 GMT
+ *    Authorization: authorization string
+ *    
+ * @apiSuccessExample Sample-Response:
+ *    HTTP/1.1 200 OK
+ *    x-amz-request-id: 0A49CE4060975EAC
+ *    Date: Wed, 12 Oct 2009 17:50:00 GMT
+ *    Content-Length: 985
+ *    Connection: keep-alive
+ *    Server: AmazonS3
+ *
+ *    <?xml version="1.0" encoding="UTF-8"?>
+ *    <ListPartsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+ *      <Bucket>example-bucket</Bucket>
+ *      <Key>example-object</Key>
+ *      <UploadId>XXBsb2FkIElEIGZvciBlbHZpbmcncyVcdS1tb3ZpZS5tMnRzEEEwbG9hZA</
+ *    UploadId>
+ *      <Initiator>
+ *          <ID>arn:aws:iam::111122223333:user/some-user-11116a31-17b5-4fb7-9df5-
+ *    b288870f11xx</ID>
+ *          <DisplayName>umat-user-11116a31-17b5-4fb7-9df5-b288870f11xx</
+ *    DisplayName>
+ *      </Initiator>
+ *      <Owner>
+ *        <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>
+ *        <DisplayName>someName</DisplayName>
+ *      </Owner>
+ *      <StorageClass>STANDARD</StorageClass>
+ *      <PartNumberMarker>1</PartNumberMarker>
+ *      <NextPartNumberMarker>3</NextPartNumberMarker>
+ *      <MaxParts>2</MaxParts>
+ *      <IsTruncated>true</IsTruncated>
+ *      <Part>
+ *        <PartNumber>2</PartNumber>
+ *        <LastModified>2010-11-10T20:48:34.000Z</LastModified>
+ *        <ETag>"7778aef83f66abc1fa1e8477f296d394"</ETag>
+ *        <Size>10485760</Size>
+ *      </Part>
+ *      <Part>
+ *        <PartNumber>3</PartNumber>
+ *        <LastModified>2010-11-10T20:48:33.000Z</LastModified>
+ *        <ETag>"aaaa18db4cc2f85cedef654fccc4a4x8"</ETag>
+ *        <Size>10485760</Size>
+ *      </Part>
+ *    </ListPartsResult>
+ */
+
+/**
  * @api {post} /:bucket_name/:object_name?uploadId=:upload_id Complete Multipart Upload
  * @apiVersion 0.1.0
  * @apiName Complete Multipart Upload
