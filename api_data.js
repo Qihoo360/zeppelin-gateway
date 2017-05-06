@@ -329,6 +329,121 @@ define({ "api": [
     "groupTitle": "Buckets"
   },
   {
+    "type": "get",
+    "url": "/:bucket_name?uploads=",
+    "title": "List Multipart Uploads",
+    "version": "0.1.0",
+    "name": "List_Multipart_Uploads",
+    "group": "Buckets",
+    "description": "<p>This operation returns at most 1,000 multipart uploads in the response.</p> ",
+    "parameter": {
+      "fields": {
+        "Url Parameters": [
+          {
+            "group": "Url Parameters",
+            "type": "String",
+            "optional": false,
+            "field": "bucket_name",
+            "description": "<p>Bucket&#39;s Name</p> "
+          },
+          {
+            "group": "Url Parameters",
+            "type": "Number",
+            "size": "0-1000",
+            "optional": true,
+            "field": "max-uploads",
+            "description": "<p>需要返回的最大数量</p> "
+          },
+          {
+            "group": "Url Parameters",
+            "type": "String",
+            "optional": true,
+            "field": "delimiter",
+            "description": "<p>根据此字符进行前缀分组</p> "
+          },
+          {
+            "group": "Url Parameters",
+            "type": "String",
+            "optional": true,
+            "field": "key-marker",
+            "description": "<p>以此key开始列出排序multipart upload</p> "
+          },
+          {
+            "group": "Url Parameters",
+            "type": "String",
+            "optional": true,
+            "field": "upload-id-marker",
+            "description": "<p>以此uploadId开始列出排序multipart upload</p> "
+          },
+          {
+            "group": "Url Parameters",
+            "type": "String",
+            "optional": true,
+            "field": "prefix",
+            "description": "<p>列出name符合此prefix的Objects</p> "
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Sample-Request:",
+          "content": "GET /bucket?uploads=&max-uploads=3 HTTP/1.1\nHost: www.sample-host.com\nDate: Wed, 12 Oct 2009 17:50:00 GMT\nAuthorization: authorization string\nContent-Type: text/plain",
+          "type": "json"
+        }
+      ]
+    },
+    "success": {
+      "fields": {
+        "Response Elements": [
+          {
+            "group": "Response Elements",
+            "type": "String",
+            "optional": false,
+            "field": "CommonPrefixes",
+            "description": "<p>根据delimiter分组的各组</p> "
+          },
+          {
+            "group": "Response Elements",
+            "type": "String",
+            "optional": false,
+            "field": "IsTruncated",
+            "description": "<p>multipart upload列表是否截断</p> "
+          },
+          {
+            "group": "Response Elements",
+            "type": "String",
+            "optional": false,
+            "field": "NextKeyMarker",
+            "description": "<p>如果返回列表被截断，该字段说明是从哪里截断</p> "
+          },
+          {
+            "group": "Response Elements",
+            "type": "String",
+            "optional": false,
+            "field": "NextUploadIdMarker",
+            "description": "<p>如果返回列表被截断，该字段说明是从哪里截断</p> "
+          },
+          {
+            "group": "Response Elements",
+            "type": "String",
+            "optional": false,
+            "field": "Prefix",
+            "description": "<p>返回列表所用的prefix</p> "
+          }
+        ]
+      },
+      "examples": [
+        {
+          "title": "Sample-Response:",
+          "content": "HTTP/1.1 200 OK\n\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListMultipartUploadsResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">\n  <Bucket>bucket</Bucket>\n  <KeyMarker></KeyMarker>\n  <UploadIdMarker></UploadIdMarker>\n  <NextKeyMarker>my-movie.m2ts</NextKeyMarker>\n  <NextUploadIdMarker>YW55IGlkZWEgd2h5IGVsdmluZydzIHVwbG9hZCBmYWlsZWQ</NextUploadIdMarker>\n  <MaxUploads>3</MaxUploads>\n  <IsTruncated>true</IsTruncated>\n  <Upload>\n    <Key>my-divisor</Key>\n    <UploadId>XMgbGlrZSBlbHZpbmcncyBub3QgaGF2aW5nIG11Y2ggbHVjaw</UploadId>\n    <Initiator>\n      <ID>arn:aws:iam::111122223333:user/user1-11111a31-17b5-4fb7-9df5-b111111f13de</ID>\n      <DisplayName>user1-11111a31-17b5-4fb7-9df5-b111111f13de</DisplayName>\n    </Initiator>\n    <Owner>\n      <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>\n    <Initiated>2010-11-10T20:48:33.000Z</Initiated>\n  </Upload>\n  <Upload>\n    <Key>my-movie.m2ts</Key>\n    <UploadId>VXBsb2FkIElEIGZvciBlbHZpbmcncyBteS1tb3ZpZS5tMnRzIHVwbG9hZA</UploadId>\n    <Initiator>\n      <ID>b1d16700c70b0b05597d7acd6a3f92be</ID>\n      <DisplayName>InitiatorDisplayName</DisplayName>\n    </Initiator>\n    <Owner>\n      <ID>b1d16700c70b0b05597d7acd6a3f92be</ID>\n      <DisplayName>OwnerDisplayName</DisplayName>\n      </Owner>\n      <StorageClass>STANDARD</StorageClass>\n      <Initiated>2010-11-10T20:48:33.000Z</Initiated>\n  </Upload>\n  <Upload>\n    <Key>my-movie.m2ts</Key>\n    <UploadId>YW55IGlkZWEgd2h5IGVsdmluZydzIHVwbG9hZCBmYWlsZWQ</UploadId>\n    <Initiator>\n      <ID>arn:aws:iam::444455556666:user/user1-22222a31-17b5-4fb7-9df5-b222222f13de</ID>\n      <DisplayName>user1-22222a31-17b5-4fb7-9df5-b222222f13de</DisplayName>\n    </Initiator>\n    <Owner>\n      <ID>b1d16700c70b0b05597d7acd6a3f92be</ID>\n      <DisplayName>OwnerDisplayName</DisplayName>\n    </Owner>\n    <StorageClass>STANDARD</StorageClass>\n    <Initiated>2010-11-10T20:49:33.000Z</Initiated>\n  </Upload>\n</ListMultipartUploadsResult>",
+          "type": "json"
+        }
+      ]
+    },
+    "filename": "src/buckets_api.js",
+    "groupTitle": "Buckets"
+  },
+  {
     "type": "put",
     "url": "/:bucket_name",
     "title": "PUT Bucket",

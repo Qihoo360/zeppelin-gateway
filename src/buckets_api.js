@@ -144,6 +144,87 @@
  */
 
 /**
+ * @api {get} /:bucket_name?uploads= List Multipart Uploads
+ * @apiVersion 0.1.0
+ * @apiName List Multipart Uploads
+ * @apiGroup Buckets
+ * @apiDescription This operation returns at most 1,000 multipart uploads in the response.
+ *
+ * @apiParam (Url Parameters) {String} bucket_name Bucket's Name
+ * @apiParam (Url Parameters) {Number{0-1000}}  [max-uploads] 需要返回的最大数量
+ * @apiParam (Url Parameters) {String} [delimiter] 根据此字符进行前缀分组
+ * @apiParam (Url Parameters) {String} [key-marker] 以此key开始列出排序multipart upload
+ * @apiParam (Url Parameters) {String} [upload-id-marker] 以此uploadId开始列出排序multipart upload
+ * @apiParam (Url Parameters) {String} [prefix] 列出name符合此prefix的Objects
+ *
+ * @apiSuccess (Response Elements) {String} CommonPrefixes 根据delimiter分组的各组
+ * @apiSuccess (Response Elements) {String} IsTruncated multipart upload列表是否截断
+ * @apiSuccess (Response Elements) {String} NextKeyMarker 如果返回列表被截断，该字段说明是从哪里截断
+ * @apiSuccess (Response Elements) {String} NextUploadIdMarker 如果返回列表被截断，该字段说明是从哪里截断
+ * @apiSuccess (Response Elements) {String} Prefix 返回列表所用的prefix
+ *
+ * @apiParamExample Sample-Request:
+ *    GET /bucket?uploads=&max-uploads=3 HTTP/1.1
+ *    Host: www.sample-host.com
+ *    Date: Wed, 12 Oct 2009 17:50:00 GMT
+ *    Authorization: authorization string
+ *    Content-Type: text/plain
+ *
+ * @apiSuccessExample Sample-Response:
+ *    HTTP/1.1 200 OK
+ *
+ *    <?xml version="1.0" encoding="UTF-8"?>
+ *    <ListMultipartUploadsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+ *      <Bucket>bucket</Bucket>
+ *      <KeyMarker></KeyMarker>
+ *      <UploadIdMarker></UploadIdMarker>
+ *      <NextKeyMarker>my-movie.m2ts</NextKeyMarker>
+ *      <NextUploadIdMarker>YW55IGlkZWEgd2h5IGVsdmluZydzIHVwbG9hZCBmYWlsZWQ</NextUploadIdMarker>
+ *      <MaxUploads>3</MaxUploads>
+ *      <IsTruncated>true</IsTruncated>
+ *      <Upload>
+ *        <Key>my-divisor</Key>
+ *        <UploadId>XMgbGlrZSBlbHZpbmcncyBub3QgaGF2aW5nIG11Y2ggbHVjaw</UploadId>
+ *        <Initiator>
+ *          <ID>arn:aws:iam::111122223333:user/user1-11111a31-17b5-4fb7-9df5-b111111f13de</ID>
+ *          <DisplayName>user1-11111a31-17b5-4fb7-9df5-b111111f13de</DisplayName>
+ *        </Initiator>
+ *        <Owner>
+ *          <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>
+ *        <Initiated>2010-11-10T20:48:33.000Z</Initiated>
+ *      </Upload>
+ *      <Upload>
+ *        <Key>my-movie.m2ts</Key>
+ *        <UploadId>VXBsb2FkIElEIGZvciBlbHZpbmcncyBteS1tb3ZpZS5tMnRzIHVwbG9hZA</UploadId>
+ *        <Initiator>
+ *          <ID>b1d16700c70b0b05597d7acd6a3f92be</ID>
+ *          <DisplayName>InitiatorDisplayName</DisplayName>
+ *        </Initiator>
+ *        <Owner>
+ *          <ID>b1d16700c70b0b05597d7acd6a3f92be</ID>
+ *          <DisplayName>OwnerDisplayName</DisplayName>
+ *          </Owner>
+ *          <StorageClass>STANDARD</StorageClass>
+ *          <Initiated>2010-11-10T20:48:33.000Z</Initiated>
+ *      </Upload>
+ *      <Upload>
+ *        <Key>my-movie.m2ts</Key>
+ *        <UploadId>YW55IGlkZWEgd2h5IGVsdmluZydzIHVwbG9hZCBmYWlsZWQ</UploadId>
+ *        <Initiator>
+ *          <ID>arn:aws:iam::444455556666:user/user1-22222a31-17b5-4fb7-9df5-b222222f13de</ID>
+ *          <DisplayName>user1-22222a31-17b5-4fb7-9df5-b222222f13de</DisplayName>
+ *        </Initiator>
+ *        <Owner>
+ *          <ID>b1d16700c70b0b05597d7acd6a3f92be</ID>
+ *          <DisplayName>OwnerDisplayName</DisplayName>
+ *        </Owner>
+ *        <StorageClass>STANDARD</StorageClass>
+ *        <Initiated>2010-11-10T20:49:33.000Z</Initiated>
+ *      </Upload>
+ *    </ListMultipartUploadsResult>
+ *
+ */
+/**
  * @api {head} /:bucket_name HEAD Bucket
  * @apiVersion 0.1.0
  * @apiName HEAD Bucket
