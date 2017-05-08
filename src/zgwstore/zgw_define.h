@@ -1,8 +1,15 @@
+#ifndef ZGW_DEFINE_H_
+#define ZGW_DEFINE_H_
+namespace zgwstore {
+
+const std::string kZgwUserList = "#ZUL";
+const std::string kZgwUserPrefix = "_ZU";
+
 struct User {
   std::string user_id;
   std::string display_name;
   std::map<std::string, std::string> key_pairs;
-}
+};
 
 struct Bucket {
  uint64_t create_time;
@@ -11,7 +18,7 @@ struct Bucket {
  std::string location;
  int64_t volumn;
  int64_t uploading_volumn;
-}
+};
 
 struct Object {
   std::string etag;
@@ -22,4 +29,8 @@ struct Object {
   std::string acl;
   std::string upload_id;
   std::string data_block;
+};
+
 }
+#endif
+
