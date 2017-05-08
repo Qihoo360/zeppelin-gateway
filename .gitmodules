@@ -10,3 +10,6 @@
 [submodule "third/zeppelin-client"]
 	path = third/zeppelin-client
 	url = git@github.com:CatKang/zeppelin-client.git
+[submodule "third/hiredis"]
+	path = third/hiredis
+	url = https://github.com/redis/hiredis.git
