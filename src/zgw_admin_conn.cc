@@ -1,119 +1,106 @@
 #include "src/zgw_admin_conn.h"
 
+#include <string>
+#include <vector>
+
+#include "slash/include/slash_hash.h"
 #include "src/zgw_util.h"
-#include "src/zgw_server.h"
+#include "src/zgwstore/zgw_define.h"
+#include "src/zgwstore/zgw_store.h"
 
-extern ZgwServer* g_zgw_server;
+bool ZgwAdminHandles::ReqHeadersHandle(const pink::HttpRequest* req) {
+  Initialize();
 
-AdminConn::AdminConn(const int fd,
-                     const std::string &ip_port,
-                     pink::Thread* worker)
-      : HttpConn(fd, ip_port, worker) {
-	store_ = static_cast<libzgw::ZgwStore*>(worker->get_private());
-}
+  SplitBySecondSlash(req->path_, &command_, &params_);
 
-void AdminConn::DealMessage(const pink::HttpRequest* req, pink::HttpResponse* resp) {
-  Status s;
-  std::string command, params;
-  ExtraBucketAndObject(req->path, &command, &params);
-  // Users operation, without authorization for now
-  if (req->method == "GET") {
-    if (command == "admin_list_users") {
-      ListUsersHandle(resp);
-    } else if (command == "status") {
-      ListStatusHandle(resp);
-    }
-    return;
-  } else if (req->method == "PUT" &&
-             command == "admin_put_user") {
-    if (params.empty()) {
-      resp->SetStatusCode(400);
-      return;
-    }
-    std::string access_key;
-    std::string secret_key;
-    s = store_->AddUser(params, &access_key, &secret_key);
+  if (req->method_ == "PUT" &&
+      command_ == kAddUser) {
+    zgwstore::User new_user;
+    new_user.display_name = params_;
+    new_user.user_id = slash::sha256(params_);
+    auto key_pair = GenerateKeyPair();
+    new_user.key_pairs.insert(key_pair);
+    Status s = store_->AddUser(new_user);
     if (!s.ok()) {
-      resp->SetStatusCode(500);
-      resp->SetBody(s.ToString());
+      http_ret_code_ = 409; // Confict ?
+      result_.assign(s.ToString());
     } else {
-      resp->SetStatusCode(200);
-      resp->SetBody(access_key + "\r\n" + secret_key);
+      http_ret_code_ = 200;
+      result_.assign(key_pair.first + "\r\n" + key_pair.second + "\r\n");
     }
-    return;
-  }
-}
-
-void AdminConn::ListStatusHandle(pink::HttpResponse* resp) {
-  std::string body;
-  std::set<libzgw::ZgwUser *> user_list; // name : keys
-  Status s = store_->ListUsers(&user_list);
-  if (!s.ok()) {
-    resp->SetStatusCode(500);
-    resp->SetBody(s.ToString());
-  }
-  // Buckets qps
-  body.append("Global qps: " + std::to_string(g_zgw_server->qps()) + "\r\n");
-  // Buckets nums
-  std::string access_key;
-  for (auto& user : user_list) {
-    const auto& info = user->user_info();
-    for (auto& key_pair : user->access_keys()) {
-      access_key = key_pair.first; // access key
-    }
-    s = g_zgw_server->RefAndGetBucketList(store_, access_key, &buckets_name_);
-    if (!s.ok()) {
-      resp->SetStatusCode(500);
-      LOG(ERROR) << "ListStatus: list bucket name failed: " << s.ToString();
-      return;
-    }
-    body.append("User: " + info.disply_name + " has "
-                + std::to_string(buckets_name_->name_list.size())
-                + " Buckets\r\n");
-    std::set<std::string> name_list;
-    {
-      std::lock_guard<std::mutex> lock(buckets_name_->list_lock);
-      name_list = buckets_name_->name_list;
-    }
-    g_zgw_server->UnrefBucketList(store_, access_key);
-    for (const auto& name : name_list) {
-      s = g_zgw_server->RefAndGetObjectList(store_, name, &objects_name_);
-      if (!s.ok()) {
-        resp->SetStatusCode(500);
-        LOG(ERROR) << "ListStatus: list object name failed: " << s.ToString();
-        return;
+  } else if (req->method_ == "GET" &&
+             command_ == kListUsers) {
+    std::vector<zgwstore::User> all_users;
+    store_->ListUsers(all_users);
+    http_ret_code_ = 200;
+    for (auto& user : all_users) {
+      result_ += user.display_name + "\r\n";
+      for (auto& key_pair : user.key_pairs) {
+        result_ += key_pair.first + "\r\n";
+        result_ += key_pair.second + "\r\n";
       }
-      body.append("    Bucket: " + name + " has "
-                  + std::to_string(objects_name_->name_list.size())
-                  + " Objects.\r\n");
-      g_zgw_server->UnrefObjectList(store_, name);
+      result_ += "\r\n";
     }
-  }
-  // Bucket space TODO (gaodq)
-  resp->SetBody(body);
-  resp->SetStatusCode(200);
-}
-
-void AdminConn::ListUsersHandle(pink::HttpResponse* resp) {
-  std::set<libzgw::ZgwUser *> user_list; // name : keys
-  Status s = store_->ListUsers(&user_list);
-  LOG(INFO) << "Call ListUsersHandle: " << ip_port();
-  if (!s.ok()) {
-    resp->SetStatusCode(500);
-    resp->SetBody(s.ToString());
+    http_ret_code_ = 200;
+  } else if (req->method_ == "GET" &&
+             command_ == kGetStatus) {
+    http_ret_code_ = 200;
+    result_ = GetZgwStatus();
   } else {
-    resp->SetStatusCode(200);
-    std::string body;
-    for (auto &user : user_list) {
-      const auto &info = user->user_info();
-      body.append("disply_name: " + info.disply_name + "\r\n");
-
-      for (auto &key_pair : user->access_keys()) {
-        body.append(key_pair.first + "\r\n"); // access key
-        body.append(key_pair.second + "\r\n"); // secret key
-      }
-      body.append("\r\n");
-    }
-    resp->SetBody(body);
+    http_ret_code_ = 501;
+    result_ = ":(";
   }
+}
+
+void ZgwAdminHandles::RespHeaderHandle(pink::HttpResponse* resp) {
+  resp->SetStatusCode(http_ret_code_);
+  resp->SetContentLength(result_.size());
+}
+
+int ZgwAdminHandles::RespBodyPartHandle(char* buf, size_t max_size) {
+  if (max_size < result_.size()) {
+    memcpy(buf, result_.data(), max_size);
+    result_.assign(result_.substr(max_size));
+  } else {
+    memcpy(buf, result_.data(), result_.size());
+  }
+
+  return std::min(max_size, result_.size());
+}
+
+std::string ZgwAdminHandles::GetZgwStatus() {
+  return "";
+}
+
+void ZgwAdminHandles::Initialize() {
+  command_.clear();
+  params_.clear();
+  result_.clear();
+  http_ret_code_ = 200;
+  store_ = static_cast<zgwstore::ZgwStore*>(thread_ptr_->get_private());
+}
+
+static std::string GenRandomStr(int width) {
+  timeval now;
+  gettimeofday(&now, NULL);
+  srand(now.tv_usec);
+  std::string key;
+  char x;
+  for (int i = 0; i < width; ++i) {
+    do {
+      x = static_cast<char>(rand());
+    } while (x < '0' ||
+             (x > '9' && x < 'A') ||
+             (x > 'Z' && x < 'a') ||
+             x > 'z');
+    key.push_back(x);
+  }
+  return key;
+}
+
+std::pair<std::string, std::string> ZgwAdminHandles::GenerateKeyPair() {
+  std::string key1, key2;
+  key1 = GenRandomStr(20);
+  key2 = GenRandomStr(40);
+  return std::make_pair(key1, key2);
 }

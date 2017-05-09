@@ -1,4 +1,6 @@
+#if 0
 #include "src/zgw_xml.h"
+
 
 #include <exception>
 
@@ -563,3 +565,5 @@ std::string iso8601_time(time_t sec, suseconds_t usec) {
   sprintf(buf, "%s.%03dZ", buf, milli);
   return std::string(buf);
 }
+
+#endif

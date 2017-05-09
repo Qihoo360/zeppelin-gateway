@@ -4,22 +4,28 @@
 
 #include <openssl/md5.h>
 
-void ExtraBucketAndObject(const std::string& _path,
-                          std::string* bucket_name, std::string* object_name) {
-  std::string path = _path;
-  if (path[0] != '/') {
-    path = "/" + path;
-  }
-  size_t pos = path.find('/', 1);
-  if (pos == std::string::npos) {
-    bucket_name->assign(path.substr(1));
-    object_name->clear();
+void SplitBySecondSlash(const std::string& req_path,
+                        std::string* field1,
+                        std::string* field2) {
+  std::string _path;
+  if (req_path.empty()) {
+    return;
+  } else if (req_path.at(0) != '/') {
+    _path = "/" + req_path;
   } else {
-    bucket_name->assign(path.substr(1, pos - 1));
-    object_name->assign(path.substr(pos + 1));
+    _path = req_path;
   }
-  if (!object_name->empty() && object_name->back() == '/') {
-    object_name->erase(object_name->size() - 1);
+
+  size_t pos = _path.find('/', 1);
+  if (pos == std::string::npos) {
+    field1->assign(_path.substr(1));
+    field2->clear();
+  } else {
+    field1->assign(_path.substr(1, pos - 1));
+    field2->assign(_path.substr(pos + 1));
+  }
+  if (!field2->empty() && field2->back() == '/') {
+    field2->erase(field2->size() - 1);
   }
 }
 
@@ -42,27 +48,3 @@ std::string md5(const std::string& content) {
   }
   return std::string(buf);
 }
-
-void DumpHttpRequest(const pink::HttpRequest* req) {
-  DLOG(INFO) << "handle get"<< std::endl;
-  DLOG(INFO) << " + method: " << req->method;
-  DLOG(INFO) << " + path: " << req->path;
-  DLOG(INFO) << " + version: " << req->version;
-  if (req->content.size() > 50) {
-    DLOG(INFO) << " + content: " << req->content.substr(0, 50);
-  } else {
-    DLOG(INFO) << " + content: " << req->content;
-  }
-  DLOG(INFO) << " + headers: ";
-  DLOG(INFO) << "------------------------------------- ";
-  for (auto h : req->headers) {
-    DLOG(INFO) << "   + " << h.first << "=>" << h.second;
-  }
-  DLOG(INFO) << "------------------------------------- ";
-  DLOG(INFO) << "------------------------------------- ";
-  DLOG(INFO) << " + query_params: ";
-  for (auto q : req->query_params) {
-    DLOG(INFO) << "   + " << q.first << "=>" << q.second;
-  }
-  DLOG(INFO) << "------------------------------------- ";
-} 

@@ -10,8 +10,8 @@ static std::string HMAC_SHA256(const std::string key, const std::string value, b
 
 bool ZgwAuth::ParseAuthInfo(const pink::HttpRequest* req, std::string* access_key) {
   // Parse authorization string
-  if (!ParseAuthStr(req->headers) &&
-      !ParseQueryAuthStr(req->query_params)) {
+  if (!ParseAuthStr(req->headers_) &&
+      !ParseQueryAuthStr(req->query_params_)) {
     return false;
   }
   access_key->assign(access_key_);
@@ -231,12 +231,12 @@ std::string UrlEncode(const std::string& s, bool encode_slash) {
 std::string ZgwAuth::CreateCanonicalRequest(const pink::HttpRequest *req) {
   std::string result;
   // <HTTPMethod>\n
-  result.append(req->method + "\n");
+  result.append(req->method_ + "\n");
   // <CanonicalURI>\n
-  std::string a = UrlDecode(req->path);
+  std::string a = UrlDecode(req->path_);
   result.append(UrlEncode(a) + "\n");
   // <CanonicalQueryString>\n
-  for (auto &q : req->query_params) {
+  for (auto &q : req->query_params_) {
     if (q.first.compare("X-Amz-Signature") == 0) {
       continue;
     }
@@ -249,11 +249,11 @@ std::string ZgwAuth::CreateCanonicalRequest(const pink::HttpRequest *req) {
   // <CanonicalHeaders>\n
   pink::HttpRequest *req_tmp = const_cast<pink::HttpRequest *>(req);
   for (auto &q : signed_headers_) {
-    result.append(slash::StringToLower(q) + ":" + req_tmp->headers[q] + "\n");
+    result.append(slash::StringToLower(q) + ":" + req_tmp->headers_[q] + "\n");
   }
   result.append("\n");
   
-  std::string content_sha265 = req_tmp->headers["x-amz-content-sha256"];
+  std::string content_sha265 = req_tmp->headers_["x-amz-content-sha256"];
   result.append(signed_headers_str_ + "\n");
   result.append(is_presign_url_ ? "UNSIGNED-PAYLOAD" : content_sha265);
   return result;

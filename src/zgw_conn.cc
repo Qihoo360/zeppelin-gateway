@@ -1,3 +1,4 @@
+#if 0
 #include "src/zgw_conn.h"
 
 #include <memory>
@@ -9,6 +10,7 @@
 #include "src/zgw_auth.h"
 #include "src/zgw_xml.h"
 #include "src/zgw_util.h"
+
 
 extern ZgwServer* g_zgw_server;
 
@@ -1227,3 +1229,4 @@ void ZgwConn::ListBucketHandle() {
   resp_->SetStatusCode(200);
   resp_->SetBody(ListBucketXml(info, buckets));
 }
+#endif

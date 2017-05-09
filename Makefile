@@ -16,18 +16,26 @@ PINK_PATH = $(realpath ./third/pink)
 endif
 
 ifndef ZP_PATH
-ZP_PATH = $(realpath ./third/zeppelin-client/libzp)
+ZP_PATH = $(realpath ./third/zeppelin-client)
 endif
 
 ifndef GLOG_PATH
 GLOG_PATH = $(realpath ./third/glog)
 endif
 
+ifndef HIREDIS_PATH
+HIREDIS_PATH = $(realpath ./third/hiredis)
+endif
+
+ifndef RAPID_XML_PATH
+RAPID_XML_PATH = $(realpath ./third/rapidxml)
+endif
+
 SRC_DIR = ./src
-LIBZGW_DIR = ./src/libzgw
+ZGWSTORE_DIR = ./src/zgwstore
 OUTPUT = ./output
 VERSION = -D_GITVER_=$(shell git rev-list HEAD | head -n1) \
-					-D_COMPILEDATE_=$(shell date +%FT%T%z)
+					-D_COMPILEDATE_=$(shell date +%F)
 
 LIB_PATH = -L$(SLASH_PATH)/slash/lib \
 					 -L$(PINK_PATH)/pink/lib \
@@ -45,14 +53,15 @@ LIBS = -lzp \
 INCLUDE_PATH = -I. \
 							 -I$(SLASH_PATH) \
 							 -I$(PINK_PATH) \
-							 -I./third/rapidxml \
+							 -I$(RAPID_XML_PATH) \
 							 -I$(ZP_PATH) \
-							 -I$(GLOG_PATH)/src \
+							 -I$(HIREDIS_PATH) \
+							 -I$(GLOG_PATH)/src
 
 .PHONY: all clean
 
 
-BASE_BOJS := $(wildcard $(LIBZGW_DIR)/*.cc)
+BASE_BOJS := $(wildcard $(ZGWSTORE_DIR)/*.cc)
 BASE_BOJS += $(wildcard $(SRC_DIR)/*.cc)
 BASE_BOJS += $(wildcard $(SRC_DIR)/*.c)
 BASE_BOJS += $(wildcard $(SRC_DIR)/*.cpp)
@@ -61,6 +70,7 @@ OBJS = $(patsubst %.cc,%.o,$(BASE_BOJS))
 PINK = $(PINK_PATH)/pink/lib/libpink.a
 SLASH = $(SLASH_PATH)/slash/lib/libslash.a
 LIBZP = $(ZP_PATH)/libzp/lib/libzp.a
+HIREDIS = $(HIREDIS_PATH)/libhiredis.a
 GLOG = $(GLOG_PATH)/.libs/libglog.a
 
 all: $(OBJECT)
@@ -75,8 +85,8 @@ all: $(OBJECT)
 	@echo "Success, go, go, go..."
 
 
-$(OBJECT): $(SLASH) $(PINK) $(LIBZP) $(GLOG) $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(INCLUDE_PATH) $(LIB_PATH) $(LIBS)
+$(OBJECT): $(SLASH) $(PINK) $(LIBZP) $(GLOG) $(HIREDIS) $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(INCLUDE_PATH) $(LIB_PATH) $(LIBS) $(HIREDIS)
 
 $(OBJS): %.o : %.cc
 	$(CXX) $(CXXFLAGS) -c $< -o $@ $(INCLUDE_PATH) $(VERSION)
@@ -96,10 +106,13 @@ $(GLOG):
 		autoreconf -ivf; ./configure; make; echo '*' > .gitignore;\
 	fi; 
 
+$(HIREDIS):
+	make -C $(HIREDIS_PATH)
+
 clean: 
 	rm -rf $(OUTPUT)
 	rm -f $(SRC_DIR)/*.o
-	rm -f $(LIBZGW_DIR)/*.o
+	rm -f $(ZGWSTORE_DIR)/*.o
 	rm -rf $(OBJECT)
 
 distclean: clean

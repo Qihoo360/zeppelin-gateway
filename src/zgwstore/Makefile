@@ -16,7 +16,7 @@ PINK_PATH = $(realpath ../../third/pink)
 endif
 
 ifndef ZP_PATH
-ZP_PATH = $(realpath ../../third/zeppelin-client/libzp)
+ZP_PATH = $(realpath ../../third/zeppelin-client)
 endif
 
 ifndef HIREDIS_PATH
