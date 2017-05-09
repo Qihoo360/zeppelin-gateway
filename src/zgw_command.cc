@@ -3,17 +3,18 @@
 #include <map>
 
 #include "src/zgw_s3_object.h"
+#include "src/zgw_s3_bucket.h"
 
 std::map<S3Commands, S3Cmd*> g_cmd_table;
 
 void InitCmdTable() {
-  // g_cmd_table.insert(std::make_pair(kListAllBuckets, new ListAllBucketsCmd()));
+  g_cmd_table.insert(std::make_pair(kListAllBuckets, new ListAllBucketsCmd()));
   // g_cmd_table.insert(std::make_pair(kDeleteBucket, new DeleteBucketCmd()));
   // g_cmd_table.insert(std::make_pair(kListObjects, new ListObjectsCmd()));
   // g_cmd_table.insert(std::make_pair(kGetBucketLocation, new GetBucketLocation()));
   // g_cmd_table.insert(std::make_pair(kHeadBucket, new HeadBucketCmd()));
   // g_cmd_table.insert(std::make_pair(kListMultiPartUpload, new ListMultiPartUploadCmd()));
-  // g_cmd_table.insert(std::make_pair(kPutBucket, new PutBucketCmd()));
+  g_cmd_table.insert(std::make_pair(kPutBucket, new PutBucketCmd()));
   // g_cmd_table.insert(std::make_pair(kDeleteObject, new DeleteObjectCmd()));
   // g_cmd_table.insert(std::make_pair(kDeleteMultiObjects, new DeleteMultiObjectsCmd()));
   g_cmd_table.insert(std::make_pair(kGetObject, new GetObjectCmd()));

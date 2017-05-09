@@ -31,7 +31,7 @@ bool ZgwAdminHandles::ReqHeadersHandle(const pink::HttpRequest* req) {
   } else if (req->method_ == "GET" &&
              command_ == kListUsers) {
     std::vector<zgwstore::User> all_users;
-    store_->ListUsers(all_users);
+    store_->ListUsers(&all_users);
     http_ret_code_ = 200;
     for (auto& user : all_users) {
       result_ += user.display_name + "\r\n";
@@ -50,6 +50,9 @@ bool ZgwAdminHandles::ReqHeadersHandle(const pink::HttpRequest* req) {
     http_ret_code_ = 501;
     result_ = ":(";
   }
+
+  // Needn't reply
+  return false;
 }
 
 void ZgwAdminHandles::RespHeaderHandle(pink::HttpResponse* resp) {

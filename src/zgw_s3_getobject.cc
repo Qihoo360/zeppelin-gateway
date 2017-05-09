@@ -17,6 +17,7 @@ bool GetObjectCmd::DoInitial() {
     http_ret_code_ = 500;
   }
 
+  // Needn't reply
   return false;
 }
 

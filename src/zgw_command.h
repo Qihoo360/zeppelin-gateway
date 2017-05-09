@@ -85,7 +85,9 @@ class S3Cmd {
   }
 
  protected:
-  virtual void ParseRequestXml() {}
+  virtual bool ParseRequestXml() {
+    return true;
+  }
   virtual void GenerateRespXml() {}
 
   std::string bucket_name_;
