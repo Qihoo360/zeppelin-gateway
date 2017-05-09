@@ -245,7 +245,25 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool override) {
   }
   freeReplyObject(reply);
 /*
- *  3. DEL 
+ *  3. EXISTS
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_, "EXISTS %s%s",
+              kZgwBucketPrefix.c_str(), bucket.bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("AddBucket::EXISTS");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AddBucket::EXISTS ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer == 1) {
+    return HandleLogicError("Bucket Already Exist [GLOBAL]", reply, true);
+  }
+  assert(reply->integer == 0);
+  freeReplyObject(reply);
+
+/*
+ *  4. DEL 
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_, "DEL %s%s",
               kZgwBucketPrefix.c_str(), bucket.bucket_name.c_str()));
@@ -255,7 +273,7 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool override) {
   assert(reply->type == REDIS_REPLY_INTEGER);
   freeReplyObject(reply);
 /*
- *  4. HMSET 
+ *  5. HMSET 
  */
   std::string hmset_cmd = "HMSET " + kZgwBucketPrefix + bucket.bucket_name;
   hmset_cmd += (" name " + bucket.bucket_name);
@@ -276,7 +294,7 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool override) {
   assert(reply->type == REDIS_REPLY_STATUS);
   freeReplyObject(reply);
 /*
- * 5. SADD 
+ *  6. SADD 
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "SADD %s%s %s", kZgwBucketListPrefix.c_str(), bucket.owner.c_str(),
@@ -293,7 +311,7 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool override) {
   }
   freeReplyObject(reply);
 /*
- *  6. UnLock 
+ *  7. UnLock 
  */
   s = UnLock();
   return s;
