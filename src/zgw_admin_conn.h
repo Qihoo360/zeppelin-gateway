@@ -1,33 +1,47 @@
 #ifndef ZGW_ADMIN_CONN_H
 #define ZGW_ADMIN_CONN_H
 
+#include <utility>
+
 #include "pink/include/http_conn.h"
-#include "src/libzgw/zgw_store.h"
+#include "src/zgwstore/zgw_store.h"
 
-class AdminConn : public pink::HttpConn {
+static const std::string kAddUser = "admin_put_user";
+static const std::string kListUsers = "admin_list_users";
+static const std::string kGetStatus = "status";
+
+class ZgwAdminHandles : public pink::HttpHandles {
  public:
-  AdminConn(const int fd, const std::string &ip_port,
-            pink::Thread* worker);
+  ZgwAdminHandles() {}
+  ~ZgwAdminHandles() {}
+
+  virtual bool ReqHeadersHandle(const pink::HttpRequest* req) override;
+  virtual void ReqBodyPartHandle(const char* data, size_t data_size) override {}
+  virtual void RespHeaderHandle(pink::HttpResponse* resp) override;
+  virtual int RespBodyPartHandle(char* buf, size_t max_size) override;
+
  private:
-  virtual void DealMessage(const pink::HttpRequest* req,
-                           pink::HttpResponse* res) override;
+  void Initialize();
 
-  void ListUsersHandle(pink::HttpResponse* resp);
-  void ListStatusHandle(pink::HttpResponse* resp);
+  std::string GetZgwStatus();
+  std::pair<std::string, std::string> GenerateKeyPair();
 
-  libzgw::ZgwStore *store_;
-
-  // Get from zp
-  libzgw::NameList *buckets_name_;
-  libzgw::NameList *objects_name_;
+  zgwstore::ZgwStore* store_;
+  std::string command_;
+  std::string params_;
+  
+  int http_ret_code_;
+  std::string result_;
 };
 
-class AdminConnFactory : public pink::ConnFactory {
+static ZgwAdminHandles handles_;
+
+class ZgwAdminConnFactory : public pink::ConnFactory {
  public:
   virtual pink::PinkConn* NewPinkConn(int connfd,
                                       const std::string& ip_port,
                                       pink::Thread* thread) const {
-    return new AdminConn(connfd, ip_port, thread);
+    return new pink::HttpConn(connfd, ip_port, thread, &handles_);
   }
 };
 

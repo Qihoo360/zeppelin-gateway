@@ -15,6 +15,7 @@ struct ZgwConfig {
   slash::BaseConf *b_conf;
 
   std::vector<std::string> zp_meta_ip_ports;
+  std::string redis_ip_port;
   std::string server_ip;
   int server_port;
   int admin_port;

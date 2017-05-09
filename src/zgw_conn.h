@@ -2,7 +2,7 @@
 #define ZGW_CONN_H
 
 #include "pink/include/http_conn.h"
-#include "src/libzgw/zgw_store.h"
+#include "src/zgwstore/zgw_store.h"
 
 class ZgwWorkerThread;
 

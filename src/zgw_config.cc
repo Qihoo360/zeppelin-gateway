@@ -28,6 +28,7 @@ int ZgwConfig::LoadConf() {
   std::string zp_meta_addr;
   b_conf->GetConfStr("zp_meta_addr", &zp_meta_addr);
   slash::StringSplit(zp_meta_addr, '/', zp_meta_ip_ports);
+  b_conf->GetConfStr("redis_ip_port", &redis_ip_port);
   b_conf->GetConfStr("server_ip", &server_ip);
   b_conf->GetConfInt("server_port", &server_port);
   b_conf->GetConfInt("admin_port", &admin_port);
