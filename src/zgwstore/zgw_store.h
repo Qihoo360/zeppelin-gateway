@@ -24,8 +24,9 @@ class ZgwStore {
     redis_port_ = redis_port;
   }
   void InstallClients(libzp::Cluster* zp_cli, redisContext* redis_cli);
-  Status AddUser(const User& user);
+  Status AddUser(const User& user, const bool override = false);
   Status ListUsers(std::vector<User>& users);
+  Status AddBucket(const Bucket& bucket, const bool override = false);
  private:
   bool MaybeHandleRedisError();
   Status HandleIOError(const std::string& func_name);

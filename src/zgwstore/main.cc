@@ -38,6 +38,18 @@ int main() {
       std::cout << iter.first << ": " << iter.second << std::endl;
     }
   }
+
+  zgwstore::Bucket bucket;
+  bucket.bucket_name = "bucket1";
+  bucket.create_time = 0;
+  bucket.owner = "songzhao";
+  bucket.acl = "acl";
+  bucket.location = "us-east-1";
+  bucket.volumn = 0;
+  bucket.uploading_volumn = 0;
+  s = store->AddBucket(bucket);
+  std::cout << "AddBucket ret: " << s.ToString() << std::endl;
+
   delete store;
   std::cout << "Bye" << std::endl;
 }

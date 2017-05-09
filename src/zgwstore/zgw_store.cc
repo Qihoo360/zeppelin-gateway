@@ -82,67 +82,92 @@ void ZgwStore::InstallClients(libzp::Cluster* zp_cli, redisContext* redis_cli) {
   redis_cli_ = redis_cli;
 }
 
-Status ZgwStore::AddUser(const User& user) {
+Status ZgwStore::AddUser(const User& user, const bool override) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
   
-  std::string add_cmd = "HMSET " + kZgwUserPrefix + user.display_name;
-  add_cmd += (" uid " + user.user_id);
-  add_cmd += (" name " + user.display_name);
-  for (auto& iter : user.key_pairs) {
-    add_cmd += (" " + iter.first + " " + iter.second);
-  }
-
+/*
+ *  1. Lock 
+ */
   Status s;
   s = Lock();
   if (!s.ok()) {
     return s;
   }
-  
+/*
+ *  2. SISMEMBER 
+ */
   redisReply *reply;
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
-              "SADD %s %s", kZgwUserList.c_str(), user.display_name.c_str()));
+              "SISMEMBER %s %s", kZgwUserList.c_str(), user.display_name.c_str()));
   if (reply == NULL) {
-    return HandleIOError("AddUser::SADD");
+    return HandleIOError("AddUser::SISMEMBER");
   }
-
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("AddUser::SADD ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("AddUser::SISMEMBER ret: " + std::string(reply->str), reply, true);
   }
-
-  if (reply->integer == 0) {
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer == 1 && !override) {
     return HandleLogicError("User Already Exist", reply, true);
   }
-
-  assert(reply->integer == 1);
-
   freeReplyObject(reply);
+/*
+ *  3. DEL 
+ */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_, "DEL %s%s",
               kZgwUserPrefix.c_str(), user.display_name.c_str()));
   if (reply == NULL) {
     return HandleIOError("AddUser::DEL");
   }
-
+  assert(reply->type == REDIS_REPLY_INTEGER);
   freeReplyObject(reply);
-  reply = static_cast<redisReply*>(redisCommand(redis_cli_, add_cmd.c_str()));
+/*
+ *  4. HMSET 
+ */
+  std::string hmset_cmd = "HMSET " + kZgwUserPrefix + user.display_name;
+  hmset_cmd += (" uid " + user.user_id);
+  hmset_cmd += (" name " + user.display_name);
+  for (auto& iter : user.key_pairs) {
+    hmset_cmd += (" " + iter.first + " " + iter.second);
+  }
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_, hmset_cmd.c_str()));
   if (reply == NULL) {
     return HandleIOError("AddUser::HMSET");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
     return HandleLogicError("AddUser::HMSET ret: " + std::string(reply->str), reply, true);
   }
-
+  assert(reply->type == REDIS_REPLY_STATUS);
   freeReplyObject(reply);
+/*
+ *  4. SADD 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SADD %s %s", kZgwUserList.c_str(), user.display_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("AddUser::SADD");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AddUser::SADD ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer == 0 && !override) {
+    return HandleLogicError("User Already Exist", reply, true);
+  }
+  freeReplyObject(reply);
+/*
+ *  5. UnLock 
+ */
   s = UnLock();
   return s;
 }
 
 Status ZgwStore::ListUsers(std::vector<User>& users) {
-  users.clear();
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
+  users.clear();
 
   redisReply *reply;
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
@@ -187,6 +212,92 @@ Status ZgwStore::ListUsers(std::vector<User>& users) {
 
   freeReplyObject(reply);
   return Status::OK();
+}
+
+Status ZgwStore::AddBucket(const Bucket& bucket, const bool override) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+/*
+ *  1. Lock
+ */
+  Status s;
+  s = Lock();
+  if (!s.ok()) {
+    return s;
+  }
+/*
+ *  2. SISMEMBER 
+ */
+  redisReply *reply;
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SISMEMBER %s%s %s", kZgwBucketListPrefix.c_str(), bucket.owner.c_str(),
+              bucket.bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("AddBucket::SISMEMBER");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AddBucket::SISMEMBER ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer == 1 && !override) {
+    return HandleLogicError("Bucket Already Exist", reply, true);
+  }
+  freeReplyObject(reply);
+/*
+ *  3. DEL 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_, "DEL %s%s",
+              kZgwBucketPrefix.c_str(), bucket.bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("AddBucket::DEL");
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  freeReplyObject(reply);
+/*
+ *  4. HMSET 
+ */
+  std::string hmset_cmd = "HMSET " + kZgwBucketPrefix + bucket.bucket_name;
+  hmset_cmd += (" name " + bucket.bucket_name);
+  hmset_cmd += " ctime %llu";
+  hmset_cmd += (" owner " + bucket.owner);
+  hmset_cmd += (" acl " + bucket.acl);
+  hmset_cmd += (" loc " + bucket.location);
+  hmset_cmd += " vol %lld";
+  hmset_cmd += " uvol %lld";
+  std::cout << hmset_cmd << std::endl;
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_, hmset_cmd.c_str(), bucket.create_time,
+        bucket.volumn, bucket.uploading_volumn));
+  if (reply == NULL) {
+    return HandleIOError("AddBucket::HMSET");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AddBucket::HMSET ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_STATUS);
+  freeReplyObject(reply);
+/*
+ * 5. SADD 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SADD %s%s %s", kZgwBucketListPrefix.c_str(), bucket.owner.c_str(),
+              bucket.bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("AddBucket::SADD");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AddBucket::SADD ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer == 0 && !override) {
+    return HandleLogicError("Bucket Already Exist", reply, true);
+  }
+  freeReplyObject(reply);
+/*
+ *  6. UnLock 
+ */
+  s = UnLock();
+  return s;
 }
 
 bool ZgwStore::MaybeHandleRedisError() {
