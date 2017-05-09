@@ -25,8 +25,10 @@ class ZgwStore {
   }
   void InstallClients(libzp::Cluster* zp_cli, redisContext* redis_cli);
   Status AddUser(const User& user, const bool override = false);
-  Status ListUsers(std::vector<User>& users);
+  Status ListUsers(std::vector<User>* users);
+
   Status AddBucket(const Bucket& bucket, const bool override = false);
+  Status ListBuckets(const std::string& user_name, std::vector<Bucket>* buckets);
  private:
   bool MaybeHandleRedisError();
   Status HandleIOError(const std::string& func_name);
@@ -34,6 +36,7 @@ class ZgwStore {
       const bool should_unlock);
 
   User GenUserFromReply(redisReply* reply);
+  Bucket GenBucketFromReply(redisReply* reply);
   Status Lock();
   Status UnLock();
 

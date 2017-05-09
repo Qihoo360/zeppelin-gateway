@@ -163,29 +163,30 @@ Status ZgwStore::AddUser(const User& user, const bool override) {
   return s;
 }
 
-Status ZgwStore::ListUsers(std::vector<User>& users) {
+Status ZgwStore::ListUsers(std::vector<User>* users) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
-  users.clear();
-
+  users->clear();
+/*
+ *  1. Get user list 
+ */
   redisReply *reply;
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "SMEMBERS %s", kZgwUserList.c_str()));
-
   if (reply == NULL) {
     return HandleIOError("ListUsers::SEMBMBERS");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
     return HandleLogicError("ListUser::SMEMBERS ret: " + std::string(reply->str), reply, false);
   }
-  
   assert(reply->type == REDIS_REPLY_ARRAY);
-  
   if (reply->elements == 0) {
     return Status::OK();
   }
-
+/*
+ *  2. Iterate through users to HGETALL 
+ */
   redisReply* t_reply;
   for (unsigned int i = 0; i < reply->elements; i++) {
     t_reply = static_cast<redisReply*>(redisCommand(redis_cli_, "HGETALL %s%s",
@@ -198,7 +199,6 @@ Status ZgwStore::ListUsers(std::vector<User>& users) {
       freeReplyObject(reply);
       return HandleLogicError("ListUser::HGETALL ret: " + std::string(t_reply->str), t_reply, false);
     }
-
     assert(t_reply->type == REDIS_REPLY_ARRAY);
     if (t_reply->elements == 0) {
       continue;
@@ -206,7 +206,7 @@ Status ZgwStore::ListUsers(std::vector<User>& users) {
       freeReplyObject(reply);
       return HandleLogicError("ListUser::HGETALL: elements % 2 != 0", t_reply, false);
     }
-    users.push_back(GenUserFromReply(t_reply));
+    users->push_back(GenUserFromReply(t_reply));
     freeReplyObject(t_reply);
   }
 
@@ -265,7 +265,6 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool override) {
   hmset_cmd += (" loc " + bucket.location);
   hmset_cmd += " vol %lld";
   hmset_cmd += " uvol %lld";
-  std::cout << hmset_cmd << std::endl;
   reply = static_cast<redisReply*>(redisCommand(redis_cli_, hmset_cmd.c_str(), bucket.create_time,
         bucket.volumn, bucket.uploading_volumn));
   if (reply == NULL) {
@@ -298,6 +297,58 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool override) {
  */
   s = UnLock();
   return s;
+}
+
+Status ZgwStore::ListBuckets(const std::string& user_name, std::vector<Bucket>* buckets) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+  buckets->clear();
+/*
+ *  1. Get bucket list 
+ */
+  redisReply *reply;
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SMEMBERS %s%s", kZgwBucketListPrefix.c_str(),
+              user_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("ListBuckets::SEMBMBERS");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("ListBuckets::SMEMBERS ret: " + std::string(reply->str), reply, false);
+  }
+  assert(reply->type == REDIS_REPLY_ARRAY);
+  if (reply->elements == 0) {
+    return Status::OK();
+  }
+/*
+ *  2. Iterate through buckets to HGETALL 
+ */
+  redisReply* t_reply;
+  for (unsigned int i = 0; i < reply->elements; i++) {
+    t_reply = static_cast<redisReply*>(redisCommand(redis_cli_, "HGETALL %s%s",
+          kZgwBucketPrefix.c_str(), reply->element[i]->str));
+    if (t_reply == NULL) {
+      freeReplyObject(reply);
+      return HandleIOError("ListBuckets::HGETALL");
+    }
+    if (t_reply->type == REDIS_REPLY_ERROR) {
+      freeReplyObject(reply);
+      return HandleLogicError("ListBuckets::HGETALL ret: " + std::string(t_reply->str), t_reply, false);
+    }
+    assert(t_reply->type == REDIS_REPLY_ARRAY);
+    if (t_reply->elements == 0) {
+      continue;
+    } else if (t_reply->elements % 2 != 0) {
+      freeReplyObject(reply);
+      return HandleLogicError("ListBuckets::HGETALL: elements % 2 != 0", t_reply, false);
+    }
+    buckets->push_back(GenBucketFromReply(t_reply));
+    freeReplyObject(t_reply);
+  }
+
+  freeReplyObject(reply);
+  return Status::OK();
 }
 
 bool ZgwStore::MaybeHandleRedisError() {
@@ -345,11 +396,44 @@ User ZgwStore::GenUserFromReply(redisReply* reply) {
       continue;
     } else {
       user.key_pairs.insert(std::pair<std::string, std::string>(reply->element[i]->str,
-            reply->element[++i]->str));
+            reply->element[i+1]->str));
+      i++;
       continue;
     }
   }
   return user;
+}
+
+Bucket ZgwStore::GenBucketFromReply(redisReply* reply) {
+  Bucket bucket;
+  char* end;
+  for (unsigned int i = 0; i < reply->elements; i++) {
+    if (std::string(reply->element[i]->str) == "name") {
+      bucket.bucket_name = reply->element[++i]->str;
+      continue;
+    } else if (std::string(reply->element[i]->str) == "ctime") {
+      bucket.create_time = std::strtoll(reply->element[++i]->str,
+          &end, 10);
+      continue;
+    } else if (std::string(reply->element[i]->str) == "owner") {
+      bucket.owner = reply->element[++i]->str;
+      continue;
+    } else if (std::string(reply->element[i]->str) == "acl") {
+      bucket.acl = reply->element[++i]->str;
+      continue;
+    } else if (std::string(reply->element[i]->str) == "loc") {
+      bucket.location = reply->element[++i]->str;
+      continue;
+    } else if (std::string(reply->element[i]->str) == "vol") {
+      bucket.volumn = std::strtoull(reply->element[++i]->str,
+          &end, 10);
+      continue;
+    } else if (std::string(reply->element[i]->str) == "uvol") {
+      bucket.uploading_volumn = std::strtoull(reply->element[++i]->str,
+          &end, 10);
+    }
+  }
+  return bucket;
 }
 
 Status ZgwStore::Lock() {

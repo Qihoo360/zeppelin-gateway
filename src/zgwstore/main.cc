@@ -28,7 +28,7 @@ int main() {
   std::cout << "AddUser ret: " << s.ToString() << std::endl;
 
   std::vector<zgwstore::User> users;
-  s = store->ListUsers(users);
+  s = store->ListUsers(&users);
   std::cout << "ListUsers ret: " << s.ToString() << std::endl;
   for (auto& user : users) {
     std::cout << "-------------------------------" << std::endl;
@@ -39,16 +39,41 @@ int main() {
     }
   }
 
-  zgwstore::Bucket bucket;
-  bucket.bucket_name = "bucket1";
-  bucket.create_time = 0;
-  bucket.owner = "songzhao";
-  bucket.acl = "acl";
-  bucket.location = "us-east-1";
-  bucket.volumn = 0;
-  bucket.uploading_volumn = 0;
-  s = store->AddBucket(bucket);
+  zgwstore::Bucket bucket1;
+  bucket1.bucket_name = "bucket1";
+  bucket1.create_time = 0;
+  bucket1.owner = "songzhao";
+  bucket1.acl = "acl";
+  bucket1.location = "us-east-1";
+  bucket1.volumn = 0;
+  bucket1.uploading_volumn = 0;
+  s = store->AddBucket(bucket1);
   std::cout << "AddBucket ret: " << s.ToString() << std::endl;
+
+  zgwstore::Bucket bucket2;
+  bucket2.bucket_name = "bucket2";
+  bucket2.create_time = 68;
+  bucket2.owner = "songzhao";
+  bucket2.acl = "acl";
+  bucket2.location = "us-east-1";
+  bucket2.volumn = 66;
+  bucket2.uploading_volumn = 88;
+  s = store->AddBucket(bucket2);
+  std::cout << "AddBucket ret: " << s.ToString() << std::endl;
+
+  std::vector<zgwstore::Bucket> buckets;
+  s = store->ListBuckets("songzhao", &buckets);
+  std::cout << "ListBuckets ret: " << s.ToString() << std::endl;
+  for (auto& bucket : buckets) {
+    std::cout << "-------------------------------" << std::endl;
+    std::cout << "bucket_name: " << bucket.bucket_name << std::endl;
+    std::cout << "create_time: " << bucket.create_time << std::endl;
+    std::cout << "owner: " << bucket.owner << std::endl;
+    std::cout << "acl: " << bucket.acl << std::endl;
+    std::cout << "location: " << bucket.location << std::endl;
+    std::cout << "volumn: " << bucket.volumn << std::endl;
+    std::cout << "uploading_volumn: " << bucket.uploading_volumn << std::endl;
+  }
 
   delete store;
   std::cout << "Bye" << std::endl;
