@@ -2,8 +2,11 @@
 #define ZGW_DEFINE_H_
 namespace zgwstore {
 
-const std::string kZgwUserList = "#ZUL";
-const std::string kZgwUserPrefix = "_ZU";
+const std::string kZgwUserList = "#ZUL#";
+const std::string kZgwUserPrefix = "_ZU_";
+
+const std::string kZgwBucketListPrefix = "_ZBL_";
+const std::string kZgwBucketPrefix = "_ZB_";
 
 struct User {
   std::string user_id;
@@ -12,6 +15,7 @@ struct User {
 };
 
 struct Bucket {
+ std::string bucket_name;
  uint64_t create_time;
  std::string owner;
  std::string acl;
@@ -21,6 +25,7 @@ struct Bucket {
 };
 
 struct Object {
+  std::string object_name;
   std::string etag;
   int64_t size;
   std::string owner;
