@@ -36,22 +36,22 @@ enum S3Commands {
 };
 
 enum S3ErrorType {
-  InvalidAccessKeyId,
-  SignatureDoesNotMatch,
-  NoSuchBucket,
-  NoSuchKey,
-  BucketNotEmpty,
-  NoSuchUpload,
-  NotImplemented,
-  BucketAlreadyOwnedByYou,
-  BucketAlreadyExists,
-  MalformedXML,
-  InvalidPart,
-  InvalidPartOrder,
-  MethodNotAllowed,
-  InvalidArgument,
-  InvalidRange,
-  AccessDenied,
+  kInvalidAccessKeyId,
+  kSignatureDoesNotMatch,
+  kNoSuchBucket,
+  kNoSuchKey,
+  kBucketNotEmpty,
+  kNoSuchUpload,
+  kNotImplemented,
+  kBucketAlreadyOwnedByYou,
+  kBucketAlreadyExists,
+  kMalformedXML,
+  kInvalidPart,
+  kInvalidPartOrder,
+  kMethodNotAllowed,
+  kInvalidArgument,
+  kInvalidRange,
+  kAccessDenied,
 };
 
 class S3Cmd {
@@ -85,21 +85,22 @@ class S3Cmd {
   }
 
  protected:
-  virtual bool ParseRequestXml() {
-    return true;
-  }
   virtual void GenerateRespXml() {}
+  void GenerateErrorXml(S3ErrorType type, const std::string& message = "");
 
+  // These parameters have been filled
   std::string bucket_name_;
   std::string object_name_;
   std::map<std::string, std::string> req_headers_;
   std::map<std::string, std::string> query_params_;
-  std::string http_request_xml_;
-
-  int http_ret_code_;
-  std::string http_response_xml_;
-
   zgwstore::ZgwStore* store_;
+
+  // S3AuthV4 zgw_auth_; // Authorize in DoInitial()
+
+  // Should clear in every request
+  int http_ret_code_;
+  std::string http_request_xml_;
+  std::string http_response_xml_;
 
  private:
   // No copying allowed

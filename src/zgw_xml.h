@@ -7,10 +7,13 @@ class S3XmlNode {
  public:
   void AppendNode(const S3XmlNode* node);
   bool IsValid();
-  S3XmlNode FindFirstNode(const std::string& name);
-  S3XmlNode NextSibling();
-  S3XmlNode NextSibling(const std::string& name);
+  bool FindFirstNode(const std::string& name, S3XmlNode* first_node);
+  bool NextSibling(S3XmlNode* nexts);
+  bool NextSibling(const std::string& name, S3XmlNode* nexts);
+  std::string name();
+  std::string value();
 
+  S3XmlNode();
   ~S3XmlNode();
  private:
   friend class S3XmlDoc;
@@ -24,13 +27,14 @@ class S3XmlNode {
 class S3XmlDoc {
  public:
   S3XmlDoc(const std::string& root_node);
+  S3XmlDoc();
   ~S3XmlDoc();
 
   S3XmlNode* AllocateNode(const std::string& name, const std::string& value = "");
   void AppendToRoot(const S3XmlNode* node);
   bool ParseFromString(const std::string& xml_str);
-  S3XmlNode FindFirstNode(const std::string& name);
-  std::string ToString();
+  bool FindFirstNode(const std::string& name, S3XmlNode* first_node);
+  void ToString(std::string* res_xml);
 
  private:
   struct Rep;

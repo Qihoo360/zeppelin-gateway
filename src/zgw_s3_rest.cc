@@ -9,17 +9,19 @@ bool ZgwHttpHandles::ReqHeadersHandle(const pink::HttpRequest* req) {
   cmd_ = SelectS3Cmd(req);
   cmd_->SetStorePtr(static_cast<zgwstore::ZgwStore*>(thread_ptr_->get_private()));
   if (!cmd_->DoInitial()) {
-    // Something wrong happend, need reply
+    // Something wrong happend, need reply right now
     return true;
   }
 
   if (req->headers_.count("expect")) {
     need_100_continue_ = true;
+    // Need reply right now
     return true;
   } else {
     need_100_continue_ = false;
   }
 
+  // Needn't reply right now
   return false;
 }
 

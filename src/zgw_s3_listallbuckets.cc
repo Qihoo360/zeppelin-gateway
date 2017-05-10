@@ -7,17 +7,13 @@ bool ListAllBucketsCmd::DoInitial() {
   all_buckets_.clear();
   http_response_xml_.clear();
 
-  // Needn't reply right now
-  return false;
+  return true;
 }
 
 void ListAllBucketsCmd::DoAndResponse(pink::HttpResponse* resp) {
   Status s = store_->ListBuckets("gaodq", &all_buckets_);
   if (s.ok()) {
     http_ret_code_ = 200;
-  } else if (s.IsNotFound()) {
-    http_ret_code_ = 404;
-    // TODO(gaodq) Set xml response
   } else {
     http_ret_code_ = 500;
   }
@@ -57,5 +53,5 @@ void ListAllBucketsCmd::GenerateRespXml() {
   }
   doc.AppendToRoot(buckets);
 
-  http_response_xml_.assign(doc.ToString());
+  doc.ToString(&http_response_xml_);
 }

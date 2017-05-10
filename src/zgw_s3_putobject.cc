@@ -21,8 +21,7 @@ bool PutObjectCmd::DoInitial() {
     http_ret_code_ = 500;
   }
 
-  // Needn't reply
-  return false;
+  return true;
 }
 
 void PutObjectCmd::DoReceiveBody(const char* data, size_t data_size) {

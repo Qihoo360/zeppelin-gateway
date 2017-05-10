@@ -9,7 +9,6 @@ bool GetObjectCmd::DoInitial() {
   Status s;
   if (s.ok()) {
     http_ret_code_ = 200;
-    return true;
   } else if (s.IsNotFound()) {
     http_ret_code_ = 404;
     // TODO(gaodq) Set xml response
@@ -17,8 +16,7 @@ bool GetObjectCmd::DoInitial() {
     http_ret_code_ = 500;
   }
 
-  // Needn't reply
-  return false;
+  return true;
 }
 
 void GetObjectCmd::DoAndResponse(pink::HttpResponse* resp) {

@@ -21,6 +21,10 @@ struct S3XmlNode::Rep {
   xml_node<>* rep_node_;
 };
 
+S3XmlNode::S3XmlNode() {
+  rep_ = new Rep("", "");
+}
+
 S3XmlNode::S3XmlNode(const std::string& name, const std::string& value) {
   rep_ = new Rep(name, value);
 }
@@ -37,28 +41,40 @@ bool S3XmlNode::IsValid() {
   return rep_->rep_node_ != nullptr;
 }
 
-S3XmlNode S3XmlNode::FindFirstNode(const std::string& name) {
-  S3XmlNode s3_node(name);
+bool S3XmlNode::FindFirstNode(const std::string& name, S3XmlNode* first_node) {
   xml_node<>* node = rep_->rep_node_->
     first_node(name.c_str(), name.size(), false);
-  s3_node.rep_->name_ = name;
-  s3_node.rep_->value_ = node->value();
-  s3_node.rep_->rep_node_ = node;
-  return s3_node;
+  if (node == nullptr) {
+    return false;
+  }
+  first_node->rep_->name_ = name;
+  first_node->rep_->value_ = node->value();
+  first_node->rep_->rep_node_ = node;
+  return true;
 }
 
-S3XmlNode S3XmlNode::NextSibling() {
-  return NextSibling(rep_->name_);
+bool S3XmlNode::NextSibling(S3XmlNode* nexts) {
+  return NextSibling(rep_->name_, nexts);
 }
 
-S3XmlNode S3XmlNode::NextSibling(const std::string& name) {
-  S3XmlNode s3_node(name);
-  xml_node<>* nexts = rep_->rep_node_->
+bool S3XmlNode::NextSibling(const std::string& name, S3XmlNode* nexts) {
+  xml_node<>* node = rep_->rep_node_->
     next_sibling(name.c_str(), name.size(), false);
-  s3_node.rep_->name_ = name;
-  s3_node.rep_->value_ = nexts->value();
-  s3_node.rep_->rep_node_ = nexts;
-  return s3_node;
+  if (node == nullptr) {
+    return false;
+  }
+  nexts->rep_->name_ = name;
+  nexts->rep_->value_ = node->value();
+  nexts->rep_->rep_node_ = node;
+  return true;
+}
+
+std::string S3XmlNode::name() {
+  return rep_->name_;
+}
+
+std::string S3XmlNode::value() {
+  return rep_->value_;
 }
 
 static const std::string xml_header = "xml version='1.0' encoding='utf-8'";
@@ -80,12 +96,15 @@ struct S3XmlDoc::Rep {
   std::string rnode_str_;
   xml_node<>* rnode_;
   xml_document<> doc_;
-  std::string res_xml_;
   std::vector<std::unique_ptr<S3XmlNode>> sub_nodes_;
 };
 
 S3XmlDoc::S3XmlDoc(const std::string& root_node) {
   rep_ = new Rep(root_node);
+}
+
+S3XmlDoc::S3XmlDoc() {
+  rep_ = new Rep("");
 }
 
 S3XmlDoc::~S3XmlDoc() {
@@ -115,18 +134,20 @@ bool S3XmlDoc::ParseFromString(const std::string& xml_str) {
   return true;
 }
 
-S3XmlNode S3XmlDoc::FindFirstNode(const std::string& name) {
-  S3XmlNode s3_node(name);
+bool S3XmlDoc::FindFirstNode(const std::string& name, S3XmlNode* first_node) {
   xml_node<>* node = rep_->doc_.first_node(name.c_str(), name.size(), false);
-  s3_node.rep_->name_ = name;
-  s3_node.rep_->value_ = node->value();
-  s3_node.rep_->rep_node_ = node;
-  return s3_node;
+  if (node == nullptr) {
+    return false;
+  }
+  first_node->rep_->name_ = name;
+  first_node->rep_->value_ = node->value();
+  first_node->rep_->rep_node_ = node;
+  return true;
 }
 
-std::string S3XmlDoc::ToString() {
-  print(std::back_inserter(rep_->res_xml_), rep_->doc_, 0);
-  return rep_->res_xml_; 
+void S3XmlDoc::ToString(std::string* res_xml) {
+  res_xml->clear();
+  print(std::back_inserter(*res_xml), rep_->doc_, 0);
 }
 
 
