@@ -12,11 +12,13 @@ namespace zgwstore {
 
 class ZgwStore {
  public:
-  ZgwStore(const std::string& lock_name, const int32_t lock_ttl);
+  ZgwStore(const std::string& zp_table, const std::string& lock_name,
+      const int32_t lock_ttl);
   ~ZgwStore();
   static Status Open(const std::vector<std::string>& zp_addrs,
-      const std::string& redis_addr, const std::string& lock_name,
-      const int32_t lock_ttl, ZgwStore** store);
+      const std::string& redis_addr, const std::string& zp_table,
+      const std::string& lock_name, const int32_t lock_ttl,
+      ZgwStore** store);
   void set_redis_ip(const std::string& redis_ip) {
     redis_ip_ = redis_ip;
   }
@@ -24,11 +26,22 @@ class ZgwStore {
     redis_port_ = redis_port;
   }
   void InstallClients(libzp::Cluster* zp_cli, redisContext* redis_cli);
+
+  Status BlockSet(const std::string& block_id, const std::string& block_content);
+  Status BlockGet(const std::string& block_id, std::string* block_content);
+  Status BlockDelete(const std::string& block_id);
+  Status BlockMGet(const std::vector<std::string>& block_ids,
+      std::map<std::string, std::string>* block_contents);
+
   Status AddUser(const User& user, const bool override = false);
   Status ListUsers(std::vector<User>* users);
 
   Status AddBucket(const Bucket& bucket, const bool override = false);
   Status ListBuckets(const std::string& user_name, std::vector<Bucket>* buckets);
+
+  Status AllocateId(const std::string& user_name, const std::string& bucket_name,
+      const std::string& object_name, const int32_t block_nums, int64_t* tail_id);
+  Status AddObject(const Object& object);
  private:
   bool MaybeHandleRedisError();
   Status HandleIOError(const std::string& func_name);
@@ -37,9 +50,11 @@ class ZgwStore {
 
   User GenUserFromReply(redisReply* reply);
   Bucket GenBucketFromReply(redisReply* reply);
+  Object GenObjectFromReply(redisReply* reply);
   Status Lock();
   Status UnLock();
 
+  std::string zp_table_;
   libzp::Cluster* zp_cli_;
   redisContext* redis_cli_;
   std::string redis_ip_;

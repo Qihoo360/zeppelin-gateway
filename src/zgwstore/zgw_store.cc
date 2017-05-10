@@ -1,4 +1,5 @@
 #include "slash/include/slash_string.h"
+#include "slash/include/env.h"
 #include "zgw_store.h"
 
 #include <iostream>
@@ -7,9 +8,11 @@
 
 namespace zgwstore {
 
-ZgwStore::ZgwStore(const std::string& lock_name, const int32_t lock_ttl) :
-  zp_cli_(nullptr), redis_cli_(nullptr), redis_ip_(""), redis_port_(-1),
-  lock_name_(lock_name), lock_ttl_(lock_ttl), redis_error_(false) {
+ZgwStore::ZgwStore(const std::string& zp_table,const std::string& lock_name,
+    const int32_t lock_ttl) :
+  zp_table_(zp_table), zp_cli_(nullptr), redis_cli_(nullptr), redis_ip_(""),
+  redis_port_(-1), lock_name_(lock_name), lock_ttl_(lock_ttl),
+  redis_error_(false) {
   };
 
 ZgwStore::~ZgwStore() {
@@ -22,8 +25,9 @@ ZgwStore::~ZgwStore() {
 }
 
 Status ZgwStore::Open(const std::vector<std::string>& zp_addrs,
-    const std::string& redis_addr, const std::string& lock_name,
-    const int32_t lock_ttl, ZgwStore** store) {
+    const std::string& redis_addr, const std::string& zp_table,
+    const std::string& lock_name, const int32_t lock_ttl,
+    ZgwStore** store) {
 
   *store = nullptr;
 /*
@@ -49,6 +53,12 @@ Status ZgwStore::Open(const std::vector<std::string>& zp_addrs,
     delete zp_cli;
     return Status::IOError("Failed to connect to zeppelin");
   }
+  s = zp_cli->CreateTable(zp_table, 64);
+  if (!s.ok() && s.IsCorruption() &&
+        s.ToString() != "Corruption: Corruption: Already Exist") {
+    delete zp_cli;
+    return s;
+  }
 /*
  *  Connect to redis
  */
@@ -70,7 +80,7 @@ Status ZgwStore::Open(const std::vector<std::string>& zp_addrs,
     }
   }
   
-  *store = new ZgwStore(lock_name, lock_ttl);
+  *store = new ZgwStore(zp_table, lock_name, lock_ttl);
   (*store)->InstallClients(zp_cli, redis_cli);
   (*store)->set_redis_ip(t_ip);
   (*store)->set_redis_port(t_port);
@@ -80,6 +90,27 @@ Status ZgwStore::Open(const std::vector<std::string>& zp_addrs,
 void ZgwStore::InstallClients(libzp::Cluster* zp_cli, redisContext* redis_cli) {
   zp_cli_ = zp_cli;
   redis_cli_ = redis_cli;
+}
+
+Status ZgwStore::BlockSet(const std::string& block_id, const std::string& block_content) {
+  return zp_cli_->Set(zp_table_, kZpBlockPrefix + block_id, block_content);
+}
+
+Status ZgwStore::BlockGet(const std::string& block_id, std::string* block_content) {
+  return zp_cli_->Get(zp_table_, kZpBlockPrefix + block_id, block_content);
+}
+
+Status ZgwStore::BlockDelete(const std::string& block_id) {
+  return zp_cli_->Delete(zp_table_, kZpBlockPrefix + block_id);
+}
+
+Status ZgwStore::BlockMGet(const std::vector<std::string>& block_ids,
+    std::map<std::string, std::string>* block_contents) {
+  std::vector<std::string> ids;
+  for(auto& id : block_ids) {
+    ids.push_back(kZpBlockPrefix + id);
+  }
+  return zp_cli_->Mget(zp_table_, ids, block_contents);
 }
 
 Status ZgwStore::AddUser(const User& user, const bool override) {
@@ -369,6 +400,213 @@ Status ZgwStore::ListBuckets(const std::string& user_name, std::vector<Bucket>* 
   return Status::OK();
 }
 
+Status ZgwStore::AllocateId(const std::string& user_name, const std::string& bucket_name,
+    const std::string& object_name, const int32_t block_nums, int64_t* tail_id) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+/*
+ *  1. Lock
+ */
+  Status s;
+  s = Lock();
+  if (!s.ok()) {
+    return s;
+  }
+/*
+ *  2. SISMEMBER 
+ */
+  redisReply *reply;
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SISMEMBER %s%s %s", kZgwBucketListPrefix.c_str(), user_name.c_str(),
+              bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("AllocateId::SISMEMBER");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AllocateId::SISMEMBER ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer == 0) {
+    return HandleLogicError("Bucket Doesn't Belong To This User", reply, true);
+  }
+  freeReplyObject(reply);
+/*
+ *  3. EXISTS 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_, "EXISTS %s%s",
+              kZgwBucketPrefix.c_str(), bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("AllocateId::EXISTS");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AllocateId::EXISTS ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer == 0) {
+    return HandleLogicError("Bucket NOT Exists", reply, true);
+  }
+  assert(reply->integer == 1);
+/*
+ *  4. SADD 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SADD %s%s %s%s", kZgwObjectListPrefix.c_str(), bucket_name.c_str(),
+              kZgwTempObjectNamePrefix.c_str(), object_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("AllocateId::SADD");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AllocateId::SADD ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  freeReplyObject(reply);
+/*
+ *  5. INCRBY 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "INCRBY %s %d", kZgwIdGen.c_str(), block_nums));
+  if (reply == NULL) {
+    return HandleIOError("AllocateId::INCRBY");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AllocateId::INCRBY ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  *tail_id = reply->integer - 1;
+  freeReplyObject(reply);
+/*
+ *  6. UnLock 
+ */
+  s = UnLock();
+  return s;
+}
+
+Status ZgwStore::AddObject(const Object& object) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+/*
+ *  1. Lock
+ */
+  Status s;
+  s = Lock();
+  if (!s.ok()) {
+    return s;
+  }
+/*
+ *  2. HGETALL 
+ */
+  redisReply *reply;
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "HGETALL %s%s_%s", kZgwObjectPrefix.c_str(), object.bucket_name.c_str(),
+              object.object_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("AddObject::HGETALL");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AddObject::HGETALL ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_ARRAY);
+  if (reply->elements != 0) {
+    Object t_object = GenObjectFromReply(reply);
+    redisReply* t_reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+                "LPUSH %s %s", kZgwDeletedList.c_str(), std::string(t_object.data_block +
+                "/" + std::to_string(slash::NowMicros())).c_str()));
+    if (t_reply == NULL) {
+      return HandleIOError("AddObject::LPUSH");
+    }
+    if (t_reply->type == REDIS_REPLY_ERROR) {
+      return HandleLogicError("AddObject::LPUSH ret: " + std::string(reply->str), reply, true);
+    }
+    assert(t_reply->type == REDIS_REPLY_INTEGER);
+    freeReplyObject(t_reply);
+  }
+  freeReplyObject(reply);
+/*
+ *  3. DEL 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "DEL %s%s_%s", kZgwObjectPrefix.c_str(), object.bucket_name.c_str(),
+              object.object_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("AddObject::DEL");
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  freeReplyObject(reply);
+/*
+ *  4. HMSET 
+ */
+  std::string hmset_cmd = "HMSET " + kZgwObjectPrefix + object.bucket_name +
+    "_" + object.object_name;
+  hmset_cmd += (" bname " + object.bucket_name);
+  hmset_cmd += (" oname " + object.object_name);
+  hmset_cmd += (" etag " + object.etag);
+  hmset_cmd += " size %lld";
+  hmset_cmd += (" owner " + object.owner);
+  hmset_cmd += " lm %llu";
+  hmset_cmd += " class %d";
+  hmset_cmd += (" acl " + object.acl);
+  hmset_cmd += (" id " + object.upload_id);
+  hmset_cmd += (" block " + object.data_block);
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_, hmset_cmd.c_str(), object.size,
+        object.last_modified, object.storage_class));
+  if (reply == NULL) {
+    return HandleIOError("AddObject::HMSET");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AddObject::HMSET ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_STATUS);
+  freeReplyObject(reply);
+/*
+ *  5. SADD 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SADD %s%s %s", kZgwObjectListPrefix.c_str(), object.bucket_name.c_str(),
+              object.object_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("AddObject::SADD");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AddObject::SADD ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer == 0) {
+    // object already exists, update
+  }
+  freeReplyObject(reply);
+/*
+ *  6. HINCRBY 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "HINCRBY %s%s vol %lld", kZgwBucketPrefix.c_str(), object.bucket_name.c_str(),
+              object.size));
+  if (reply == NULL) {
+    return HandleIOError("AddObject::HINCRBY");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AddObject::HINCRBY ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+/*
+ *  7. SREM
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SREM %s%s %s%s", kZgwObjectListPrefix.c_str(), object.bucket_name.c_str(),
+              kZgwTempObjectNamePrefix.c_str(), object.object_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("AddObject::SREM");
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  freeReplyObject(reply);
+/*
+ *  8. UnLock 
+ */
+  s = UnLock();
+  return s;
+}
+
 bool ZgwStore::MaybeHandleRedisError() {
   if (!redis_error_) {
     return true;
@@ -452,6 +690,47 @@ Bucket ZgwStore::GenBucketFromReply(redisReply* reply) {
     }
   }
   return bucket;
+}
+
+Object ZgwStore::GenObjectFromReply(redisReply* reply) {
+  Object object;
+  char* end;
+  for (unsigned int i = 0; i < reply->elements; i++) {
+    if (std::string(reply->element[i]->str) == "bname") {
+      object.bucket_name = reply->element[++i]->str;
+      continue;
+    } else if (std::string(reply->element[i]->str) == "oname") {
+      object.object_name = std::strtoll(reply->element[++i]->str,
+          &end, 10);
+      continue;
+    } else if (std::string(reply->element[i]->str) == "etag") {
+      object.etag = reply->element[++i]->str;
+      continue;
+    } else if (std::string(reply->element[i]->str) == "size") {
+      object.size = std::strtoll(reply->element[++i]->str,
+          &end, 10);
+      continue;
+    } else if (std::string(reply->element[i]->str) == "owner") {
+      object.owner = reply->element[++i]->str;
+      continue;
+    } else if (std::string(reply->element[i]->str) == "lm") {
+      object.last_modified = std::strtoull(reply->element[++i]->str,
+          &end, 10);
+      continue;
+    } else if (std::string(reply->element[i]->str) == "class") {
+      object.storage_class = std::atoi(reply->element[++i]->str);
+      continue;
+    } else if (std::string(reply->element[i]->str) == "acl") {
+      object.acl = reply->element[++i]->str;
+      continue;
+    } else if (std::string(reply->element[i]->str) == "id") {
+      object.upload_id = reply->element[++i]->str;
+      continue;
+    } else if (std::string(reply->element[i]->str) == "block") {
+      object.data_block = reply->element[++i]->str;
+    }
+  }
+  return object;
 }
 
 Status ZgwStore::Lock() {

@@ -1,14 +1,14 @@
 #include "zgw_store.h"
 #include <iostream>
 
-#if 0
+#if 1
 int main() {
   zgwstore::ZgwStore* store;
-  std::vector<std::string> zp_addrs = {"10.138.79.205:9221", "10.138.79.205:9222"};
-  std::string redis_addr = "10.138.79.205:19221";
+  std::vector<std::string> zp_addrs = {"127.0.0.1:9221", "127.0.0.1:9222"};
+  std::string redis_addr = "127.0.0.1:6379";
 
   slash::Status s = zgwstore::ZgwStore::Open(zp_addrs, redis_addr,
-      "lock_name", 30000, &store);
+      "s3_1", "lock_name", 30000, &store);
   std::cout << "Open ret: " << s.ToString() << std::endl;
   
   zgwstore::User user1;
@@ -75,6 +75,24 @@ int main() {
     std::cout << "volumn: " << bucket.volumn << std::endl;
     std::cout << "uploading_volumn: " << bucket.uploading_volumn << std::endl;
   }
+
+  int64_t tail_id = -1;
+  s = store->AllocateId("songzhao", "bucket1", "object1", 16, &tail_id);
+  std::cout << "AllocateId ret: " << s.ToString() << ", tail_id: " << tail_id << std::endl;
+
+  zgwstore::Object object1;
+  object1.bucket_name = "bucket1";
+  object1.object_name = "object1";
+  object1.etag = "etag";
+  object1.size = 6666;
+  object1.owner = "songzhao";
+  object1.last_modified = 123;
+  object1.storage_class = 0;
+  object1.acl = "acl";
+  object1.upload_id = 1;
+  object1.data_block = "6-8";
+  s = store->AddObject(object1);
+  std::cout << "AddObject ret: " << s.ToString() << std::endl;
 
   delete store;
   std::cout << "Bye" << std::endl;
