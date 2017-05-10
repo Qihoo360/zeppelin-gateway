@@ -8,6 +8,26 @@
 
 std::map<S3Commands, S3Cmd*> g_cmd_table;
 
+class UnImplementCmd : public S3Cmd {
+  virtual bool DoInitial() {
+    return false;
+  }
+  virtual void DoAndResponse(pink::HttpResponse* resp) {
+    GenerateErrorXml(kNotImplemented);
+    resp->SetStatusCode(501);
+    resp->SetContentLength(http_response_xml_.size());
+  }
+  virtual int DoResponseBody(char* buf, size_t max_size) {
+    if (max_size < http_response_xml_.size()) {
+      memcpy(buf, http_response_xml_.data(), max_size);
+      http_response_xml_.assign(http_response_xml_.substr(max_size));
+    } else {
+      memcpy(buf, http_response_xml_.data(), http_response_xml_.size());
+    }
+    return std::min(max_size, http_response_xml_.size());
+  };
+};
+
 void InitCmdTable() {
   g_cmd_table.insert(std::make_pair(kListAllBuckets, new ListAllBucketsCmd()));
   // g_cmd_table.insert(std::make_pair(kDeleteBucket, new DeleteBucketCmd()));
@@ -29,7 +49,7 @@ void InitCmdTable() {
   // g_cmd_table.insert(std::make_pair(kCompleteMultiUpload, new CompleteMultiUploadCmd()));
   // g_cmd_table.insert(std::make_pair(kAbortMultiUpload, new AbortMultiUploadCmd()));
   // g_cmd_table.insert(std::make_pair(kListParts, new ListPartsCmd()));
-  // g_cmd_table.insert(std::make_pair(kUnImplement, new UnImplementCmd()));
+  g_cmd_table.insert(std::make_pair(kUnImplement, new UnImplementCmd()));
 }
 
 void DestroyCmdTable() {
@@ -39,13 +59,15 @@ void DestroyCmdTable() {
 }
 
 void S3Cmd::Clear() {
+  user_name_.clear();
   bucket_name_.clear();
   object_name_.clear();
   req_headers_.clear();
   query_params_.clear();
-  http_request_xml_.clear();
+  store_ = nullptr;
 
   http_ret_code_ = 200;
+  http_request_xml_.clear();
   http_response_xml_.clear();
 }
 
@@ -53,6 +75,10 @@ void S3Cmd::GenerateErrorXml(S3ErrorType type, const std::string& message) {
   http_response_xml_.clear();
   S3XmlDoc doc("Error");
   switch(type) {
+    case kInvalidRequest:
+      doc.AppendToRoot(doc.AllocateNode("Code", "InvalidRequest"));
+      doc.AppendToRoot(doc.AllocateNode("Message", message));
+      break;
     case kAccessDenied:
       doc.AppendToRoot(doc.AllocateNode("Code", "AccessDenied"));
       doc.AppendToRoot(doc.AllocateNode("Message", "Access Denied"));

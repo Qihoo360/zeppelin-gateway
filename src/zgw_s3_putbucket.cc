@@ -7,10 +7,33 @@ bool PutBucketCmd::DoInitial() {
   http_request_xml_.clear();
   http_response_xml_.clear(); 
 
+  switch(s3_auth_.TryAuth()) {
+    case kMaybeAuthV2:
+      http_ret_code_ = 400;
+      GenerateErrorXml(kInvalidRequest, "Please use AWS4-HMAC-SHA256.");
+      return false;
+      break;
+    case kAccessKeyInvalid:
+      http_ret_code_ = 403;
+      GenerateErrorXml(kInvalidAccessKeyId);
+      return false;
+      break;
+    case kSignatureNotMatch:
+      http_ret_code_ = 403;
+      GenerateErrorXml(kSignatureDoesNotMatch);
+      return false;
+      break;
+    case kAuthSuccess:
+    default:
+      break;
+  }
+
+  user_name_.assign(s3_auth_.user_name());
+
   // Initial new_bucket 
   new_bucket_.bucket_name = bucket_name_;
   new_bucket_.create_time = slash::NowMicros();
-  new_bucket_.owner = "gaodq"; // TODO (gaodq)
+  new_bucket_.owner = user_name_;
   new_bucket_.acl = "FULL_CONTROL"; // TODO (gaodq)
   // new_bucket_.location = ""; // Fill in DoAndResponse
   new_bucket_.volumn = 0;
