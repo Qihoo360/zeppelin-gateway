@@ -7,7 +7,6 @@ bool ZgwHttpHandles::ReqHeadersHandle(const pink::HttpRequest* req) {
   // req->Dump();
 
   cmd_ = SelectS3Cmd(req);
-  cmd_->SetStorePtr(static_cast<zgwstore::ZgwStore*>(thread_ptr_->get_private()));
   if (!cmd_->DoInitial()) {
     // Something wrong happend, need reply right now
     return true;
@@ -53,7 +52,9 @@ S3Cmd* ZgwHttpHandles::SelectS3Cmd(const pink::HttpRequest* req) {
   SplitBySecondSlash(req->path_, &bucket_name, &object_name);
 
   S3Commands cmd = kUnImplement;
-  if (bucket_name.empty() && object_name.empty()) {
+  if (req->method_ == "GET" &&
+      bucket_name.empty() &&
+      object_name.empty()) {
     cmd = kListAllBuckets;
   } else if (!bucket_name.empty() && object_name.empty()) {
     // Bucket operation
@@ -116,11 +117,16 @@ S3Cmd* ZgwHttpHandles::SelectS3Cmd(const pink::HttpRequest* req) {
     }
   }
 
-  S3Cmd* cmd_ptr = g_cmd_table[cmd];
+  assert(g_cmd_table.count(cmd) > 0);
+  S3Cmd* cmd_ptr = g_cmd_table.at(cmd);
+  cmd_ptr->Clear();
   cmd_ptr->SetBucketName(bucket_name);
   cmd_ptr->SetObjectName(object_name);
   cmd_ptr->SetReqHeaders(req->headers_);
   cmd_ptr->SetQueryParams(req->query_params_);
+  cmd_ptr->SetStorePtr(
+              static_cast<zgwstore::ZgwStore*>(thread_ptr_->get_private()));
+  cmd_ptr->InitS3Auth(req);
 
   return cmd_ptr;
 }

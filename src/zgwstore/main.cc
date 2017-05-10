@@ -4,8 +4,8 @@
 #if 0
 int main() {
   zgwstore::ZgwStore* store;
-  std::vector<std::string> zp_addrs = {"10.138.79.205:9221", "10.138.79.205:9222"};
-  std::string redis_addr = "10.138.79.205:19221";
+  std::vector<std::string> zp_addrs = {"127.0.0.1:9221", "127.0.0.1:9222"};
+  std::string redis_addr = "127.0.0.1:19221";
 
   slash::Status s = zgwstore::ZgwStore::Open(zp_addrs, redis_addr,
       "lock_name", 30000, &store);

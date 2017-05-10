@@ -4,6 +4,7 @@
 #include "pink/include/http_conn.h"
 
 #include "src/zgwstore/zgw_store.h"
+#include "src/zgw_s3_authv4.h"
 
 static const size_t kZgwBlockSize = 4194304; // 4MB
 
@@ -51,12 +52,16 @@ enum S3ErrorType {
   kMethodNotAllowed,
   kInvalidArgument,
   kInvalidRange,
+  kInvalidRequest,
   kAccessDenied,
 };
 
 class S3Cmd {
  public:
-  S3Cmd() {}
+  S3Cmd()
+    : store_(nullptr),
+      http_ret_code_(200) {
+  }
   virtual ~S3Cmd() {}
 
   void Clear();
@@ -83,19 +88,24 @@ class S3Cmd {
   void SetStorePtr(zgwstore::ZgwStore* store) {
     store_ = store;
   }
+  void InitS3Auth(const pink::HttpRequest* req) {
+    assert(store_ != nullptr);
+    s3_auth_.Initialize(req, store_);
+  }
 
  protected:
   virtual void GenerateRespXml() {}
   void GenerateErrorXml(S3ErrorType type, const std::string& message = "");
 
   // These parameters have been filled
+  std::string user_name_;
   std::string bucket_name_;
   std::string object_name_;
   std::map<std::string, std::string> req_headers_;
   std::map<std::string, std::string> query_params_;
   zgwstore::ZgwStore* store_;
 
-  // S3AuthV4 zgw_auth_; // Authorize in DoInitial()
+  S3AuthV4 s3_auth_; // Authorize in DoInitial()
 
   // Should clear in every request
   int http_ret_code_;

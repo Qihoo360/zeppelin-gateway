@@ -11,6 +11,8 @@ extern void SplitBySecondSlash(const std::string& req_path,
                                std::string* field1, std::string* field2);
 extern std::string http_nowtime(time_t t);
 extern std::string md5(const std::string& content);
+extern std::string UrlEncode(const std::string& s, bool encode_slash = false);
+extern std::string UrlDecode(const std::string& url);
 
 struct Timer {
   Timer(const char* msg)
