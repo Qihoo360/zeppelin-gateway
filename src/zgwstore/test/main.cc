@@ -1,7 +1,6 @@
 #include "zgw_store.h"
 #include <iostream>
 
-#if 1
 int main() {
   zgwstore::ZgwStore* store;
   std::vector<std::string> zp_addrs = {"127.0.0.1:9221", "127.0.0.1:9222"};
@@ -97,4 +96,3 @@ int main() {
   delete store;
   std::cout << "Bye" << std::endl;
 }
-#endif

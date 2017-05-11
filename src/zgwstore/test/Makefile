@@ -8,22 +8,22 @@ endif
 OBJECT = main
 
 ifndef SLASH_PATH
-SLASH_PATH = $(realpath ../../third/slash)
+SLASH_PATH = $(realpath ../../../third/slash)
 endif
 
 ifndef PINK_PATH 
-PINK_PATH = $(realpath ../../third/pink)
+PINK_PATH = $(realpath ../../../third/pink)
 endif
 
 ifndef ZP_PATH
-ZP_PATH = $(realpath ../../third/zeppelin-client)
+ZP_PATH = $(realpath ../../../third/zeppelin-client)
 endif
 
 ifndef HIREDIS_PATH
-HIREDIS_PATH = $(realpath ../../third/hiredis)
+HIREDIS_PATH = $(realpath ../../../third/hiredis)
 endif
 
-SRC_DIR = .
+SRC_DIR = ..
 
 STATIC_LIBS = $(HIREDIS_PATH)/libhiredis.a
 
@@ -37,7 +37,7 @@ LIBS = -lzp \
 			 -lprotobuf \
 			 -lpthread
 
-INCLUDE_PATH = -I. \
+INCLUDE_PATH = -I.. \
 							 -I$(SLASH_PATH) \
 							 -I$(PINK_PATH) \
 							 -I$(ZP_PATH) \
@@ -49,6 +49,7 @@ INCLUDE_PATH = -I. \
 BASE_BOJS += $(wildcard $(SRC_DIR)/*.cc)
 BASE_BOJS += $(wildcard $(SRC_DIR)/*.c)
 BASE_BOJS += $(wildcard $(SRC_DIR)/*.cpp)
+BASE_BOJS += $(wildcard ./*.cc)
 OBJS = $(patsubst %.cc,%.o,$(BASE_BOJS))
 
 SLASH = $(SLASH_PATH)/slash/lib/libslash.a
@@ -80,6 +81,7 @@ $(HIREDIS):
 
 clean: 
 	rm -f $(SRC_DIR)/*.o
+	rm -f ./*.o
 	rm -rf $(OBJECT)
 
 distclean: clean
