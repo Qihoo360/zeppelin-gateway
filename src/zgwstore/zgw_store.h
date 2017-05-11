@@ -46,6 +46,8 @@ class ZgwStore {
   Status AddObject(const Object& object);
   Status GetObject(const std::string& user_name, const std::string& bucket_name,
       const std::string& object_name, Object* object);
+  Status ListObjects(const std::string& user_name, const std::string& bucket_name,
+      std::vector<Object>* objects);
  private:
   bool MaybeHandleRedisError();
   Status HandleIOError(const std::string& func_name);

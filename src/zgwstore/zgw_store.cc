@@ -364,11 +364,11 @@ Status ZgwStore::GetBucket(const std::string& user_name, const std::string& buck
     return HandleIOError("GetBucket::SISMEMBER");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("GetBucket::SISMEMBER ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("GetBucket::SISMEMBER ret: " + std::string(reply->str), reply, false);
   }
   assert(reply->type == REDIS_REPLY_INTEGER);
   if (reply->integer == 0) {
-    return HandleLogicError("Bucket Doesn't Belong To This User", reply, true);
+    return HandleLogicError("Bucket Doesn't Belong To This User", reply, false);
   }
   freeReplyObject(reply);
 /*
@@ -673,11 +673,11 @@ Status ZgwStore::GetObject(const std::string& user_name, const std::string& buck
     return HandleIOError("GetObject::SISMEMBER");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("GetObject::SISMEMBER ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("GetObject::SISMEMBER ret: " + std::string(reply->str), reply, false);
   }
   assert(reply->type == REDIS_REPLY_INTEGER);
   if (reply->integer == 0) {
-    return HandleLogicError("Bucket Doesn't Belong To This User", reply, true);
+    return HandleLogicError("Bucket Doesn't Belong To This User", reply, false);
   }
   freeReplyObject(reply);
 /*
@@ -690,7 +690,7 @@ Status ZgwStore::GetObject(const std::string& user_name, const std::string& buck
     return HandleIOError("GetObject::HGETALL");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("GetObject::HGETALL ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("GetObject::HGETALL ret: " + std::string(reply->str), reply, false);
   }
   assert(reply->type == REDIS_REPLY_ARRAY);
   if (reply->elements == 0) {
@@ -699,6 +699,76 @@ Status ZgwStore::GetObject(const std::string& user_name, const std::string& buck
     return HandleLogicError("GetObject::HGETALL: elements % 2 != 0", reply, false);
   }
   *object = GenObjectFromReply(reply);
+  freeReplyObject(reply);
+
+  return Status::OK();
+}
+
+Status ZgwStore::ListObjects(const std::string& user_name, const std::string& bucket_name,
+    std::vector<Object>* objects) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+/*
+ *  1. SISMEMBER 
+ */
+  redisReply *reply;
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SISMEMBER %s%s %s", kZgwBucketListPrefix.c_str(), user_name.c_str(),
+              bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("ListObjects::SISMEMBER");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("ListObjects::SISMEMBER ret: " + std::string(reply->str), reply, false);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer == 0) {
+    return HandleLogicError("Bucket Doesn't Belong To This User", reply, false);
+  }
+  freeReplyObject(reply);
+/*
+ *  2. Get object list 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SMEMBERS %s%s", kZgwObjectListPrefix.c_str(),
+              bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("ListObjects::SEMBMBERS");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("ListObjects::SMEMBERS ret: " + std::string(reply->str), reply, false);
+  }
+  assert(reply->type == REDIS_REPLY_ARRAY);
+  if (reply->elements == 0) {
+    return Status::OK();
+  }
+/*
+ *  3. Iterate through objects to HGETALL 
+ */
+  redisReply* t_reply;
+  for (unsigned int i = 0; i < reply->elements; i++) {
+    t_reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+                "HGETALL %s%s_%s", kZgwObjectPrefix.c_str(), bucket_name.c_str(),
+               reply->element[i]->str));
+    if (t_reply == NULL) {
+      freeReplyObject(reply);
+      return HandleIOError("ListObjects::HGETALL");
+    }
+    if (t_reply->type == REDIS_REPLY_ERROR) {
+      freeReplyObject(reply);
+      return HandleLogicError("ListObjects::HGETALL ret: " + std::string(t_reply->str), t_reply, false);
+    }
+    assert(t_reply->type == REDIS_REPLY_ARRAY);
+    if (t_reply->elements == 0) {
+      continue;
+    } else if (t_reply->elements % 2 != 0) {
+      freeReplyObject(reply);
+      return HandleLogicError("ListObjects::HGETALL: elements % 2 != 0", t_reply, false);
+    }
+    objects->push_back(GenObjectFromReply(t_reply));
+    freeReplyObject(t_reply);
+  }
   freeReplyObject(reply);
 
   return Status::OK();

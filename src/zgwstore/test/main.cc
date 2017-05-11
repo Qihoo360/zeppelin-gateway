@@ -121,6 +121,24 @@ int main() {
   std::cout << "upload_id: " << obj.upload_id << std::endl;
   std::cout << "data_block: " << obj.data_block << std::endl;
 
+  std::vector<zgwstore::Object> objs;
+  s = store->ListObjects("songzhao", "bucket1", &objs);
+  std::cout << "ListObjects ret: " << s.ToString() << std::endl;
+  for (auto& obj : objs) {
+    std::cout << "-------------------------------" << std::endl;
+    std::cout << "bucket_name: " << obj.bucket_name << std::endl;
+    std::cout << "object_name: " << obj.object_name << std::endl;
+    std::cout << "etag: " << obj.etag << std::endl;
+    std::cout << "size: " << obj.size << std::endl;
+    std::cout << "owner: " << obj.owner << std::endl;
+    std::cout << "etag: " << obj.etag << std::endl;
+    std::cout << "last_modified: " << obj.last_modified << std::endl;
+    std::cout << "storage_class: " << obj.storage_class << std::endl;
+    std::cout << "acl: " << obj.acl << std::endl;
+    std::cout << "upload_id: " << obj.upload_id << std::endl;
+    std::cout << "data_block: " << obj.data_block << std::endl;
+  }
+
   delete store;
   std::cout << "Bye" << std::endl;
 }
