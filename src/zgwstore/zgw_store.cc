@@ -348,6 +348,54 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool override) {
   return s;
 }
 
+Status ZgwStore::GetBucket(const std::string& user_name, const std::string& bucket_name,
+    Bucket* bucket) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+/*
+ *  1. SISMEMBER 
+ */
+  redisReply *reply;
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SISMEMBER %s%s %s", kZgwBucketListPrefix.c_str(), user_name.c_str(),
+              bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("GetBucket::SISMEMBER");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("GetBucket::SISMEMBER ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer == 0) {
+    return HandleLogicError("Bucket Doesn't Belong To This User", reply, true);
+  }
+  freeReplyObject(reply);
+/*
+ *  HGETALL
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_, "HGETALL %s%s",
+        kZgwBucketPrefix.c_str(), bucket_name.c_str()));
+  if (reply == NULL) {
+    freeReplyObject(reply);
+    return HandleIOError("GetBucket::HGETALL");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    freeReplyObject(reply);
+    return HandleLogicError("GetBucket::HGETALL ret: " + std::string(reply->str), reply, false);
+  }
+  assert(reply->type == REDIS_REPLY_ARRAY);
+  if (reply->elements == 0) {
+    return HandleLogicError("Bucket Not Found", reply, true);
+  } else if (reply->elements % 2 != 0) {
+    return HandleLogicError("GetBucket::HGETALL: elements % 2 != 0", reply, false);
+  }
+  *bucket = GenBucketFromReply(reply);
+  freeReplyObject(reply);
+
+  return Status::OK();
+}
+
 Status ZgwStore::ListBuckets(const std::string& user_name, std::vector<Bucket>* buckets) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
@@ -473,7 +521,7 @@ Status ZgwStore::AllocateId(const std::string& user_name, const std::string& buc
     return HandleLogicError("AllocateId::INCRBY ret: " + std::string(reply->str), reply, true);
   }
   assert(reply->type == REDIS_REPLY_INTEGER);
-  *tail_id = reply->integer - 1;
+  *tail_id = reply->integer;
   freeReplyObject(reply);
 /*
  *  6. UnLock 
@@ -647,6 +695,8 @@ Status ZgwStore::GetObject(const std::string& user_name, const std::string& buck
   assert(reply->type == REDIS_REPLY_ARRAY);
   if (reply->elements == 0) {
     return HandleLogicError("Object Not Found", reply, true);
+  } else if (reply->elements % 2 != 0) {
+    return HandleLogicError("GetObject::HGETALL: elements % 2 != 0", reply, false);
   }
   *object = GenObjectFromReply(reply);
   freeReplyObject(reply);

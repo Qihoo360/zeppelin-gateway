@@ -61,6 +61,18 @@ int main() {
   s = store->AddBucket(bucket2);
   std::cout << "AddBucket ret: " << s.ToString() << std::endl;
 
+  zgwstore::Bucket buc;
+  s = store->GetBucket("songzhao", "bucket1", &buc);
+  std::cout << "GetBucket ret: " << s.ToString() << std::endl;
+  std::cout << "-------------------------------" << std::endl;
+  std::cout << "bucket_name: " << buc.bucket_name << std::endl;
+  std::cout << "create_time: " << buc.create_time << std::endl;
+  std::cout << "owner: " << buc.owner << std::endl;
+  std::cout << "acl: " << buc.acl << std::endl;
+  std::cout << "location: " << buc.location << std::endl;
+  std::cout << "volumn: " << buc.volumn << std::endl;
+  std::cout << "uploading_volumn: " << buc.uploading_volumn << std::endl;
+
   std::vector<zgwstore::Bucket> buckets;
   s = store->ListBuckets("songzhao", &buckets);
   std::cout << "ListBuckets ret: " << s.ToString() << std::endl;
@@ -75,7 +87,7 @@ int main() {
     std::cout << "uploading_volumn: " << bucket.uploading_volumn << std::endl;
   }
 
-  int64_t tail_id = -1;
+  uint64_t tail_id = -1;
   s = store->AllocateId("songzhao", "bucket1", "object1", 16, &tail_id);
   std::cout << "AllocateId ret: " << s.ToString() << ", tail_id: " << tail_id << std::endl;
 
