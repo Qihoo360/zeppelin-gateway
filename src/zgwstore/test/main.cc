@@ -88,10 +88,26 @@ int main() {
   object1.last_modified = 123;
   object1.storage_class = 0;
   object1.acl = "acl";
-  object1.upload_id = 1;
+  object1.upload_id = "1";
   object1.data_block = "6-8";
   s = store->AddObject(object1);
   std::cout << "AddObject ret: " << s.ToString() << std::endl;
+
+  zgwstore::Object obj;
+  s = store->GetObject("songzhao", "bucket1", "object1", &obj);
+  std::cout << "GetObject ret: " << s.ToString() << std::endl;
+  std::cout << "-------------------------------" << std::endl;
+  std::cout << "bucket_name: " << obj.bucket_name << std::endl;
+  std::cout << "object_name: " << obj.object_name << std::endl;
+  std::cout << "etag: " << obj.etag << std::endl;
+  std::cout << "size: " << obj.size << std::endl;
+  std::cout << "owner: " << obj.owner << std::endl;
+  std::cout << "etag: " << obj.etag << std::endl;
+  std::cout << "last_modified: " << obj.last_modified << std::endl;
+  std::cout << "storage_class: " << obj.storage_class << std::endl;
+  std::cout << "acl: " << obj.acl << std::endl;
+  std::cout << "upload_id: " << obj.upload_id << std::endl;
+  std::cout << "data_block: " << obj.data_block << std::endl;
 
   delete store;
   std::cout << "Bye" << std::endl;

@@ -42,6 +42,8 @@ class ZgwStore {
   Status AllocateId(const std::string& user_name, const std::string& bucket_name,
       const std::string& object_name, const int32_t block_nums, int64_t* tail_id);
   Status AddObject(const Object& object);
+  Status GetObject(const std::string& user_name, const std::string& bucket_name,
+      const std::string& object_name, Object* object);
  private:
   bool MaybeHandleRedisError();
   Status HandleIOError(const std::string& func_name);
