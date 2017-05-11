@@ -113,6 +113,55 @@ Status ZgwStore::BlockMGet(const std::vector<std::string>& block_ids,
   return zp_cli_->Mget(zp_table_, ids, block_contents);
 }
 
+Status ZgwStore::Lock() {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+
+  redisReply *reply;
+  while (true) {
+    reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+                "SET zgw_lock %s NX PX %lu", lock_name_.c_str(), lock_ttl_));
+    if (reply == NULL) {
+      return HandleIOError("Lock");
+    }
+    if (reply->type == REDIS_REPLY_STATUS && !strcmp(reply->str, "OK")) {
+      freeReplyObject(reply);
+      break;
+    }
+    freeReplyObject(reply);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  }
+  return Status::OK();
+}
+
+Status ZgwStore::UnLock() {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+
+  std::string del_cmd = "if redis.call(\"get\", \"zgw_lock\") == \"" + lock_name_ + "\" "
+                        "then "
+                        "return redis.call(\"del\", \"zgw_lock\") "
+                        "else "
+                        "return 0 "
+                        "end ";
+
+  redisReply *reply;
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "EVAL %s %d", del_cmd.c_str(), 0));
+  if (reply == NULL) {
+    return HandleIOError("UnLock");
+  }
+  if (reply->integer == 1) {
+    // UnLock Success
+  } else if (reply->integer == 0) {
+    // The zgw_lock is held by other clients
+  }
+  freeReplyObject(reply);
+  return Status::OK();
+}
+
 Status ZgwStore::AddUser(const User& user, const bool override) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
@@ -898,55 +947,4 @@ Object ZgwStore::GenObjectFromReply(redisReply* reply) {
   }
   return object;
 }
-
-Status ZgwStore::Lock() {
-  if (!MaybeHandleRedisError()) {
-    return Status::IOError("Reconnect");
-  }
-
-  redisReply *reply;
-  while (true) {
-    reply = static_cast<redisReply*>(redisCommand(redis_cli_,
-                "SET zgw_lock %s NX PX %lu", lock_name_.c_str(), lock_ttl_));
-    if (reply == NULL) {
-      return HandleIOError("Lock");
-    }
-    if (reply->type == REDIS_REPLY_STATUS && !strcmp(reply->str, "OK")) {
-      freeReplyObject(reply);
-      break;
-    }
-    freeReplyObject(reply);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-  }
-  return Status::OK();
 }
-
-Status ZgwStore::UnLock() {
-  if (!MaybeHandleRedisError()) {
-    return Status::IOError("Reconnect");
-  }
-
-  std::string del_cmd = "if redis.call(\"get\", \"zgw_lock\") == \"" + lock_name_ + "\" "
-                        "then "
-                        "return redis.call(\"del\", \"zgw_lock\") "
-                        "else "
-                        "return 0 "
-                        "end ";
-
-  redisReply *reply;
-  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
-              "EVAL %s %d", del_cmd.c_str(), 0));
-  if (reply == NULL) {
-    return HandleIOError("UnLock");
-  }
-  if (reply->integer == 1) {
-    // UnLock Success
-  } else if (reply->integer == 0) {
-    // The zgw_lock is held by other clients
-  }
-  freeReplyObject(reply);
-  return Status::OK();
-}
-
-}
-

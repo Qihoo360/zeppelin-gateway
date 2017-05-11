@@ -33,6 +33,9 @@ class ZgwStore {
   Status BlockMGet(const std::vector<std::string>& block_ids,
       std::map<std::string, std::string>* block_contents);
 
+  Status Lock();
+  Status UnLock();
+
   Status AddUser(const User& user, const bool override = false);
   Status ListUsers(std::vector<User>* users);
 
@@ -57,8 +60,6 @@ class ZgwStore {
   User GenUserFromReply(redisReply* reply);
   Bucket GenBucketFromReply(redisReply* reply);
   Object GenObjectFromReply(redisReply* reply);
-  Status Lock();
-  Status UnLock();
 
   std::string zp_table_;
   libzp::Cluster* zp_cli_;
