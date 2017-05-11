@@ -1,36 +1,14 @@
-#include "src/zgw_s3_bucket.h"
+#include "src/s3_cmds/zgw_s3_bucket.h"
 
 #include "slash/include/slash_hash.h"
-#include "src/zgw_xml.h"
+#include "src/s3_cmds/zgw_s3_xml.h"
+#include "src/zgw_util.h"
 
 bool ListAllBucketsCmd::DoInitial() {
   all_buckets_.clear();
   http_response_xml_.clear();
 
-  switch(s3_auth_.TryAuth()) {
-    case kMaybeAuthV2:
-      http_ret_code_ = 400;
-      GenerateErrorXml(kInvalidRequest, "Please use AWS4-HMAC-SHA256.");
-      return false;
-      break;
-    case kAccessKeyInvalid:
-      http_ret_code_ = 403;
-      GenerateErrorXml(kInvalidAccessKeyId);
-      return false;
-      break;
-    case kSignatureNotMatch:
-      http_ret_code_ = 403;
-      GenerateErrorXml(kSignatureDoesNotMatch);
-      return false;
-      break;
-    case kAuthSuccess:
-    default:
-      break;
-  }
-
-  user_name_.assign(s3_auth_.user_name());
-
-  return true;
+  return TryAuth();
 }
 
 void ListAllBucketsCmd::DoAndResponse(pink::HttpResponse* resp) {
@@ -62,8 +40,8 @@ void ListAllBucketsCmd::GenerateRespXml() {
   S3XmlDoc doc("ListAllMyBucketsResult");
   
   S3XmlNode* user = doc.AllocateNode("Owner");
-  user->AppendNode(doc.AllocateNode("ID", slash::sha256("gaodq")));
-  user->AppendNode(doc.AllocateNode("DisplayName", "gaodq"));
+  user->AppendNode(doc.AllocateNode("ID", slash::sha256(user_name_)));
+  user->AppendNode(doc.AllocateNode("DisplayName", user_name_));
 
   doc.AppendToRoot(user);
 
@@ -71,7 +49,8 @@ void ListAllBucketsCmd::GenerateRespXml() {
   for (auto& b : all_buckets_) {
     S3XmlNode* bucket = doc.AllocateNode("Bucket");
     bucket->AppendNode(doc.AllocateNode("Name", b.bucket_name));
-    bucket->AppendNode(doc.AllocateNode("CreationDate", b.bucket_name));
+    bucket->AppendNode(doc.AllocateNode("CreationDate",
+                                        iso8601_time(b.create_time)));
     buckets->AppendNode(bucket);
   }
   doc.AppendToRoot(buckets);

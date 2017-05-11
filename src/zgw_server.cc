@@ -14,6 +14,7 @@ int MyThreadEnvHandle::SetEnv(void** env) const {
   std::string lock_name = std::string(buf) + std::to_string(g_zgw_conf->server_port);
   Status s = zgwstore::ZgwStore::Open(g_zgw_conf->zp_meta_ip_ports,
                                       g_zgw_conf->redis_ip_port,
+                                      g_zgw_conf->zp_table_name,
                                       lock_name, kZgwRedisLockTTL,
                                       &store);
   if (!s.ok()) {

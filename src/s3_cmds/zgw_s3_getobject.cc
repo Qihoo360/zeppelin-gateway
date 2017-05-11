@@ -1,8 +1,12 @@
-#include "src/zgw_s3_object.h"
+#include "src/s3_cmds/zgw_s3_object.h"
 
 bool GetObjectCmd::DoInitial() {
   block_buf_pos_ = 0;
   block_buffer_.clear();
+
+  if (!TryAuth()) {
+    return false;
+  }
 
   // Get object_ meta
   // Status s = store_->GetObject(bucket_name_, &object_);

@@ -1,5 +1,5 @@
-#ifndef ZGW_XMLBUILDER_H
-#define ZGW_XMLBUILDER_H
+#ifndef ZGW_S3_XMLH
+#define ZGW_S3_XMLH
 
 #include <string>
 

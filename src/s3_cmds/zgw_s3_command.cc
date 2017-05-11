@@ -1,10 +1,10 @@
-#include "src/zgw_command.h"
+#include "src/s3_cmds/zgw_s3_command.h"
 
 #include <map>
 
-#include "src/zgw_s3_object.h"
-#include "src/zgw_s3_bucket.h"
-#include "src/zgw_xml.h"
+#include "src/s3_cmds/zgw_s3_object.h"
+#include "src/s3_cmds/zgw_s3_bucket.h"
+#include "src/s3_cmds/zgw_s3_xml.h"
 
 std::map<S3Commands, S3Cmd*> g_cmd_table;
 
@@ -31,7 +31,7 @@ class UnImplementCmd : public S3Cmd {
 void InitCmdTable() {
   g_cmd_table.insert(std::make_pair(kListAllBuckets, new ListAllBucketsCmd()));
   // g_cmd_table.insert(std::make_pair(kDeleteBucket, new DeleteBucketCmd()));
-  // g_cmd_table.insert(std::make_pair(kListObjects, new ListObjectsCmd()));
+  g_cmd_table.insert(std::make_pair(kListObjects, new ListObjectsCmd()));
   // g_cmd_table.insert(std::make_pair(kGetBucketLocation, new GetBucketLocation()));
   // g_cmd_table.insert(std::make_pair(kHeadBucket, new HeadBucketCmd()));
   // g_cmd_table.insert(std::make_pair(kListMultiPartUpload, new ListMultiPartUploadCmd()));
@@ -56,6 +56,33 @@ void DestroyCmdTable() {
   for (auto& cmd : g_cmd_table) {
     delete cmd.second;
   }
+}
+
+bool S3Cmd::TryAuth() {
+  switch(s3_auth_.TryAuth()) {
+    case kMaybeAuthV2:
+      http_ret_code_ = 400;
+      GenerateErrorXml(kInvalidRequest, "Please use AWS4-HMAC-SHA256.");
+      return false;
+      break;
+    case kAccessKeyInvalid:
+      http_ret_code_ = 403;
+      GenerateErrorXml(kInvalidAccessKeyId);
+      return false;
+      break;
+    case kSignatureNotMatch:
+      http_ret_code_ = 403;
+      GenerateErrorXml(kSignatureDoesNotMatch);
+      return false;
+      break;
+    case kAuthSuccess:
+    default:
+      break;
+  }
+
+  user_name_.assign(s3_auth_.user_name());
+
+  return true;
 }
 
 void S3Cmd::Clear() {

@@ -1,4 +1,4 @@
-#include "src/zgw_s3_authv4.h"
+#include "src/s3_cmds/zgw_s3_authv4.h"
 
 #include <cctype>
 #include <utility>

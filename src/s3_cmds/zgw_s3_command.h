@@ -1,12 +1,10 @@
-#ifndef ZGW_COMMAND_H
-#define ZGW_COMMAND_H
+#ifndef ZGW_S3_COMMAND_H
+#define ZGW_S3_COMMAND_H
 
 #include "pink/include/http_conn.h"
 
 #include "src/zgwstore/zgw_store.h"
-#include "src/zgw_s3_authv4.h"
-
-static const size_t kZgwBlockSize = 4194304; // 4MB
+#include "src/s3_cmds/zgw_s3_authv4.h"
 
 extern void InitCmdTable();
 extern void DestroyCmdTable();
@@ -94,6 +92,7 @@ class S3Cmd {
   }
 
  protected:
+  bool TryAuth();
   virtual void GenerateRespXml() {}
   void GenerateErrorXml(S3ErrorType type, const std::string& message = "");
 

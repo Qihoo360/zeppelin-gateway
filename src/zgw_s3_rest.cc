@@ -1,5 +1,6 @@
 #include "src/zgw_s3_rest.h"
 
+#include <glog/logging.h>
 #include "src/zgwstore/zgw_store.h"
 #include "src/zgw_util.h"
 
@@ -13,6 +14,8 @@ bool ZgwHttpHandles::ReqHeadersHandle(const pink::HttpRequest* req) {
   }
 
   if (req->headers_.count("expect")) {
+    Timer t("Send 100-continue -");
+    LOG(INFO) << "Expect 100-continue";
     need_100_continue_ = true;
     // Need reply right now
     return true;

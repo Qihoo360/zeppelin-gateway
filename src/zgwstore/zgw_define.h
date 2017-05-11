@@ -18,6 +18,8 @@ const std::string kZgwObjectListPrefix = "_ZOL_";
 const std::string kZgwObjectPrefix = "_ZO_";
 const std::string kZgwTempObjectNamePrefix = "_@_";
 
+const size_t kZgwBlockSize = 1048576; // 1MB
+
 struct User {
   std::string user_id;
   std::string display_name;

@@ -1,34 +1,15 @@
-#include "src/zgw_s3_bucket.h"
+#include "src/s3_cmds/zgw_s3_bucket.h"
 
 #include "slash/include/env.h"
-#include "src/zgw_xml.h"
+#include "src/s3_cmds/zgw_s3_xml.h"
 
 bool PutBucketCmd::DoInitial() {
   http_request_xml_.clear();
   http_response_xml_.clear(); 
 
-  switch(s3_auth_.TryAuth()) {
-    case kMaybeAuthV2:
-      http_ret_code_ = 400;
-      GenerateErrorXml(kInvalidRequest, "Please use AWS4-HMAC-SHA256.");
-      return false;
-      break;
-    case kAccessKeyInvalid:
-      http_ret_code_ = 403;
-      GenerateErrorXml(kInvalidAccessKeyId);
-      return false;
-      break;
-    case kSignatureNotMatch:
-      http_ret_code_ = 403;
-      GenerateErrorXml(kSignatureDoesNotMatch);
-      return false;
-      break;
-    case kAuthSuccess:
-    default:
-      break;
+  if (!TryAuth()) {
+    return false;
   }
-
-  user_name_.assign(s3_auth_.user_name());
 
   // Initial new_bucket 
   new_bucket_.bucket_name = bucket_name_;

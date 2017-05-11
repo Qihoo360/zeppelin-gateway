@@ -5,8 +5,11 @@
 #include "slash/include/slash_string.h"
 #include "src/zgw_const.h"
 
+static const std::string kZgwTableName = "__zgw20_data_table";
+
 ZgwConfig::ZgwConfig(std::string path)
       : server_ip("0.0.0.0"),
+        zp_table_name(kZgwTableName),
         server_port(8099),
         admin_port(8199),
         daemonize(false),
@@ -31,6 +34,7 @@ int ZgwConfig::LoadConf() {
   b_conf->GetConfStr("redis_ip_port", &redis_ip_port);
   b_conf->GetConfStr("server_ip", &server_ip);
   b_conf->GetConfInt("server_port", &server_port);
+  b_conf->GetConfStr("zp_table_name", &zp_table_name);
   b_conf->GetConfInt("admin_port", &admin_port);
   b_conf->GetConfBool("daemonize", &daemonize);
   b_conf->GetConfInt("minloglevel", &minloglevel);
