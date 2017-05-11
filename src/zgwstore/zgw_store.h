@@ -40,7 +40,7 @@ class ZgwStore {
   Status ListBuckets(const std::string& user_name, std::vector<Bucket>* buckets);
 
   Status AllocateId(const std::string& user_name, const std::string& bucket_name,
-      const std::string& object_name, const int32_t block_nums, int64_t* tail_id);
+      const std::string& object_name, const int32_t block_nums, uint64_t* tail_id);
   Status AddObject(const Object& object);
   Status GetObject(const std::string& user_name, const std::string& bucket_name,
       const std::string& object_name, Object* object);

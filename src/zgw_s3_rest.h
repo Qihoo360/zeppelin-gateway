@@ -1,6 +1,6 @@
 #include "pink/include/http_conn.h"
 
-#include "src/zgw_command.h"
+#include "src/s3_cmds/zgw_s3_command.h"
 
 class ZgwHttpHandles : public pink::HttpHandles {
  public:

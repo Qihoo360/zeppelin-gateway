@@ -7,32 +7,16 @@ else
 endif
 OBJECT = zgw_server
 
-ifndef SLASH_PATH
 SLASH_PATH = $(realpath ./third/slash)
-endif
-
-ifndef PINK_PATH 
 PINK_PATH = $(realpath ./third/pink)
-endif
-
-ifndef ZP_PATH
 ZP_PATH = $(realpath ./third/zeppelin-client)
-endif
-
-ifndef GLOG_PATH
 GLOG_PATH = $(realpath ./third/glog)
-endif
-
-ifndef HIREDIS_PATH
 HIREDIS_PATH = $(realpath ./third/hiredis)
-endif
-
-ifndef RAPID_XML_PATH
 RAPID_XML_PATH = $(realpath ./third/rapidxml)
-endif
 
 SRC_DIR = ./src
 ZGWSTORE_DIR = ./src/zgwstore
+S3CMDS_DIR = ./src/s3_cmds
 OUTPUT = ./output
 VERSION = -D_GITVER_=$(shell git rev-list HEAD | head -n1) \
 					-D_COMPILEDATE_=$(shell date +%F)
@@ -62,6 +46,7 @@ INCLUDE_PATH = -I. \
 
 
 BASE_BOJS := $(wildcard $(ZGWSTORE_DIR)/*.cc)
+BASE_BOJS += $(wildcard $(S3CMDS_DIR)/*.cc)
 BASE_BOJS += $(wildcard $(SRC_DIR)/*.cc)
 BASE_BOJS += $(wildcard $(SRC_DIR)/*.c)
 BASE_BOJS += $(wildcard $(SRC_DIR)/*.cpp)
@@ -113,6 +98,7 @@ clean:
 	rm -rf $(OUTPUT)
 	rm -f $(SRC_DIR)/*.o
 	rm -f $(ZGWSTORE_DIR)/*.o
+	rm -f $(S3CMDS_DIR)/*.o
 	rm -rf $(OBJECT)
 
 distclean: clean

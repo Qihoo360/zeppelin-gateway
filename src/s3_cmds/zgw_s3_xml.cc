@@ -1,4 +1,4 @@
-#include "src/zgw_xml.h"
+#include "src/s3_cmds/zgw_s3_xml.h"
 
 #include <exception>
 #include <memory>

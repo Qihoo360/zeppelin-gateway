@@ -2,8 +2,6 @@
 
 #include <sys/time.h>
 
-#include <openssl/md5.h>
-
 void SplitBySecondSlash(const std::string& req_path,
                         std::string* field1,
                         std::string* field2) {
@@ -29,24 +27,27 @@ void SplitBySecondSlash(const std::string& req_path,
   }
 }
 
-std::string http_nowtime(time_t t) {
-  char buf[100] = {0};
+std::string http_nowtime(uint64_t nowmicros) {
+  time_t t = static_cast<time_t>(nowmicros * 1e-6);
+  char buf[100];
   struct tm t_ = *gmtime(&t);
   strftime(buf, sizeof buf, "%a, %d %b %Y %H:%M:%S %Z", &t_);
   return std::string(buf);
 }
 
-std::string md5(const std::string& content) {
-  MD5_CTX md5_ctx;
-  char buf[33] = {0};
-  unsigned char md5[16] = {0};
-  MD5_Init(&md5_ctx);
-  MD5_Update(&md5_ctx, content.c_str(), content.size());
-  MD5_Final(md5, &md5_ctx);
-  for (int i = 0; i < 16; i++) {
-    sprintf(buf + i * 2, "%02x", md5[i]);
-  }
+std::string iso8601_time(uint64_t nowmicros) {
+  int milli = nowmicros % 1000;
+  time_t sec = static_cast<time_t>(nowmicros * 1e-6);
+  char buf[128] = {0};
+  strftime(buf, sizeof buf, "%FT%T", gmtime(&sec));
+  sprintf(buf, "%s.%03dZ", buf, milli);
   return std::string(buf);
+}
+
+std::string md5(const std::string& content) {
+  MD5Ctx md5_ctx;
+  md5_ctx.Update(content);
+  return md5_ctx.ToString();
 }
 
 static inline void char2hex(unsigned char c, unsigned char &hex1, unsigned char &hex2) {
