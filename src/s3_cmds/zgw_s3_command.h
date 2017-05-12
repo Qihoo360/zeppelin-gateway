@@ -106,7 +106,6 @@ class S3Cmd {
 
  protected:
   bool TryAuth();
-  virtual void GenerateRespXml() {}
   void GenerateErrorXml(S3ErrorType type, const std::string& message = "");
 
   // These parameters have been filled

@@ -8,8 +8,8 @@
 class ZgwHttpHandles : public pink::HttpHandles {
  public:
   ZgwHttpHandles()
-      : need_100_continue_(false),
-        cmd_(nullptr) {
+      : cmd_(nullptr),
+        need_100_continue_(false) {
     cmd_table_ = new S3CmdTable;
     InitCmdTable(cmd_table_);
   }

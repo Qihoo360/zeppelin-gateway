@@ -32,9 +32,22 @@ class ListObjectsCmd : public S3Cmd {
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
+  // Common
+  std::string delimiter_;
+  std::string prefix_;
+  int max_keys_;
+  // list version2
+  bool list_typeV2_;
+  bool fetch_owner_;
+  std::string continuation_token_;
+  std::string start_after_;
+  // list version1
+  std::string marker_;
+
+  bool Sanitize(std::string* invalid_param);
   void GenerateRespXml();
 
-  std::vector<zgwstore::Object> all_objects_;
+  std::vector<zgwstore::Object> candidate_objects_;
 };
 
 class ListMultiPartUploadCmd : public S3Cmd {

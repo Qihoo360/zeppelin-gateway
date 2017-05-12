@@ -288,7 +288,7 @@ void S3AuthV4::Rep::CreateCanonicalRequest(const pink::HttpRequest *req) {
     if (q.first.compare("X-Amz-Signature") == 0) {
       continue;
     }
-    canonical_request_.append(UrlEncode(q.first, true) + "=" + UrlEncode(q.second, true) + "&");
+    canonical_request_.append(UrlEncode(UrlDecode(q.first), true) + "=" + UrlEncode(UrlDecode(q.second), true) + "&");
   }
   if (!canonical_request_.empty() && canonical_request_.back() == '&') {
     canonical_request_.pop_back(); // delete last '&'

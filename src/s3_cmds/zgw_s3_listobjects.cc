@@ -5,19 +5,28 @@
 #include "src/zgw_utils.h"
 
 bool ListObjectsCmd::DoInitial() {
-  all_objects_.clear();
+  candidate_objects_.clear();
   http_response_xml_.clear();
+
+  std::string invalid_param;
+  list_typeV2_ = query_params_.count("list-type");
+  if (!Sanitize(&invalid_param)) {
+    http_ret_code_ = 400;
+    GenerateErrorXml(kInvalidArgument, invalid_param);
+    return false;
+  }
 
   return TryAuth();
 }
 
 void ListObjectsCmd::DoAndResponse(pink::HttpResponse* resp) {
   if (http_ret_code_ == 200) {
-    Status s = store_->ListObjects(user_name_, bucket_name_, &all_objects_);
+    Status s = store_->ListObjects(user_name_, bucket_name_, &candidate_objects_);
     if (s.ok()) {
-      // Build response XML using all_objects_
+      // Build response XML using candidate_objects_
       GenerateRespXml();
-    } else if (s.IsNotFound()) {
+    } else if (s.ToString().find("Bucket Doesn't Belong To This User") !=
+               std::string::npos) {
       http_ret_code_ = 404;
       GenerateErrorXml(kNoSuchBucket, bucket_name_);
     } else {
@@ -39,24 +48,218 @@ int ListObjectsCmd::DoResponseBody(char* buf, size_t max_size) {
   return std::min(max_size, http_response_xml_.size());
 }
 
+struct ObjectComparator {
+  bool operator()(const zgwstore::Object& a, const zgwstore::Object& b) {
+    return a.object_name < b.object_name;
+  }
+};
+
 void ListObjectsCmd::GenerateRespXml() {
+  // Select objects according to request params
+  std::set<zgwstore::Object, ObjectComparator> all_objects(
+      candidate_objects_.begin(),
+      candidate_objects_.end());
+
+  candidate_objects_.clear();
+  std::set<std::string> commonprefixes;
+
+  for (auto& object : all_objects) {
+    std::string name = object.object_name;
+    if (!prefix_.empty() &&
+        name.substr(0, std::min(name.size(), prefix_.size())) != prefix_) {
+      // Skip prefix
+      continue;
+    }
+    if (!continuation_token_.empty() && list_typeV2_ &&
+        name.substr(0, std::min(name.size(), continuation_token_.size())) <
+        continuation_token_) {
+      // Skip to continuation_token
+      continue;
+    }
+    if (!start_after_.empty() && list_typeV2_ &&
+        name.substr(0, std::min(name.size(), start_after_.size())) <
+        start_after_) {
+      // Skip start after v2
+      continue;
+    }
+    if (!marker_.empty() && !list_typeV2_ &&
+        name.substr(0, std::min(name.size(), marker_.size())) <=
+        marker_) {
+      // Skip marker v1
+      continue;
+    }
+    if (!delimiter_.empty()) {
+      size_t pos = name.find_first_of(delimiter_, prefix_.size());
+      if (pos != std::string::npos) {
+        // Avoid duplicate
+        commonprefixes.insert(name.substr(0, std::min(name.size(), pos + 1)));
+        continue;
+      }
+    }
+
+    candidate_objects_.push_back(object);
+  }
+
+  int diff = candidate_objects_.size() + commonprefixes.size() - max_keys_;
+  bool is_trucated = diff > 0;
+
+  std::string next_token;
+  if (is_trucated) {
+    size_t extra_num = diff;
+    if (commonprefixes.size() >= extra_num) {
+      for (auto it = commonprefixes.rbegin();
+           it != commonprefixes.rend() && extra_num--;) {
+        next_token = *(it++);
+        commonprefixes.erase(next_token);
+      }
+    } else {
+      // extra_num > commonprefixes.size()
+      extra_num -= commonprefixes.size();
+      commonprefixes.clear();
+      if (candidate_objects_.size() <= extra_num) {
+        candidate_objects_.clear();
+      } else {
+        while (extra_num--) {
+          next_token = candidate_objects_.back().object_name;
+          candidate_objects_.pop_back();
+        }
+      }
+    }
+  }
+  // Is not trucated if max keys equal zero
+  is_trucated = is_trucated && max_keys_ > 0;
+  std::string next_marker;
+  if (is_trucated &&
+      !delimiter_.empty()) {
+    if (!commonprefixes.empty()) {
+      next_marker = *commonprefixes.rbegin();
+    } else if (!candidate_objects_.empty()) {
+      next_marker = candidate_objects_.back().object_name;
+    }
+  }
+
+  if (!is_trucated) {
+    next_token.clear();
+  }
+  size_t key_count = candidate_objects_.size() + commonprefixes.size();
+
+  // Build response XML
   S3XmlDoc doc("ListBucketResult");
   
-  S3XmlNode* user = doc.AllocateNode("Owner");
-  user->AppendNode(doc.AllocateNode("ID", slash::sha256(user_name_)));
-  user->AppendNode(doc.AllocateNode("DisplayName", user_name_));
-
-  doc.AppendToRoot(user);
-
-  S3XmlNode* buckets = doc.AllocateNode("Objects");
-  for (auto& o : all_objects_) {
-    S3XmlNode* bucket = doc.AllocateNode("Bucket");
-    bucket->AppendNode(doc.AllocateNode("Name", o.object_name));
-    bucket->AppendNode(doc.AllocateNode("CreationDate",
-                                        iso8601_time(o.last_modified)));
-    buckets->AppendNode(bucket);
+  doc.AppendToRoot(doc.AllocateNode("Name", bucket_name_));
+  doc.AppendToRoot(doc.AllocateNode("Prefix", prefix_));
+  doc.AppendToRoot(doc.AllocateNode("MaxKeys", std::to_string(max_keys_)));
+  if (!delimiter_.empty()) {
+    doc.AppendToRoot(doc.AllocateNode("Delimiter", delimiter_));
   }
-  doc.AppendToRoot(buckets);
+  if (list_typeV2_) {
+    if (!continuation_token_.empty()) {
+      doc.AppendToRoot(doc.AllocateNode("ContinuationToken", continuation_token_));
+    }
+    if (!next_token.empty()) {
+      doc.AppendToRoot(doc.AllocateNode("NextContinuationToken", next_token));
+    }
+    if (!start_after_.empty()) {
+      doc.AppendToRoot(doc.AllocateNode("StartAfter", start_after_));
+    }
+    doc.AppendToRoot(doc.AllocateNode("KeyCount", std::to_string(key_count)));
+  } else {
+    if (!marker_.empty()) {
+      doc.AppendToRoot(doc.AllocateNode("Marker", marker_));
+    }
+    if (is_trucated) {
+      doc.AppendToRoot(doc.AllocateNode("NextMarker", next_marker));
+    }
+  }
+  doc.AppendToRoot(doc.AllocateNode("IsTruncated",
+                                    is_trucated ? "true" : "false"));
+
+  for (auto& o : candidate_objects_) {
+    S3XmlNode* contents = doc.AllocateNode("Contents");
+    contents->AppendNode(doc.AllocateNode("Key", o.object_name));
+    contents->AppendNode(doc.AllocateNode("LastModified",
+                                          iso8601_time(o.last_modified)));
+    contents->AppendNode(doc.AllocateNode("ETag",
+                                          std::string("\"" + o.etag + "\"")));
+    contents->AppendNode(doc.AllocateNode("Size", std::to_string(o.size)));
+    contents->AppendNode(doc.AllocateNode("StorageClass", "STANDARD"));
+    if (!list_typeV2_ || (list_typeV2_ && fetch_owner_)) {
+      S3XmlNode* owner = doc.AllocateNode("Owner");
+      owner->AppendNode(doc.AllocateNode("ID", slash::sha256(o.owner)));
+      owner->AppendNode(doc.AllocateNode("DisplayName", o.owner));
+      contents->AppendNode(owner);
+    }
+    doc.AppendToRoot(contents);
+  }
+  for (auto& p : commonprefixes) {
+    S3XmlNode* comprefixes = doc.AllocateNode("CommonPrefixes");
+    comprefixes->AppendNode(doc.AllocateNode("Prefix", p));
+    doc.AppendToRoot(comprefixes);
+  }
 
   doc.ToString(&http_response_xml_);
+}
+
+bool ListObjectsCmd::Sanitize(std::string* invalid_param) {
+  delimiter_.clear();
+  max_keys_ = 1000;
+  prefix_.clear();
+
+  marker_.clear();
+
+  fetch_owner_ = false;
+  continuation_token_.clear();
+  start_after_.clear();
+
+  if (query_params_.count("delimiter")) {
+    delimiter_ = query_params_.at("delimiter");
+    if (delimiter_.size() != 1) {
+      invalid_param->assign("delimiter");
+      return false;
+    }
+  }
+  if (query_params_.count("prefix")) {
+    prefix_ = query_params_.at("prefix");
+  }
+  if (query_params_.count("max-keys")) {
+    std::string max_keys = query_params_.at("max-keys");
+    max_keys_ = std::atoi(max_keys.c_str());
+    if (max_keys_ < 0 ||
+        max_keys_ > 1000 ||
+        max_keys.empty() ||
+        !isdigit(max_keys.at(0))) {
+      invalid_param->assign("max-keys");
+      return false;
+    }
+  }
+
+  if (list_typeV2_) {
+    if (query_params_.at("list-type") != "2") {
+      invalid_param->assign("list-type");
+      return false;
+    }
+    if (query_params_.count("fetch-owner")) {
+      std::string fetch_owner = query_params_.at("fetch-owner");
+      if (fetch_owner == "true") {
+        fetch_owner_ = true;
+      } else if (fetch_owner == "false") {
+        fetch_owner_ = false;
+      } else {
+        invalid_param->assign("fetch-owner");
+        return false;
+      }
+    }
+    if (query_params_.count("continuation-token")) {
+      continuation_token_ = query_params_.at("continuation-token");
+    }
+    if (query_params_.count("start-after")) {
+      start_after_ = query_params_.at("start-after");
+    }
+  } else {
+    if (query_params_.count("marker")) {
+      marker_ = query_params_.at("marker");
+    }
+  }
+
+  return true;
 }
