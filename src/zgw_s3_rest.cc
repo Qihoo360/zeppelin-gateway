@@ -3,7 +3,7 @@
 #include <glog/logging.h>
 #include "src/zgwstore/zgw_store.h"
 #include "src/s3_cmds/zgw_s3_command.h"
-#include "src/zgw_util.h"
+#include "src/zgw_utils.h"
 #include "src/zgw_server.h"
 
 bool ZgwHttpHandles::ReqHeadersHandle(const pink::HttpRequest* req) {

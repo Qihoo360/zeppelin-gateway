@@ -26,7 +26,7 @@ class S3XmlNode {
 
 class S3XmlDoc {
  public:
-  S3XmlDoc(const std::string& root_node);
+  S3XmlDoc(const std::string& root_node, const std::string& value = "");
   S3XmlDoc();
   ~S3XmlDoc();
 

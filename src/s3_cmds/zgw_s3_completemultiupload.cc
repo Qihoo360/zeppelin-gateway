@@ -1,6 +1,6 @@
 #include "src/s3_cmds/zgw_s3_object.h"
 
-#include "src/zgw_util.h"
+#include "src/zgw_utils.h"
 
 bool CompleteMultiUploadCmd::DoInitial() {
   http_response_xml_.clear();

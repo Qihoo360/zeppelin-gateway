@@ -81,30 +81,33 @@ static const std::string xml_header = "xml version='1.0' encoding='utf-8'";
 static const std::string xml_ns = "http://s3.amazonaws.com/doc/2006-03-01/";
 
 struct S3XmlDoc::Rep {
-  Rep(const std::string& root_node)
-      : rnode_str_(root_node) {
+  Rep(const std::string& root_node, const std::string& value)
+      : rnode_str_(root_node),
+        rnode_value_(value) {
     xml_node<> *rot =
       doc_.allocate_node(node_pi, doc_.allocate_string(xml_header.c_str()));
     doc_.append_node(rot);
 
-    rnode_ = doc_.allocate_node(node_element, rnode_str_.c_str());
+    rnode_ = doc_.allocate_node(node_element, rnode_str_.c_str(),
+                                rnode_value_.c_str());
     xml_attribute<> *attr = doc_.allocate_attribute("xmlns", xml_ns.c_str());
     rnode_->append_attribute(attr);
     doc_.append_node(rnode_);
   }
 
   std::string rnode_str_;
+  std::string rnode_value_;
   xml_node<>* rnode_;
   xml_document<> doc_;
   std::vector<std::unique_ptr<S3XmlNode>> sub_nodes_;
 };
 
-S3XmlDoc::S3XmlDoc(const std::string& root_node) {
-  rep_ = new Rep(root_node);
+S3XmlDoc::S3XmlDoc(const std::string& root_node, const std::string& value) {
+  rep_ = new Rep(root_node, value);
 }
 
 S3XmlDoc::S3XmlDoc() {
-  rep_ = new Rep("");
+  rep_ = new Rep("", "");
 }
 
 S3XmlDoc::~S3XmlDoc() {

@@ -96,11 +96,26 @@ class HeadBucketCmd : public S3Cmd {
   HeadBucketCmd() {}
 
   virtual bool DoInitial() override;
-  virtual void DoReceiveBody(const char* data, size_t data_size) override;
+  virtual void DoReceiveBody(const char* data, size_t data_size) override {}
   virtual void DoAndResponse(pink::HttpResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
+  zgwstore::Bucket bucket_;
+};
+
+class GetBucketLocationCmd : public S3Cmd {
+
+ public:
+  GetBucketLocationCmd() {}
+
+  virtual bool DoInitial() override;
+  virtual void DoReceiveBody(const char* data, size_t data_size) override {}
+  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual int DoResponseBody(char* buf, size_t max_size) override;
+
+ private:
+  void GenerateRespXml();
   zgwstore::Bucket bucket_;
 };
 

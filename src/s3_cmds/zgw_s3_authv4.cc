@@ -10,7 +10,7 @@
 #include "slash/include/slash_hash.h"
 #include "slash/include/env.h"
 #include "slash/include/slash_status.h"
-#include "src/zgw_util.h"
+#include "src/zgw_utils.h"
 
 static std::string HMAC_SHA256(const std::string key, const std::string value, bool raw = true);
 

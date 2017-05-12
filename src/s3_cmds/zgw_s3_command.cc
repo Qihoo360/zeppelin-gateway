@@ -28,7 +28,7 @@ void InitCmdTable(S3CmdTable* cmd_table) {
   cmd_table->insert(std::make_pair(kListAllBuckets, new ListAllBucketsCmd()));
   cmd_table->insert(std::make_pair(kDeleteBucket, new DeleteBucketCmd()));
   cmd_table->insert(std::make_pair(kListObjects, new ListObjectsCmd()));
-  cmd_table->insert(std::make_pair(kGetBucketLocation, new HeadBucketCmd()));
+  cmd_table->insert(std::make_pair(kGetBucketLocation, new GetBucketLocationCmd()));
   cmd_table->insert(std::make_pair(kHeadBucket, new HeadBucketCmd()));
   cmd_table->insert(std::make_pair(kListMultiPartUpload, new ListMultiPartUploadCmd()));
   cmd_table->insert(std::make_pair(kPutBucket, new PutBucketCmd()));

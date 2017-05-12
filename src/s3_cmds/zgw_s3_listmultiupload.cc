@@ -2,7 +2,7 @@
 
 #include "slash/include/slash_hash.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
-#include "src/zgw_util.h"
+#include "src/zgw_utils.h"
 
 bool ListMultiPartUploadCmd::DoInitial() {
   all_objects_.clear();

@@ -6,6 +6,7 @@
 #include "pink/include/http_conn.h"
 #include "src/zgwstore/zgw_store.h"
 #include "src/s3_cmds/zgw_s3_authv4.h"
+#include "src/zgw_utils.h"
 
 enum S3Commands {
   kListAllBuckets = 0,
@@ -67,11 +68,16 @@ class S3Cmd {
   }
   virtual ~S3Cmd() {}
 
+  // Step 1.
   void Clear();
+  // Step 2.
   virtual bool DoInitial() = 0;
+  // Step 3.
   virtual void DoReceiveBody(const char* data, size_t data_size) {
   };
+  // Step 4.
   virtual void DoAndResponse(pink::HttpResponse* resp) = 0;
+  // Step 5.
   virtual int DoResponseBody(char* buf, size_t max_size) {
     return 0;
   };
@@ -80,13 +86,15 @@ class S3Cmd {
     req_headers_ = req_headers;
   }
   void SetQueryParams(const std::map<std::string, std::string>& query_params) {
-    query_params_ = query_params;
+    for (auto& item : query_params) {
+      query_params_.insert(std::make_pair(item.first, UrlDecode(item.second)));
+    }
   }
   void SetBucketName(const std::string& bucket_name) {
-    bucket_name_ = bucket_name;
+    bucket_name_ = UrlDecode(bucket_name);
   }
   void SetObjectName(const std::string& object_name) {
-    object_name_ = object_name;
+    object_name_ = UrlDecode(object_name);
   }
   void SetStorePtr(zgwstore::ZgwStore* store) {
     store_ = store;

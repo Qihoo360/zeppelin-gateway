@@ -2,7 +2,7 @@
 
 #include "slash/include/slash_hash.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
-#include "src/zgw_util.h"
+#include "src/zgw_utils.h"
 
 bool ListObjectsCmd::DoInitial() {
   all_objects_.clear();
@@ -13,8 +13,7 @@ bool ListObjectsCmd::DoInitial() {
 
 void ListObjectsCmd::DoAndResponse(pink::HttpResponse* resp) {
   if (http_ret_code_ == 200) {
-    // Status s = store_->ListObjects(user_name_, &all_objects_);
-    Status s;
+    Status s = store_->ListObjects(user_name_, bucket_name_, &all_objects_);
     if (s.ok()) {
       // Build response XML using all_objects_
       GenerateRespXml();
