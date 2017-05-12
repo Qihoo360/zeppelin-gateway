@@ -1,3 +1,6 @@
+#ifndef ZGW_S3_REST_H
+#define ZGW_S3_REST_H
+
 #include "pink/include/http_conn.h"
 
 #include "src/s3_cmds/zgw_s3_command.h"
@@ -7,8 +10,13 @@ class ZgwHttpHandles : public pink::HttpHandles {
   ZgwHttpHandles()
       : need_100_continue_(false),
         cmd_(nullptr) {
+    cmd_table_ = new S3CmdTable;
+    InitCmdTable(cmd_table_);
   }
-  ~ZgwHttpHandles() {}
+  ~ZgwHttpHandles() {
+    DestroyCmdTable(cmd_table_);
+    delete cmd_table_;
+  }
 
   virtual bool ReqHeadersHandle(const pink::HttpRequest* req) override;
   virtual void ReqBodyPartHandle(const char* data, size_t data_size) override;
@@ -16,10 +24,11 @@ class ZgwHttpHandles : public pink::HttpHandles {
   virtual int RespBodyPartHandle(char* buf, size_t max_size) override;
 
  private:
+  S3CmdTable* cmd_table_;
+  S3Cmd* cmd_;
   S3Cmd* SelectS3Cmd(const pink::HttpRequest* req);
 
   bool need_100_continue_;
-  S3Cmd* cmd_;
 };
 
 static ZgwHttpHandles zgw_handles;
@@ -30,6 +39,10 @@ class ZgwConnFactory : public pink::ConnFactory {
   virtual pink::PinkConn* NewPinkConn(int connfd,
                                       const std::string& ip_port,
                                       pink::Thread* thread) const {
-    return new pink::HttpConn(connfd, ip_port, thread, &zgw_handles);
+    // Deleted in HttpConn's deconstructor
+    ZgwHttpHandles* zgw_handles = new ZgwHttpHandles();
+    return new pink::HttpConn(connfd, ip_port, thread, zgw_handles);
   }
 };
+
+#endif

@@ -1,5 +1,6 @@
 #include "src/s3_cmds/zgw_s3_object.h"
 
+#include <glog/logging.h>
 #include "slash/include/env.h"
 #include "src/zgwstore/zgw_define.h"
 
@@ -23,24 +24,24 @@ bool PutObjectCmd::DoInitial() {
   new_object_.size = data_size;
   new_object_.owner = user_name_;
   new_object_.last_modified = 0; // Postpone
+  new_object_.storage_class = 0; // Unused
   new_object_.acl = "FULL_CONTROL";
   new_object_.upload_id = "_"; // Doesn't need
   new_object_.data_block = ""; // Postpone
 
-    std::string data_blocks;
+  std::string data_blocks;
   Status s = store_->AllocateId(user_name_, bucket_name_, object_name_,
                                 block_count_, &block_end_);
   if (s.ok()) {
-    block_start_ = block_end_ + 1 - block_count_;
+    block_start_ = block_end_ - block_count_;
     http_ret_code_ = 200;
     char buf[100];
-    sprintf(buf, "%lu-%lu(0,%lu)", block_start_, block_end_, data_size);
+    sprintf(buf, "%lu-%lu(0,%lu)", block_start_, block_end_ - 1, data_size);
     new_object_.data_block = std::string(buf);
   } else if (s.ToString().find("Bucket NOT Exists") != std::string::npos) {
     http_ret_code_ = 404;
     GenerateErrorXml(kNoSuchBucket, bucket_name_);
     return false;
-    // Set xml response
   } else {
     http_ret_code_ = 500;
     return false;
@@ -51,9 +52,7 @@ bool PutObjectCmd::DoInitial() {
 
 void PutObjectCmd::DoReceiveBody(const char* data, size_t data_size) {
   Timer t("PutObjectCmd: DoReceiveBody -");
-  if (http_ret_code_ != 200 ||
-      block_start_ > block_end_) {
-    // LOG WARNNING
+  if (http_ret_code_ != 200) {
     return;
   }
 
@@ -61,11 +60,16 @@ void PutObjectCmd::DoReceiveBody(const char* data, size_t data_size) {
   size_t remain_size = data_size;
 
   while (remain_size > 0) {
+    if (block_start_ >= block_end_) {
+      // LOG WARNING
+      LOG(WARNING) << "PutObject Block error";
+      return;
+    }
     size_t nwritten = std::min(remain_size, zgwstore::kZgwBlockSize);
     status_ = store_->BlockSet(std::to_string(block_start_++),
                                std::string(buf_pos, nwritten));
     if (status_.ok()) {
-      // md5_ctx_.Update(data, data_size);
+      md5_ctx_.Update(buf_pos, nwritten);
     }
 
     remain_size -= nwritten;
@@ -83,6 +87,7 @@ void PutObjectCmd::DoAndResponse(pink::HttpResponse* resp) {
   } else {
     // Write meta
     new_object_.etag = md5_ctx_.ToString();
+    LOG(INFO) << "MD5: " << new_object_.etag;
     if (new_object_.etag.empty()) {
       new_object_.etag = "_";
     }

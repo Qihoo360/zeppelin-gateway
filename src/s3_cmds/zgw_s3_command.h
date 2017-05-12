@@ -1,13 +1,11 @@
 #ifndef ZGW_S3_COMMAND_H
 #define ZGW_S3_COMMAND_H
 
-#include "pink/include/http_conn.h"
+#include <map>
 
+#include "pink/include/http_conn.h"
 #include "src/zgwstore/zgw_store.h"
 #include "src/s3_cmds/zgw_s3_authv4.h"
-
-extern void InitCmdTable();
-extern void DestroyCmdTable();
 
 enum S3Commands {
   kListAllBuckets = 0,
@@ -53,6 +51,13 @@ enum S3ErrorType {
   kInvalidRequest,
   kAccessDenied,
 };
+
+class S3Cmd;
+
+typedef std::map<S3Commands, S3Cmd*> S3CmdTable;
+
+extern void InitCmdTable(S3CmdTable* cmd_table);
+extern void DestroyCmdTable(S3CmdTable* cmd_table);
 
 class S3Cmd {
  public:
@@ -116,7 +121,5 @@ class S3Cmd {
   S3Cmd(const S3Cmd&);
   S3Cmd& operator=(const S3Cmd&);
 };
-
-extern std::map<S3Commands, S3Cmd*> g_cmd_table;
 
 #endif

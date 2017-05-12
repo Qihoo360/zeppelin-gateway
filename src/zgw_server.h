@@ -3,6 +3,7 @@
 
 #include <string>
 #include <map>
+#include <utility>
 #include <pthread.h>
 
 #include <glog/logging.h>
@@ -11,6 +12,7 @@
 #include "slash/include/slash_mutex.h"
 
 #include "src/zgwstore/zgw_store.h"
+#include "src/s3_cmds/zgw_s3_command.h"
 #include "src/zgw_s3_rest.h"
 #include "src/zgw_const.h"
 #include "src/zgw_admin_conn.h"
@@ -19,16 +21,15 @@
 
 using slash::Status;
 
-class MyThreadEnvHandle : public pink::ThreadEnvHandle {
+class ZgwThreadEnvHandle : public pink::ThreadEnvHandle {
  public:
-  MyThreadEnvHandle() {
-  }
+  struct ThreadEnvs {
+    zgwstore::ZgwStore* store;
+    S3CmdTable* cmd_table;
+  };
 
-  virtual ~MyThreadEnvHandle() {
-    for (auto s : stores_) {
-      delete s;
-    }
-  }
+  ZgwThreadEnvHandle() {}
+  virtual ~ZgwThreadEnvHandle();
 
   virtual int SetEnv(void** env) const;
 
@@ -41,6 +42,10 @@ class ZgwServer {
   explicit ZgwServer();
   virtual ~ZgwServer();
   Status Start();
+
+  std::map<S3Commands, S3Cmd*>& thread_cmd_table() {
+
+  }
 
   uint64_t qps();
   void AddQueryNum();

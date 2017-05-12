@@ -1,12 +1,8 @@
 #include "src/s3_cmds/zgw_s3_command.h"
 
-#include <map>
-
 #include "src/s3_cmds/zgw_s3_object.h"
 #include "src/s3_cmds/zgw_s3_bucket.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
-
-std::map<S3Commands, S3Cmd*> g_cmd_table;
 
 class UnImplementCmd : public S3Cmd {
   virtual bool DoInitial() {
@@ -28,32 +24,32 @@ class UnImplementCmd : public S3Cmd {
   };
 };
 
-void InitCmdTable() {
-  g_cmd_table.insert(std::make_pair(kListAllBuckets, new ListAllBucketsCmd()));
-  // g_cmd_table.insert(std::make_pair(kDeleteBucket, new DeleteBucketCmd()));
-  g_cmd_table.insert(std::make_pair(kListObjects, new ListObjectsCmd()));
-  // g_cmd_table.insert(std::make_pair(kGetBucketLocation, new GetBucketLocation()));
-  // g_cmd_table.insert(std::make_pair(kHeadBucket, new HeadBucketCmd()));
-  // g_cmd_table.insert(std::make_pair(kListMultiPartUpload, new ListMultiPartUploadCmd()));
-  g_cmd_table.insert(std::make_pair(kPutBucket, new PutBucketCmd()));
-  // g_cmd_table.insert(std::make_pair(kDeleteObject, new DeleteObjectCmd()));
-  // g_cmd_table.insert(std::make_pair(kDeleteMultiObjects, new DeleteMultiObjectsCmd()));
-  g_cmd_table.insert(std::make_pair(kGetObject, new GetObjectCmd()));
-  // g_cmd_table.insert(std::make_pair(kHeadObject, new HeadObjectCmd()));
-  // g_cmd_table.insert(std::make_pair(kPostObject, new PostObjectCmd()));
-  g_cmd_table.insert(std::make_pair(kPutObject, new PutObjectCmd()));
-  // g_cmd_table.insert(std::make_pair(kPutObjectCopy, new PutObjectCopyCmd()));
-  // g_cmd_table.insert(std::make_pair(kInitMultipartUpload, new InitMultipartUploadCmd()));
-  // g_cmd_table.insert(std::make_pair(kUploadPart, new UploadPartCmd()));
-  // g_cmd_table.insert(std::make_pair(kUploadPartCopy, new UploadPartCopyCmd()));
-  // g_cmd_table.insert(std::make_pair(kCompleteMultiUpload, new CompleteMultiUploadCmd()));
-  // g_cmd_table.insert(std::make_pair(kAbortMultiUpload, new AbortMultiUploadCmd()));
-  // g_cmd_table.insert(std::make_pair(kListParts, new ListPartsCmd()));
-  g_cmd_table.insert(std::make_pair(kUnImplement, new UnImplementCmd()));
+void InitCmdTable(S3CmdTable* cmd_table) {
+  cmd_table->insert(std::make_pair(kListAllBuckets, new ListAllBucketsCmd()));
+  cmd_table->insert(std::make_pair(kDeleteBucket, new DeleteBucketCmd()));
+  cmd_table->insert(std::make_pair(kListObjects, new ListObjectsCmd()));
+  cmd_table->insert(std::make_pair(kGetBucketLocation, new HeadBucketCmd()));
+  cmd_table->insert(std::make_pair(kHeadBucket, new HeadBucketCmd()));
+  cmd_table->insert(std::make_pair(kListMultiPartUpload, new ListMultiPartUploadCmd()));
+  cmd_table->insert(std::make_pair(kPutBucket, new PutBucketCmd()));
+  cmd_table->insert(std::make_pair(kDeleteObject, new DeleteObjectCmd()));
+  cmd_table->insert(std::make_pair(kDeleteMultiObjects, new DeleteMultiObjectsCmd()));
+  cmd_table->insert(std::make_pair(kGetObject, new GetObjectCmd()));
+  cmd_table->insert(std::make_pair(kHeadObject, new HeadObjectCmd()));
+  cmd_table->insert(std::make_pair(kPostObject, new PostObjectCmd()));
+  cmd_table->insert(std::make_pair(kPutObject, new PutObjectCmd()));
+  cmd_table->insert(std::make_pair(kPutObjectCopy, new PutObjectCopyCmd()));
+  cmd_table->insert(std::make_pair(kInitMultipartUpload, new InitMultipartUploadCmd()));
+  cmd_table->insert(std::make_pair(kUploadPart, new UploadPartCmd()));
+  cmd_table->insert(std::make_pair(kUploadPartCopy, new UploadPartCopyCmd()));
+  cmd_table->insert(std::make_pair(kCompleteMultiUpload, new CompleteMultiUploadCmd()));
+  cmd_table->insert(std::make_pair(kAbortMultiUpload, new AbortMultiUploadCmd()));
+  cmd_table->insert(std::make_pair(kListParts, new ListPartsCmd()));
+  cmd_table->insert(std::make_pair(kUnImplement, new UnImplementCmd()));
 }
 
-void DestroyCmdTable() {
-  for (auto& cmd : g_cmd_table) {
+void DestroyCmdTable(S3CmdTable* cmd_table) {
+  for (auto& cmd : *cmd_table) {
     delete cmd.second;
   }
 }
@@ -112,7 +108,7 @@ void S3Cmd::GenerateErrorXml(S3ErrorType type, const std::string& message) {
       break;
     case kInvalidRange:
       doc.AppendToRoot(doc.AllocateNode("Code", "InvalidRange"));
-      doc.AppendToRoot(doc.AllocateNode("BucketName", message));
+      doc.AppendToRoot(doc.AllocateNode("ObjectName", message));
       break;
     case kInvalidArgument:
       doc.AppendToRoot(doc.AllocateNode("Code", "InvalidArgument"));

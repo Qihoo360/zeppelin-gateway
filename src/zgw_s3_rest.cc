@@ -2,7 +2,9 @@
 
 #include <glog/logging.h>
 #include "src/zgwstore/zgw_store.h"
+#include "src/s3_cmds/zgw_s3_command.h"
 #include "src/zgw_util.h"
+#include "src/zgw_server.h"
 
 bool ZgwHttpHandles::ReqHeadersHandle(const pink::HttpRequest* req) {
   // req->Dump();
@@ -120,15 +122,17 @@ S3Cmd* ZgwHttpHandles::SelectS3Cmd(const pink::HttpRequest* req) {
     }
   }
 
-  assert(g_cmd_table.count(cmd) > 0);
-  S3Cmd* cmd_ptr = g_cmd_table.at(cmd);
+  zgwstore::ZgwStore* store =
+    static_cast<zgwstore::ZgwStore*>(thread_ptr_->get_private());
+
+  assert(cmd_table_->count(cmd) > 0);
+  S3Cmd* cmd_ptr = cmd_table_->at(cmd);
   cmd_ptr->Clear();
   cmd_ptr->SetBucketName(bucket_name);
   cmd_ptr->SetObjectName(object_name);
   cmd_ptr->SetReqHeaders(req->headers_);
   cmd_ptr->SetQueryParams(req->query_params_);
-  cmd_ptr->SetStorePtr(
-              static_cast<zgwstore::ZgwStore*>(thread_ptr_->get_private()));
+  cmd_ptr->SetStorePtr(store);
   cmd_ptr->InitS3Auth(req);
 
   return cmd_ptr;

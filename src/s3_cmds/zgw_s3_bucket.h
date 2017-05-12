@@ -22,6 +22,36 @@ class ListAllBucketsCmd : public S3Cmd {
   std::vector<zgwstore::Bucket> all_buckets_;
 };
 
+class ListObjectsCmd : public S3Cmd {
+ public:
+  ListObjectsCmd() {}
+
+  virtual bool DoInitial() override;
+  virtual void DoReceiveBody(const char* data, size_t data_size) override {}
+  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual int DoResponseBody(char* buf, size_t max_size) override;
+
+ private:
+  void GenerateRespXml();
+
+  std::vector<zgwstore::Object> all_objects_;
+};
+
+class ListMultiPartUploadCmd : public S3Cmd {
+ public:
+  ListMultiPartUploadCmd() {}
+
+  virtual bool DoInitial() override;
+  virtual void DoReceiveBody(const char* data, size_t data_size) override {}
+  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual int DoResponseBody(char* buf, size_t max_size) override;
+
+ private:
+  void GenerateRespXml();
+
+  std::vector<zgwstore::Object> all_objects_;
+};
+
 class PutBucketCmd : public S3Cmd {
 
  public:
@@ -34,6 +64,44 @@ class PutBucketCmd : public S3Cmd {
 
  private:
   zgwstore::Bucket new_bucket_;
+};
+
+class DeleteBucketCmd : public S3Cmd {
+
+ public:
+  DeleteBucketCmd() {}
+
+  virtual bool DoInitial() override;
+  virtual void DoReceiveBody(const char* data, size_t data_size) override;
+  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual int DoResponseBody(char* buf, size_t max_size) override;
+};
+
+class DeleteMultiObjectsCmd : public S3Cmd {
+
+ public:
+  DeleteMultiObjectsCmd() {}
+
+  virtual bool DoInitial() override;
+  virtual void DoReceiveBody(const char* data, size_t data_size) override;
+  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual int DoResponseBody(char* buf, size_t max_size) override;
+
+ private:
+};
+
+class HeadBucketCmd : public S3Cmd {
+
+ public:
+  HeadBucketCmd() {}
+
+  virtual bool DoInitial() override;
+  virtual void DoReceiveBody(const char* data, size_t data_size) override;
+  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual int DoResponseBody(char* buf, size_t max_size) override;
+
+ private:
+  zgwstore::Bucket bucket_;
 };
 
 #endif

@@ -3,10 +3,11 @@
 #include <glog/logging.h>
 #include "slash/include/slash_mutex.h"
 #include "slash/include/env.h"
+#include "src/s3_cmds/zgw_s3_command.h"
 
 extern ZgwConfig* g_zgw_conf;
 
-int MyThreadEnvHandle::SetEnv(void** env) const {
+int ZgwThreadEnvHandle::SetEnv(void** env) const {
   zgwstore::ZgwStore* store;
   uint64_t now = slash::NowMicros();
   char buf[100] = {0};
@@ -21,12 +22,19 @@ int MyThreadEnvHandle::SetEnv(void** env) const {
     LOG(FATAL) << "Can not open ZgwStore: " << s.ToString();
     return -1;
   }
-  *env = static_cast<void*>(store);
+  *env = store;
   stores_.push_back(store);
+
   return 0;
 }
 
-static MyThreadEnvHandle env_handle;
+ZgwThreadEnvHandle::~ZgwThreadEnvHandle() {
+  for (auto s : stores_) {
+    delete s;
+  }
+}
+
+static ZgwThreadEnvHandle env_handle;
 
 ZgwServer::ZgwServer()
     : should_exit_(false),
@@ -87,15 +95,12 @@ void ZgwServer::Exit() {
   zgw_dispatch_thread_->StopThread();
   zgw_admin_thread_->StopThread();
   should_exit_.store(true);
-  DestroyCmdTable();
 }
 
 Status ZgwServer::Start() {
   Status s;
   LOG(INFO) << "Waiting for ZgwServerThread Init, maybe "<< worker_num_ * 10 << "s";
 
-  InitCmdTable();
-  
   if (zgw_dispatch_thread_->StartThread() != 0) {
     return Status::Corruption("Launch DispatchThread failed");
   }
