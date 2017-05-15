@@ -139,6 +139,15 @@ int main() {
     std::cout << "data_block: " << obj.data_block << std::endl;
   }
 
+  s = store->DeleteBucket("songzhao", "bucket1");
+  std::cout << "DeleteBucket ret: " << s.ToString() << std::endl;
+
+  s = store->DeleteObject("songzhao", "bucket1", "object1");
+  std::cout << "DeleteObject ret: " << s.ToString() << std::endl;
+
+  s = store->DeleteBucket("songzhao", "bucket1");
+  std::cout << "DeleteBucket ret: " << s.ToString() << std::endl;
+
   delete store;
   std::cout << "Bye" << std::endl;
 }

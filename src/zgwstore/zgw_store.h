@@ -42,6 +42,7 @@ class ZgwStore {
   Status AddBucket(const Bucket& bucket, const bool override = false);
   Status GetBucket(const std::string& user_name, const std::string& bucket_name,
       Bucket* bucket);
+  Status DeleteBucket(const std::string& user_name, const std::string& bucket_name);
   Status ListBuckets(const std::string& user_name, std::vector<Bucket>* buckets);
 
   Status AllocateId(const std::string& user_name, const std::string& bucket_name,

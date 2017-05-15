@@ -445,6 +445,98 @@ Status ZgwStore::GetBucket(const std::string& user_name, const std::string& buck
   return Status::OK();
 }
 
+Status ZgwStore::DeleteBucket(const std::string& user_name, const std::string& bucket_name) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+/*
+ *  1. Lock
+ */
+  Status s;
+  s = Lock();
+  if (!s.ok()) {
+    return s;
+  }
+/*
+ *  2. SISMEMBER 
+ */
+  redisReply *reply;
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SISMEMBER %s%s %s", kZgwBucketListPrefix.c_str(), user_name.c_str(),
+              bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("DeleteBucket::SISMEMBER");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("DeleteBucket::SISMEMBER ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer == 0) {
+    return HandleLogicError("Bucket Doesnt Exist", reply, true);
+  }
+  freeReplyObject(reply);
+/*
+ *  3. HGET
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_, "HGET %s%s vol",
+              kZgwBucketPrefix.c_str(), bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("DeleteBucket::EXISTS");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("DeleteBucket::EXISTS ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_STRING);
+  char* end;
+  if (std::strtoll(reply->str, &end, 10) != 0) {
+    return HandleLogicError("Bucket Vol IS NOT 0", reply, true);
+  }
+  assert(reply->integer == 0);
+  freeReplyObject(reply);
+/*
+ *  4. SCARD 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SCARD %s%s", kZgwObjectListPrefix.c_str(), bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("DeleteBucket::SCARD");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("DeleteBucket::SCARD ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer != 0) {
+    return HandleLogicError("Bucket Non Empty", reply, true);
+  }
+  freeReplyObject(reply);
+/*
+ *  5. SREM
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SREM %s%s %s", kZgwBucketListPrefix.c_str(), user_name.c_str(),
+              bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("DeleteObject::SREM");
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  freeReplyObject(reply);
+/*
+ *  6. DEL 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_, "DEL %s%s",
+              kZgwBucketPrefix.c_str(), bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("DeleteBucket::DEL");
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  freeReplyObject(reply);
+/*
+ *  7. UnLock 
+ */
+  s = UnLock();
+  return s;
+}
+
 Status ZgwStore::ListBuckets(const std::string& user_name, std::vector<Bucket>* buckets) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
