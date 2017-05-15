@@ -823,6 +823,86 @@ Status ZgwStore::ListObjects(const std::string& user_name, const std::string& bu
   return Status::OK();
 }
 
+Status ZgwStore::AddMultiBlockSet(const std::string& bucket_name, const std::string& object_name,
+    const std::string& upload_id, const std::string& block_index) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+/*
+ *  1. SADD 
+ */
+  std::string redis_key = kZgwMultiBlockSetPrefix + bucket_name + "_" + 
+    object_name + "_" + upload_id;
+  redisReply* reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SADD %s %s", redis_key.c_str(), block_index.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("AddMultiBlockSet::SADD");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AddMultiBlockSet::SADD ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer == 0) {
+    return HandleLogicError("upload_id Already Exist", reply, true);
+  }
+  freeReplyObject(reply);
+  return Status::OK();
+}
+
+Status ZgwStore::GetMultiBlockSet(const std::string& bucket_name, const std::string& object_name,
+    const std::string& upload_id, std::vector<std::string>* block_indexs) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+  block_indexs->clear();
+/*
+ *  1. Get Block indexs 
+ */
+  std::string redis_key = kZgwMultiBlockSetPrefix + bucket_name + "_" + 
+    object_name + "_" + upload_id;
+  redisReply *reply;
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SMEMBERS %s", redis_key.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("GetMultiBlockSet::SEMBMBERS");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("GetMultiBlockSet::SMEMBERS ret: " + std::string(reply->str), reply, false);
+  }
+  assert(reply->type == REDIS_REPLY_ARRAY);
+  if (reply->elements == 0) {
+    return Status::OK();
+  }
+/*
+ *  2. Iterate through indexs to push_back 
+ */
+  for (unsigned int i = 0; i < reply->elements; i++) {
+    block_indexs->push_back(reply->element[i]->str);
+  }
+
+  freeReplyObject(reply);
+  return Status::OK();
+}
+
+Status ZgwStore::DeleteMultiBlockSet(const std::string& bucket_name, const std::string& object_name,
+    const std::string& upload_id) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+/*
+ *  1. DEL 
+ */
+  std::string redis_key = kZgwMultiBlockSetPrefix + bucket_name + "_" + 
+    object_name + "_" + upload_id;
+  redisReply* reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "DEL %s", redis_key.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("DeleteMultiBlockSet::DEL");
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  freeReplyObject(reply);
+}
+
 bool ZgwStore::MaybeHandleRedisError() {
   if (!redis_error_) {
     return true;

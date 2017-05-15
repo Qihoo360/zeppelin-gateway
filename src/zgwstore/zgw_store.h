@@ -51,6 +51,13 @@ class ZgwStore {
       const std::string& object_name, Object* object);
   Status ListObjects(const std::string& user_name, const std::string& bucket_name,
       std::vector<Object>* objects);
+
+  Status AddMultiBlockSet(const std::string& bucket_name, const std::string& object_name,
+      const std::string& upload_id, const std::string& block_index);
+  Status GetMultiBlockSet(const std::string& bucket_name, const std::string& object_name,
+      const std::string& upload_id, std::vector<std::string>* block_indexs);
+  Status DeleteMultiBlockSet(const std::string& bucket_name, const std::string& object_name,
+      const std::string& upload_id);
  private:
   bool MaybeHandleRedisError();
   Status HandleIOError(const std::string& func_name);
