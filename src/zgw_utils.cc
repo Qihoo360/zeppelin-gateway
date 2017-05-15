@@ -46,6 +46,7 @@ std::string iso8601_time(uint64_t nowmicros) {
 
 std::string md5(const std::string& content) {
   MD5Ctx md5_ctx;
+  md5_ctx.Init();
   md5_ctx.Update(content);
   return md5_ctx.ToString();
 }

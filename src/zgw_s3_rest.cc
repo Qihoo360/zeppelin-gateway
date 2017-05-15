@@ -94,7 +94,11 @@ S3Cmd* ZgwHttpHandles::SelectS3Cmd(const pink::HttpRequest* req) {
       if (req->query_params_.count("partNumber") &&
           req->query_params_.count("uploadId")) {
         if (req->headers_.count("x-amz-copy-source")) {
-          cmd = kUploadPartCopy;
+          if (req->headers_.count("x-amz-copy-source-range")) {
+            cmd = kUploadPartCopyPartial;
+          } else {
+            cmd = kUploadPartCopy;
+          }
         } else {
           cmd = kUploadPart;
         }

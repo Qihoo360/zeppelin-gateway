@@ -2,19 +2,64 @@
 
 #include "slash/include/env.h"
 #include "src/zgwstore/zgw_define.h"
+#include "src/s3_cmds/zgw_s3_xml.h"
+#include "src/zgw_utils.h"
 
 bool InitMultipartUploadCmd::DoInitial() {
+  upload_id_ = md5(bucket_name_ + object_name_ +
+                   std::to_string(slash::NowMicros()));
+
+  if (!TryAuth()) {
+    return false;
+  }
+
+  zgwstore::Bucket bucket;
+  Status s = store_->GetBucket(user_name_, bucket_name_, &bucket);
+  if (!s.ok()) {
+    if (s.ToString().find("Bucket Doesn't Belong To This User") ||
+        s.ToString().find("Bucket Not Found")) {
+      http_ret_code_ = 404;
+      GenerateErrorXml(kNoSuchBucket, bucket_name_);
+    } else {
+      http_ret_code_ = 500;
+    }
+    return false;
+  }
 
   return true;
 }
 
-void InitMultipartUploadCmd::DoReceiveBody(const char* data, size_t data_size) {
-}
-
 void InitMultipartUploadCmd::DoAndResponse(pink::HttpResponse* resp) {
+  if (http_ret_code_ == 200) {
+    // Initial new virtual bucket as multipart object meta
+    zgwstore::Bucket virtual_bucket;
+    virtual_bucket.bucket_name = "__TMPB" + upload_id_ +
+      bucket_name_ + "|" + object_name_;
+    virtual_bucket.create_time = slash::NowMicros();
+    virtual_bucket.owner = user_name_;
+    virtual_bucket.acl = "FULL_CONTROL"; // TODO (gaodq) acl
+    virtual_bucket.location = "CN"; // default
+    virtual_bucket.volumn = 0;
+    virtual_bucket.uploading_volumn = 0;
+
+    Status s = store_->AddBucket(virtual_bucket);
+    if (!s.ok()) {
+      // Duplicate bucket must not exist
+      http_ret_code_ = 500;
+    }
+    GenerateRespXml();
+  }
 
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
+}
+
+void InitMultipartUploadCmd::GenerateRespXml() {
+  S3XmlDoc doc("InitiateMultipartUploadResult");
+  doc.AppendToRoot(doc.AllocateNode("Bucket", bucket_name_));
+  doc.AppendToRoot(doc.AllocateNode("Key", object_name_));
+  doc.AppendToRoot(doc.AllocateNode("UploadId", upload_id_));
+  doc.ToString(&http_response_xml_);
 }
 
 int InitMultipartUploadCmd::DoResponseBody(char* buf, size_t max_size) {

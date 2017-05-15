@@ -70,6 +70,8 @@ void PutObjectCmd::DoReceiveBody(const char* data, size_t data_size) {
                                std::string(buf_pos, nwritten));
     if (status_.ok()) {
       md5_ctx_.Update(buf_pos, nwritten);
+    } else {
+      http_ret_code_ = 500;
     }
 
     remain_size -= nwritten;

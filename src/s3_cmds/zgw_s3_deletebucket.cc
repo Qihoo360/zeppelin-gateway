@@ -9,21 +9,37 @@ bool DeleteBucketCmd::DoInitial() {
   return TryAuth();
 }
 
-void DeleteBucketCmd::DoReceiveBody(const char* data, size_t data_size) {
-}
-
 void DeleteBucketCmd::DoAndResponse(pink::HttpResponse* resp) {
+  // Check if multipart uplaad exist
+  std::vector<zgwstore::Bucket> all_buckets;
+  Status s = store_->ListBuckets(user_name_, &all_buckets);
+  if (!s.ok()) {
+    http_ret_code_ = 500;
+  }
+
+  // Filter
+  for (auto& b : all_buckets) {
+    if (b.bucket_name.substr(0, 6) != "__TMPB") {
+      // Skip normal bucket
+      continue;
+    }
+    size_t bucket_name_pos = b.bucket_name.find("|");
+    assert(bucket_name_pos != std::string::npos);
+    std::string bucket_name = b.bucket_name.substr(6 + 32,
+                                                   bucket_name_pos - 38);
+    if (bucket_name == bucket_name_) {
+      // Bucket not empty
+      http_ret_code_ = 409;
+      GenerateErrorXml(kBucketNotEmpty, bucket_name_);
+      break;
+    }
+  }
+
   if (http_ret_code_ == 200) {
-    // Status s = store_->DelBucket(user_name_, bucket_name);
-    Status s;
+    s = store_->DeleteBucket(user_name_, bucket_name_);
     if (!s.ok()) {
-      // Not Empty
-      // IO Error
       http_ret_code_ = 500;
     }
-
-    // Build response XML using all_buckets_
-    // GenerateRespXml();
   }
 
   resp->SetStatusCode(http_ret_code_);

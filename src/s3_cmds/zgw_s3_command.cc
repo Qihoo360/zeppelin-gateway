@@ -42,6 +42,7 @@ void InitCmdTable(S3CmdTable* cmd_table) {
   cmd_table->insert(std::make_pair(kInitMultipartUpload, new InitMultipartUploadCmd()));
   cmd_table->insert(std::make_pair(kUploadPart, new UploadPartCmd()));
   cmd_table->insert(std::make_pair(kUploadPartCopy, new UploadPartCopyCmd()));
+  cmd_table->insert(std::make_pair(kUploadPartCopyPartial, new UploadPartCopyPartialCmd()));
   cmd_table->insert(std::make_pair(kCompleteMultiUpload, new CompleteMultiUploadCmd()));
   cmd_table->insert(std::make_pair(kAbortMultiUpload, new AbortMultiUploadCmd()));
   cmd_table->insert(std::make_pair(kListParts, new ListPartsCmd()));

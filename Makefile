@@ -9,7 +9,7 @@ OBJECT = zgw_server
 
 SLASH_PATH = $(realpath ./third/slash)
 PINK_PATH = $(realpath ./third/pink)
-ZP_PATH = $(realpath ./third/zeppelin-client)
+ZP_PATH = $(realpath ./third/zeppelin-client/libzp)
 GLOG_PATH = $(realpath ./third/glog)
 HIREDIS_PATH = $(realpath ./third/hiredis)
 RAPID_XML_PATH = $(realpath ./third/rapidxml)

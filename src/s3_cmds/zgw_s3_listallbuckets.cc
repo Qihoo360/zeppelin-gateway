@@ -47,6 +47,9 @@ void ListAllBucketsCmd::GenerateRespXml() {
 
   S3XmlNode* buckets = doc.AllocateNode("Buckets");
   for (auto& b : all_buckets_) {
+    if (b.bucket_name.substr(0, 6) == "__TMPB") {
+      continue;
+    }
     S3XmlNode* bucket = doc.AllocateNode("Bucket");
     bucket->AppendNode(doc.AllocateNode("Name", b.bucket_name));
     bucket->AppendNode(doc.AllocateNode("CreationDate",

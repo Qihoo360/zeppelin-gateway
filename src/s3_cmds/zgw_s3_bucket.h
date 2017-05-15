@@ -27,11 +27,13 @@ class ListObjectsCmd : public S3Cmd {
   ListObjectsCmd() {}
 
   virtual bool DoInitial() override;
-  virtual void DoReceiveBody(const char* data, size_t data_size) override {}
   virtual void DoAndResponse(pink::HttpResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
+  bool SanitizeParams(std::string* invalid_param);
+  void GenerateRespXml();
+
   // Common
   std::string delimiter_;
   std::string prefix_;
@@ -44,10 +46,13 @@ class ListObjectsCmd : public S3Cmd {
   // list version1
   std::string marker_;
 
-  bool Sanitize(std::string* invalid_param);
-  void GenerateRespXml();
+  struct ObjectsComparator {
+    bool operator()(const zgwstore::Object& a, const zgwstore::Object& b) {
+      return a.object_name < b.object_name;
+    }
+  };
 
-  std::vector<zgwstore::Object> candidate_objects_;
+  std::set<zgwstore::Object, ObjectsComparator> all_objects_;
 };
 
 class ListMultiPartUploadCmd : public S3Cmd {
@@ -55,14 +60,26 @@ class ListMultiPartUploadCmd : public S3Cmd {
   ListMultiPartUploadCmd() {}
 
   virtual bool DoInitial() override;
-  virtual void DoReceiveBody(const char* data, size_t data_size) override {}
   virtual void DoAndResponse(pink::HttpResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
   void GenerateRespXml();
+  bool SanitizeParams(std::string* invalid_param);
 
-  std::vector<zgwstore::Object> all_objects_;
+  std::string delimiter_;
+  std::string prefix_;
+  int max_uploads_;
+  std::string key_marker_;
+  std::string upload_id_marker_;
+
+  struct BucketsComparator {
+    bool operator()(const zgwstore::Bucket& a, const zgwstore::Bucket& b) {
+      return a.bucket_name < b.bucket_name;
+    }
+  };
+
+  std::set<zgwstore::Bucket, BucketsComparator> all_virtual_bks_;
 };
 
 class PutBucketCmd : public S3Cmd {
@@ -85,7 +102,6 @@ class DeleteBucketCmd : public S3Cmd {
   DeleteBucketCmd() {}
 
   virtual bool DoInitial() override;
-  virtual void DoReceiveBody(const char* data, size_t data_size) override;
   virtual void DoAndResponse(pink::HttpResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 };
@@ -109,7 +125,6 @@ class HeadBucketCmd : public S3Cmd {
   HeadBucketCmd() {}
 
   virtual bool DoInitial() override;
-  virtual void DoReceiveBody(const char* data, size_t data_size) override {}
   virtual void DoAndResponse(pink::HttpResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
@@ -123,7 +138,6 @@ class GetBucketLocationCmd : public S3Cmd {
   GetBucketLocationCmd() {}
 
   virtual bool DoInitial() override;
-  virtual void DoReceiveBody(const char* data, size_t data_size) override {}
   virtual void DoAndResponse(pink::HttpResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 

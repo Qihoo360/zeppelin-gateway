@@ -11,37 +11,43 @@
 using namespace rapidxml;
 
 struct S3XmlNode::Rep {
-  Rep(const std::string& name, const std::string& value)
+  Rep(const std::string& name, const std::string& value, S3XmlDoc* doc)
       : name_(name),
         value_(value),
+        doc_(doc),
         rep_node_(nullptr) {
   }
   std::string name_;
   std::string value_;
+  S3XmlDoc* doc_;
   xml_node<>* rep_node_;
 };
 
 S3XmlNode::S3XmlNode() {
-  rep_ = new Rep("", "");
+  rep_ = new Rep("", "", nullptr);
 }
 
-S3XmlNode::S3XmlNode(const std::string& name, const std::string& value) {
-  rep_ = new Rep(name, value);
+S3XmlNode::S3XmlNode(const std::string& name, const std::string& value, S3XmlDoc* doc) {
+  rep_ = new Rep(name, value, doc);
 }
 
 S3XmlNode::~S3XmlNode() {
   delete rep_;
 }
 
-void S3XmlNode::AppendNode(const S3XmlNode* node) {
-  rep_->rep_node_->append_node(node->rep_->rep_node_);
+void S3XmlNode::AppendNode(const S3XmlNode* new_node) {
+  assert(rep_->rep_node_);
+  rep_->rep_node_->append_node(new_node->rep_->rep_node_);
 }
 
-bool S3XmlNode::IsValid() {
-  return rep_->rep_node_ != nullptr;
+void S3XmlNode::AppendNode(const std::string& name, const std::string& value) {
+  assert(rep_->rep_node_);
+  S3XmlNode* new_node = rep_->doc_->AllocateNode(name, value);
+  rep_->rep_node_->append_node(new_node->rep_->rep_node_);
 }
 
 bool S3XmlNode::FindFirstNode(const std::string& name, S3XmlNode* first_node) {
+  assert(rep_->rep_node_);
   xml_node<>* node = rep_->rep_node_->
     first_node(name.c_str(), name.size(), false);
   if (node == nullptr) {
@@ -53,19 +59,16 @@ bool S3XmlNode::FindFirstNode(const std::string& name, S3XmlNode* first_node) {
   return true;
 }
 
-bool S3XmlNode::NextSibling(S3XmlNode* nexts) {
-  return NextSibling(rep_->name_, nexts);
-}
-
-bool S3XmlNode::NextSibling(const std::string& name, S3XmlNode* nexts) {
+bool S3XmlNode::NextSibling() {
+  assert(rep_->rep_node_);
+  assert(!rep_->name_.empty());
   xml_node<>* node = rep_->rep_node_->
-    next_sibling(name.c_str(), name.size(), false);
+    next_sibling(rep_->name_.c_str(), rep_->name_.size(), false);
   if (node == nullptr) {
     return false;
   }
-  nexts->rep_->name_ = name;
-  nexts->rep_->value_ = node->value();
-  nexts->rep_->rep_node_ = node;
+  rep_->value_ = node->value();
+  rep_->rep_node_ = node;
   return true;
 }
 
@@ -115,13 +118,18 @@ S3XmlDoc::~S3XmlDoc() {
 }
 
 S3XmlNode* S3XmlDoc::AllocateNode(const std::string& name, const std::string& value) {
-  std::unique_ptr<S3XmlNode> new_node(new S3XmlNode(name, value));
+  std::unique_ptr<S3XmlNode> new_node(new S3XmlNode(name, value, this));
   xml_node<>* node = rep_->doc_.allocate_node(node_element,
                                               new_node->rep_->name_.c_str(),
                                               new_node->rep_->value_.c_str());
   new_node->rep_->rep_node_ = node;
   rep_->sub_nodes_.push_back(std::move(new_node));
   return rep_->sub_nodes_.back().get();
+}
+
+void S3XmlDoc::AppendToRoot(const std::string& name, const std::string& value) {
+  S3XmlNode* new_node = AllocateNode(name, value);
+  rep_->rnode_->append_node(new_node->rep_->rep_node_);
 }
 
 void S3XmlDoc::AppendToRoot(const S3XmlNode* node) {

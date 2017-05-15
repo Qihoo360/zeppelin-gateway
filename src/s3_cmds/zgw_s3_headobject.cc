@@ -4,6 +4,7 @@
 #include "src/zgwstore/zgw_define.h"
 
 bool HeadObjectCmd::DoInitial() {
+  http_response_xml_.clear();
 
   return TryAuth();
 }
@@ -34,7 +35,7 @@ void HeadObjectCmd::DoAndResponse(pink::HttpResponse* resp) {
 
 int HeadObjectCmd::DoResponseBody(char* buf, size_t max_size) {
   if (http_ret_code_ == 200) {
-    return 0; // Doesn't need response data
+    return -2; // Doesn't need response data
   }
   if (max_size < http_response_xml_.size()) {
     memcpy(buf, http_response_xml_.data(), max_size);
