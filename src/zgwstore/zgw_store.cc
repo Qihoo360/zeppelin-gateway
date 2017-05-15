@@ -753,6 +753,95 @@ Status ZgwStore::GetObject(const std::string& user_name, const std::string& buck
   return Status::OK();
 }
 
+Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& bucket_name,
+    const std::string& object_name) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+/*
+ *  1. Lock
+ */
+  Status s;
+  s = Lock();
+  if (!s.ok()) {
+    return s;
+  }
+/*
+ *  2. HGETALL 
+ */
+  redisReply *reply;
+  int64_t delta_size = 0;
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "HGETALL %s%s_%s", kZgwObjectPrefix.c_str(), bucket_name.c_str(),
+              object_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("DeleteObject::HGETALL");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("DeleteObject::HGETALL ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_ARRAY);
+  if (reply->elements != 0) {
+    Object t_object = GenObjectFromReply(reply);
+    delta_size = t_object.size;
+    redisReply* t_reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+                "LPUSH %s %s", kZgwDeletedList.c_str(), std::string(t_object.data_block +
+                "/" + std::to_string(slash::NowMicros())).c_str()));
+    if (t_reply == NULL) {
+      return HandleIOError("DeleteObject::LPUSH");
+    }
+    if (t_reply->type == REDIS_REPLY_ERROR) {
+      return HandleLogicError("DeleteObject::LPUSH ret: " + std::string(reply->str), reply, true);
+    }
+    assert(t_reply->type == REDIS_REPLY_INTEGER);
+    freeReplyObject(t_reply);
+  }
+  freeReplyObject(reply);
+/*
+ *  3. DEL 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "DEL %s%s_%s", kZgwObjectPrefix.c_str(), bucket_name.c_str(),
+              object_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("DeleteObject::DEL");
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  freeReplyObject(reply);
+/*
+ *  4. SREM 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SREM %s%s %s", kZgwObjectListPrefix.c_str(), bucket_name.c_str(),
+              object_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("DeleteObject::SREM");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("DeleteObject::SREM ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  freeReplyObject(reply);
+/*
+ *  5. HINCRBY 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "HINCRBY %s%s vol %lld", kZgwBucketPrefix.c_str(), bucket_name.c_str(),
+              0 - delta_size));
+  if (reply == NULL) {
+    return HandleIOError("DeleteObject::HINCRBY");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("DeleteObject::HINCRBY ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+/*
+ *  6. UnLock 
+ */
+  s = UnLock();
+  return s;
+}
+
 Status ZgwStore::ListObjects(const std::string& user_name, const std::string& bucket_name,
     std::vector<Object>* objects) {
   if (!MaybeHandleRedisError()) {
