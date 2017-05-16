@@ -39,19 +39,21 @@ class ZgwStore {
   Status AddUser(const User& user, const bool override = false);
   Status ListUsers(std::vector<User>* users);
 
-  Status AddBucket(const Bucket& bucket, const bool override = false);
+  Status AddBucket(const Bucket& bucket, const bool need_lock = true,
+      const bool override = false);
   Status GetBucket(const std::string& user_name, const std::string& bucket_name,
       Bucket* bucket);
-  Status DeleteBucket(const std::string& user_name, const std::string& bucket_name);
+  Status DeleteBucket(const std::string& user_name, const std::string& bucket_name,
+      const bool need_lock = true);
   Status ListBuckets(const std::string& user_name, std::vector<Bucket>* buckets);
 
   Status AllocateId(const std::string& user_name, const std::string& bucket_name,
       const std::string& object_name, const int32_t block_nums, uint64_t* tail_id);
-  Status AddObject(const Object& object);
+  Status AddObject(const Object& object, const bool need_lock = true);
   Status GetObject(const std::string& user_name, const std::string& bucket_name,
       const std::string& object_name, Object* object);
   Status DeleteObject(const std::string& user_name, const std::string& bucket_name,
-      const std::string& object_name);
+      const std::string& object_name, const bool need_lock = true);
   Status ListObjects(const std::string& user_name, const std::string& bucket_name,
       std::vector<Object>* objects);
 

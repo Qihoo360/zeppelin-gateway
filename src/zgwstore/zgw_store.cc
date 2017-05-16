@@ -294,7 +294,8 @@ Status ZgwStore::ListUsers(std::vector<User>* users) {
   return Status::OK();
 }
 
-Status ZgwStore::AddBucket(const Bucket& bucket, const bool override) {
+Status ZgwStore::AddBucket(const Bucket& bucket, const bool need_lock,
+    const bool override) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
@@ -302,9 +303,11 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool override) {
  *  1. Lock
  */
   Status s;
-  s = Lock();
-  if (!s.ok()) {
-    return s;
+  if (need_lock) {
+    s = Lock();
+    if (!s.ok()) {
+      return s;
+    }
   }
 /*
  *  2. SISMEMBER 
@@ -317,11 +320,11 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool override) {
     return HandleIOError("AddBucket::SISMEMBER");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("AddBucket::SISMEMBER ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("AddBucket::SISMEMBER ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_INTEGER);
   if (reply->integer == 1 && !override) {
-    return HandleLogicError("Bucket Already Exist", reply, true);
+    return HandleLogicError("Bucket Already Exist", reply, need_lock);
   }
   freeReplyObject(reply);
 /*
@@ -333,11 +336,11 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool override) {
     return HandleIOError("AddBucket::EXISTS");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("AddBucket::EXISTS ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("AddBucket::EXISTS ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_INTEGER);
   if (reply->integer == 1) {
-    return HandleLogicError("Bucket Already Exist [GLOBAL]", reply, true);
+    return HandleLogicError("Bucket Already Exist [GLOBAL]", reply, need_lock);
   }
   assert(reply->integer == 0);
   freeReplyObject(reply);
@@ -369,7 +372,7 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool override) {
     return HandleIOError("AddBucket::HMSET");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("AddBucket::HMSET ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("AddBucket::HMSET ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_STATUS);
   freeReplyObject(reply);
@@ -383,17 +386,19 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool override) {
     return HandleIOError("AddBucket::SADD");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("AddBucket::SADD ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("AddBucket::SADD ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_INTEGER);
   if (reply->integer == 0 && !override) {
-    return HandleLogicError("Bucket Already Exist", reply, true);
+    return HandleLogicError("Bucket Already Exist", reply, need_lock);
   }
   freeReplyObject(reply);
 /*
  *  7. UnLock 
  */
-  s = UnLock();
+  if (need_lock) {
+    s = UnLock();
+  }
   return s;
 }
 
@@ -445,7 +450,8 @@ Status ZgwStore::GetBucket(const std::string& user_name, const std::string& buck
   return Status::OK();
 }
 
-Status ZgwStore::DeleteBucket(const std::string& user_name, const std::string& bucket_name) {
+Status ZgwStore::DeleteBucket(const std::string& user_name, const std::string& bucket_name,
+    const bool need_lock) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
@@ -453,9 +459,11 @@ Status ZgwStore::DeleteBucket(const std::string& user_name, const std::string& b
  *  1. Lock
  */
   Status s;
-  s = Lock();
-  if (!s.ok()) {
-    return s;
+  if (need_lock) {
+    s = Lock();
+    if (!s.ok()) {
+      return s;
+    }
   }
 /*
  *  2. SISMEMBER 
@@ -468,11 +476,11 @@ Status ZgwStore::DeleteBucket(const std::string& user_name, const std::string& b
     return HandleIOError("DeleteBucket::SISMEMBER");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("DeleteBucket::SISMEMBER ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("DeleteBucket::SISMEMBER ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_INTEGER);
   if (reply->integer == 0) {
-    return HandleLogicError("Bucket Doesnt Exist", reply, true);
+    return HandleLogicError("Bucket Doesnt Exist", reply, need_lock);
   }
   freeReplyObject(reply);
 /*
@@ -484,12 +492,12 @@ Status ZgwStore::DeleteBucket(const std::string& user_name, const std::string& b
     return HandleIOError("DeleteBucket::EXISTS");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("DeleteBucket::EXISTS ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("DeleteBucket::EXISTS ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_STRING);
   char* end;
   if (std::strtoll(reply->str, &end, 10) != 0) {
-    return HandleLogicError("Bucket Vol IS NOT 0", reply, true);
+    return HandleLogicError("Bucket Vol IS NOT 0", reply, need_lock);
   }
   assert(reply->integer == 0);
   freeReplyObject(reply);
@@ -502,11 +510,11 @@ Status ZgwStore::DeleteBucket(const std::string& user_name, const std::string& b
     return HandleIOError("DeleteBucket::SCARD");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("DeleteBucket::SCARD ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("DeleteBucket::SCARD ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_INTEGER);
   if (reply->integer != 0) {
-    return HandleLogicError("Bucket Non Empty", reply, true);
+    return HandleLogicError("Bucket Non Empty", reply, need_lock);
   }
   freeReplyObject(reply);
 /*
@@ -533,7 +541,9 @@ Status ZgwStore::DeleteBucket(const std::string& user_name, const std::string& b
 /*
  *  7. UnLock 
  */
-  s = UnLock();
+  if (need_lock) {
+    s = UnLock();
+  }
   return s;
 }
 
@@ -671,7 +681,7 @@ Status ZgwStore::AllocateId(const std::string& user_name, const std::string& buc
   return s;
 }
 
-Status ZgwStore::AddObject(const Object& object) {
+Status ZgwStore::AddObject(const Object& object, const bool need_lock) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
@@ -679,9 +689,11 @@ Status ZgwStore::AddObject(const Object& object) {
  *  1. Lock
  */
   Status s;
-  s = Lock();
-  if (!s.ok()) {
-    return s;
+  if (need_lock) {
+    s = Lock();
+    if (!s.ok()) {
+      return s;
+    }
   }
 /*
  *  2. HGETALL 
@@ -695,7 +707,7 @@ Status ZgwStore::AddObject(const Object& object) {
     return HandleIOError("AddObject::HGETALL");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("AddObject::HGETALL ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("AddObject::HGETALL ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_ARRAY);
   if (reply->elements != 0) {
@@ -708,7 +720,7 @@ Status ZgwStore::AddObject(const Object& object) {
       return HandleIOError("AddObject::LPUSH");
     }
     if (t_reply->type == REDIS_REPLY_ERROR) {
-      return HandleLogicError("AddObject::LPUSH ret: " + std::string(reply->str), reply, true);
+      return HandleLogicError("AddObject::LPUSH ret: " + std::string(reply->str), reply, need_lock);
     }
     assert(t_reply->type == REDIS_REPLY_INTEGER);
     freeReplyObject(t_reply);
@@ -746,7 +758,7 @@ Status ZgwStore::AddObject(const Object& object) {
     return HandleIOError("AddObject::HMSET");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("AddObject::HMSET ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("AddObject::HMSET ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_STATUS);
   freeReplyObject(reply);
@@ -760,7 +772,7 @@ Status ZgwStore::AddObject(const Object& object) {
     return HandleIOError("AddObject::SADD");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("AddObject::SADD ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("AddObject::SADD ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_INTEGER);
   if (reply->integer == 0) {
@@ -777,7 +789,7 @@ Status ZgwStore::AddObject(const Object& object) {
     return HandleIOError("AddObject::HINCRBY");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("AddObject::HINCRBY ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("AddObject::HINCRBY ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_INTEGER);
 /*
@@ -794,7 +806,9 @@ Status ZgwStore::AddObject(const Object& object) {
 /*
  *  8. UnLock 
  */
-  s = UnLock();
+  if (need_lock) {
+    s = UnLock();
+  }
   return s;
 }
 
@@ -846,7 +860,7 @@ Status ZgwStore::GetObject(const std::string& user_name, const std::string& buck
 }
 
 Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& bucket_name,
-    const std::string& object_name) {
+    const std::string& object_name, const bool need_lock) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
@@ -854,9 +868,11 @@ Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& b
  *  1. Lock
  */
   Status s;
-  s = Lock();
-  if (!s.ok()) {
-    return s;
+  if (need_lock) {
+    s = Lock();
+    if (!s.ok()) {
+      return s;
+    }
   }
 /*
  *  2. HGETALL 
@@ -870,7 +886,7 @@ Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& b
     return HandleIOError("DeleteObject::HGETALL");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("DeleteObject::HGETALL ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("DeleteObject::HGETALL ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_ARRAY);
   if (reply->elements != 0) {
@@ -883,7 +899,7 @@ Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& b
       return HandleIOError("DeleteObject::LPUSH");
     }
     if (t_reply->type == REDIS_REPLY_ERROR) {
-      return HandleLogicError("DeleteObject::LPUSH ret: " + std::string(reply->str), reply, true);
+      return HandleLogicError("DeleteObject::LPUSH ret: " + std::string(reply->str), reply, need_lock);
     }
     assert(t_reply->type == REDIS_REPLY_INTEGER);
     freeReplyObject(t_reply);
@@ -910,7 +926,7 @@ Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& b
     return HandleIOError("DeleteObject::SREM");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("DeleteObject::SREM ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("DeleteObject::SREM ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_INTEGER);
   freeReplyObject(reply);
@@ -924,13 +940,15 @@ Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& b
     return HandleIOError("DeleteObject::HINCRBY");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("DeleteObject::HINCRBY ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("DeleteObject::HINCRBY ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_INTEGER);
 /*
  *  6. UnLock 
  */
-  s = UnLock();
+  if (need_lock) {
+    s = UnLock();
+  }
   return s;
 }
 
@@ -1020,11 +1038,11 @@ Status ZgwStore::AddMultiBlockSet(const std::string& bucket_name, const std::str
     return HandleIOError("AddMultiBlockSet::SADD");
   }
   if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("AddMultiBlockSet::SADD ret: " + std::string(reply->str), reply, true);
+    return HandleLogicError("AddMultiBlockSet::SADD ret: " + std::string(reply->str), reply, false);
   }
   assert(reply->type == REDIS_REPLY_INTEGER);
   if (reply->integer == 0) {
-    return HandleLogicError("upload_id Already Exist", reply, true);
+    return HandleLogicError("upload_id Already Exist", reply, false);
   }
   freeReplyObject(reply);
   return Status::OK();
@@ -1082,6 +1100,7 @@ Status ZgwStore::DeleteMultiBlockSet(const std::string& bucket_name, const std::
   }
   assert(reply->type == REDIS_REPLY_INTEGER);
   freeReplyObject(reply);
+  return Status::OK();
 }
 
 bool ZgwStore::MaybeHandleRedisError() {
