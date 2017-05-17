@@ -8,6 +8,8 @@
 bool InitMultipartUploadCmd::DoInitial() {
   upload_id_ = md5(bucket_name_ + object_name_ +
                    std::to_string(slash::NowMicros()));
+  DLOG(INFO) << "InitialMultiUpload(DoInitial) - " <<
+    bucket_name_ << "/" << object_name_ << "-uploadId: " << upload_id_;
 
   if (!TryAuth()) {
     return false;
@@ -22,6 +24,8 @@ bool InitMultipartUploadCmd::DoInitial() {
       GenerateErrorXml(kNoSuchBucket, bucket_name_);
     } else {
       http_ret_code_ = 500;
+      LOG(ERROR) << "InitialMultiUpload(DoInitial) - GetBucket Error " <<
+        s.ToString();
     }
     return false;
   }
@@ -46,10 +50,14 @@ void InitMultipartUploadCmd::DoAndResponse(pink::HttpResponse* resp) {
     if (!s.ok()) {
       // Duplicate bucket must not exist
       http_ret_code_ = 500;
+      LOG(ERROR) << "InitialMultiUpload(DoAndResponse) - Error Add virtual_bucket: "
+        << virtual_bucket.bucket_name;
     }
     GenerateRespXml();
+    DLOG(INFO) << "InitialMultiUpload(DoAndResponse) - Add virtual_bucket success";
   }
 
+  DLOG(INFO) << "InitialMultiUpload(DoAndResponse) - http code " << http_ret_code_;
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

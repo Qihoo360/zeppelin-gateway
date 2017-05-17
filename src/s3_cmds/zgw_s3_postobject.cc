@@ -5,7 +5,7 @@
 
 bool PostObjectCmd::DoInitial() {
 
-  return true;
+  return TryAuth();
 }
 
 void PostObjectCmd::DoReceiveBody(const char* data, size_t data_size) {

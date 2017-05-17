@@ -11,6 +11,10 @@ bool ListPartsCmd::DoInitial() {
   max_parts_ = 1000;
   part_num_marker_ = "0";
 
+  if (!TryAuth()) {
+    return false;
+  }
+
   if (query_params_.count("max-parts")) {
     std::string max_parts = query_params_.at("max-parts");
     max_parts_ = std::atoi(max_parts.c_str());
@@ -26,7 +30,7 @@ bool ListPartsCmd::DoInitial() {
   if (query_params_.count("part-number-marker")) {
     part_num_marker_.assign(query_params_.at("part-number-marker"));
   }
-  return TryAuth();
+  return true;
 }
 
 void ListPartsCmd::DoAndResponse(pink::HttpResponse* resp) {
@@ -36,11 +40,11 @@ void ListPartsCmd::DoAndResponse(pink::HttpResponse* resp) {
       bucket_name_ + "|" + object_name_;
     Status s = store_->ListObjects(user_name_, virtual_bucket, &all_parts);
     if (s.ok()) {
+      // Sorting
+      for (auto& p : all_parts) {
+        all_candicate_parts_.insert(p);
+      }
       // Build response XML using all_objects_
-      std::set<zgwstore::Object, ObjectsComparator> all_objects(
-          all_parts.begin(),
-          all_parts.end());
-      all_candicate_parts_.swap(all_parts);
       GenerateRespXml();
     } else if (s.ToString().find("Bucket Doesn't Belong To This User") !=
                std::string::npos) {
@@ -105,7 +109,7 @@ void ListPartsCmd::GenerateRespXml() {
     S3XmlNode* part_node = doc.AllocateNode("Part");
     part_node->AppendNode("PartNumber", part.object_name);
     part_node->AppendNode("LastModified", iso8601_time(part.last_modified));
-    part_node->AppendNode("ETag", part.etag);
+    part_node->AppendNode("ETag", "\"" + part.etag + "\"");
     part_node->AppendNode("Size", std::to_string(part.size));
     doc.AppendToRoot(part_node);
 

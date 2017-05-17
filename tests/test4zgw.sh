@@ -1,4 +1,7 @@
 #!/bin/bash
+# s3tests.functional.test_s3:test_bucket_list_delimiter_percentage \
+# s3tests.functional.test_s3:test_object_raw_put \
+# s3tests.functional.test_s3:test_bucket_list_delimiter_whitespace \
 cases="\
   s3tests.functional.test_s3:test_bucket_list_empty \
   s3tests.functional.test_s3:test_bucket_list_distinct \
@@ -12,7 +15,6 @@ cases="\
   s3tests.functional.test_s3:test_bucket_create_delete \
   s3tests.functional.test_s3:test_object_requestid_matchs_header_on_error \
   s3tests.functional.test_s3:test_object_write_file \
-  s3tests.functional.test_s3:test_object_raw_put \
   s3tests.functional.test_s3:test_bucket_create_naming_good_long_250 \
   s3tests.functional.test_s3:test_bucket_create_naming_good_long_251 \
   s3tests.functional.test_s3:test_bucket_create_naming_good_long_252 \
@@ -81,8 +83,6 @@ cases="\
   s3tests.functional.test_s3:test_bucket_list_marker_after_list \
   s3tests.functional.test_s3:test_bucket_list_marker_before_list \
   s3tests.functional.test_s3:test_ranged_request_empty_object \
-  s3tests.functional.test_s3:test_bucket_list_delimiter_percentage \
-  s3tests.functional.test_s3:test_bucket_list_delimiter_whitespace \
   s3tests.functional.test_s3:test_bucket_list_delimiter_dot \
   s3tests.functional.test_s3:test_bucket_list_delimiter_prefix \
   s3tests.functional.test_s3:test_bucket_list_prefix_basic \

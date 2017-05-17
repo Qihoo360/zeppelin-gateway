@@ -34,14 +34,15 @@ class ZgwAdminHandles : public pink::HttpHandles {
   std::string result_;
 };
 
-static ZgwAdminHandles handles_;
 
 class ZgwAdminConnFactory : public pink::ConnFactory {
  public:
   virtual pink::PinkConn* NewPinkConn(int connfd,
                                       const std::string& ip_port,
                                       pink::Thread* thread) const {
-    return new pink::HttpConn(connfd, ip_port, thread, &handles_);
+    // Deleted in HttpConn's deconstructor
+    ZgwAdminHandles* handles = new ZgwAdminHandles();
+    return new pink::HttpConn(connfd, ip_port, thread, handles);
   }
 };
 

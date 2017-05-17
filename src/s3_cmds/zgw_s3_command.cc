@@ -57,10 +57,8 @@ void DestroyCmdTable(S3CmdTable* cmd_table) {
 
 bool S3Cmd::TryAuth() {
   switch(s3_auth_.TryAuth()) {
-    case kMaybeAuthV2:
-      http_ret_code_ = 400;
-      GenerateErrorXml(kInvalidRequest, "Please use AWS4-HMAC-SHA256.");
-      return false;
+    case kAuthSuccess:
+      http_ret_code_ = 200;
       break;
     case kAccessKeyInvalid:
       http_ret_code_ = 403;
@@ -72,9 +70,11 @@ bool S3Cmd::TryAuth() {
       GenerateErrorXml(kSignatureDoesNotMatch);
       return false;
       break;
-    case kAuthSuccess:
+    case kMaybeAuthV2:
     default:
-      break;
+      http_ret_code_ = 400;
+      GenerateErrorXml(kInvalidRequest, "Please use AWS4-HMAC-SHA256.");
+      return false;
   }
 
   user_name_.assign(s3_auth_.user_name());
@@ -207,5 +207,7 @@ void S3Cmd::GenerateErrorXml(S3ErrorType type, const std::string& message) {
     default:
       break;
   }
+  doc.AppendToRoot("RequestId", request_id_);
+  doc.AppendToRoot("HostId", request_id_); // TODO (gaodq)
   doc.ToString(&http_response_xml_);
 }

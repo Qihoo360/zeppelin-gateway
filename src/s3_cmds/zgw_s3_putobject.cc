@@ -38,7 +38,10 @@ bool PutObjectCmd::DoInitial() {
     char buf[100];
     sprintf(buf, "%lu-%lu(0,%lu)", block_start_, block_end_ - 1, data_size);
     new_object_.data_block = std::string(buf);
-  } else if (s.ToString().find("Bucket NOT Exists") != std::string::npos) {
+    LOG(INFO) << "AllocateId: " << block_start_ << "-" << block_end_;
+  } else if (s.ToString().find("Bucket NOT Exists") != std::string::npos ||
+             s.ToString().find("Bucket Doesn't Belong To This User") !=
+             std::string::npos) {
     http_ret_code_ = 404;
     GenerateErrorXml(kNoSuchBucket, bucket_name_);
     return false;
@@ -58,6 +61,7 @@ void PutObjectCmd::DoReceiveBody(const char* data, size_t data_size) {
 
   char* buf_pos = const_cast<char*>(data);
   size_t remain_size = data_size;
+  LOG(INFO) << "remain size: " << remain_size;
 
   while (remain_size > 0) {
     if (block_start_ >= block_end_) {
@@ -81,24 +85,27 @@ void PutObjectCmd::DoReceiveBody(const char* data, size_t data_size) {
 
 void PutObjectCmd::DoAndResponse(pink::HttpResponse* resp) {
   Timer t("PutObjectCmd: DoAndResponse -");
-  if (http_ret_code_ != 200) {
-    // Need reply right now
-  } else if (!status_.ok()) {
-    // Error happend while transmiting to zeppelin
-    http_ret_code_ = 500;
-  } else {
-    // Write meta
-    new_object_.etag = md5_ctx_.ToString();
-    LOG(INFO) << "MD5: " << new_object_.etag;
-    if (new_object_.etag.empty()) {
-      new_object_.etag = "_";
-    }
-    new_object_.last_modified = slash::NowMicros();
-
-    status_ = store_->AddObject(new_object_);
+  if (http_ret_code_ == 200) {
     if (!status_.ok()) {
+      // Error happend while transmiting to zeppelin
       http_ret_code_ = 500;
+    } else {
+      // Write meta
+      new_object_.etag = md5_ctx_.ToString();
+      LOG(INFO) << "MD5: " << new_object_.etag;
+      if (new_object_.etag.empty()) {
+        new_object_.etag = "_";
+      }
+      new_object_.last_modified = slash::NowMicros();
+
+      status_ = store_->AddObject(new_object_);
+      if (!status_.ok()) {
+        http_ret_code_ = 500;
+      }
+      DLOG(INFO) << "AddObject: " << bucket_name_ + "/" + object_name_ + " Success";
     }
+    resp->SetHeaders("Last-Modified", http_nowtime(new_object_.last_modified));
+    resp->SetHeaders("ETag", "\"" + new_object_.etag + "\"");
   }
 
   resp->SetStatusCode(http_ret_code_);

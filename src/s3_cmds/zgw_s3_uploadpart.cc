@@ -21,6 +21,9 @@ bool UploadPartCmd::DoInitial() {
   std::string virtual_bucket = "__TMPB" + upload_id +
     bucket_name_ + "|" + object_name_;
 
+  DLOG(INFO) << "UploadPart(DoInitial) - virtual_bucket: " << virtual_bucket
+    << " upload_id: " << upload_id << " part_number: " << part_number;
+
   // Initial new_object_part_
   new_object_part_.bucket_name = virtual_bucket;
   new_object_part_.object_name = part_number;
@@ -41,13 +44,17 @@ bool UploadPartCmd::DoInitial() {
     http_ret_code_ = 200;
     char buf[100];
     sprintf(buf, "%lu-%lu(0,%lu)", block_start_, block_end_ - 1, data_size);
-    new_object_part_.data_block = std::string(buf);
-  } else if (s.ToString().find("Bucket NOT Exists") != std::string::npos) {
+    new_object_part_.data_block.assign(buf);
+    DLOG(INFO) << "UploadPart(DoInitial) - AllocateId: " << buf;
+  } else if (s.ToString().find("Bucket NOT Exists") != std::string::npos ||
+             s.ToString().find("Bucket Doesn't Belong To This User") !=
+             std::string::npos) {
     http_ret_code_ = 404;
     GenerateErrorXml(kNoSuchUpload, upload_id);
     return false;
   } else {
     http_ret_code_ = 500;
+    LOG(ERROR) << "UploadPart(DoInitial) - AllocateId error: " << s.ToString();
     return false;
   }
 
@@ -75,6 +82,9 @@ void UploadPartCmd::DoReceiveBody(const char* data, size_t data_size) {
       md5_ctx_.Update(buf_pos, nwritten);
     } else {
       http_ret_code_ = 500;
+      LOG(ERROR) << "UploadPart(DoReceiveBody) - BlockSet error: " <<
+        status_.ToString();
+      // TODO (gaodq) delete data already saved
     }
 
     remain_size -= nwritten;
@@ -83,33 +93,36 @@ void UploadPartCmd::DoReceiveBody(const char* data, size_t data_size) {
 }
 
 void UploadPartCmd::DoAndResponse(pink::HttpResponse* resp) {
-  if (http_ret_code_ != 200) {
-    // Need reply right now
-  } else if (!status_.ok()) {
-    // Error happend while transmiting to zeppelin
-    http_ret_code_ = 500;
-  } else {
-    // Write meta
-    new_object_part_.etag = md5_ctx_.ToString();
-    LOG(INFO) << "MD5: " << new_object_part_.etag;
-    if (new_object_part_.etag.empty()) {
-      new_object_part_.etag = "_";
-    }
-    new_object_part_.last_modified = slash::NowMicros();
+  if (http_ret_code_ == 200) {
+    if (!status_.ok()) {
+      // Error happend while transmiting to zeppelin
+      http_ret_code_ = 500;
+      LOG(ERROR) << "UploadPart(DoAndResponse) - BlockSet error: " <<
+        status_.ToString();
+    } else {
+      // Write meta
+      new_object_part_.etag = md5_ctx_.ToString();
+      LOG(INFO) << "UploadPart(DoAndResponse) - MD5: " << new_object_part_.etag;
+      if (new_object_part_.etag.empty()) {
+        new_object_part_.etag = "_";
+      }
+      new_object_part_.last_modified = slash::NowMicros();
 
-    status_ = store_->AddMultiBlockSet(new_object_part_.bucket_name,
-                                       new_object_part_.object_name,
-                                       new_object_part_.upload_id,
-                                       new_object_part_.data_block);
-    if (!status_.ok()) {
-      http_ret_code_ = 500;
-    }
-    status_ = store_->AddObject(new_object_part_);
-    if (!status_.ok()) {
-      http_ret_code_ = 500;
+      DLOG(INFO) << "UploadPart(DoAndResponse) - Lock success";
+      status_ = store_->AddObject(new_object_part_);
+      if (!status_.ok()) {
+        http_ret_code_ = 500;
+        LOG(ERROR) << "UploadPart(DoAndResponse) - AddObject error: " <<
+          status_.ToString();
+      } else {
+        DLOG(INFO) << "UploadPart(DoAndResponse) - UnLock success";
+        resp->SetHeaders("Last-Modified", http_nowtime(new_object_part_.last_modified));
+        resp->SetHeaders("ETag", "\"" + new_object_part_.etag + "\"");
+      }
     }
   }
 
+  DLOG(INFO) << "UploadPart(DoAndResponse) - http code: " << http_ret_code_;
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

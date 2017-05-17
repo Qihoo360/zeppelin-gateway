@@ -7,6 +7,11 @@
 
 bool PutObjectCopyCmd::DoInitial() {
   std::string source_path = req_headers_.at("x-amz-copy-source");
+
+  if (!TryAuth()) {
+    return false;
+  }
+
   SplitBySecondSlash(source_path, &src_bucket_name_, &src_object_name_);
   if (src_bucket_name_.empty() || src_object_name_.empty()) {
     http_ret_code_ = 400;
@@ -14,46 +19,54 @@ bool PutObjectCopyCmd::DoInitial() {
     return false;
   }
 
-  return TryAuth();
+  return true;
 }
 
 void PutObjectCopyCmd::DoAndResponse(pink::HttpResponse* resp) {
-  Status s;
   if (http_ret_code_ == 200) {
-    // Get src_object_ meta
-    s = store_->GetObject(user_name_, src_bucket_name_, src_object_name_,
-                                 &src_object_);
+    Status s = store_->Lock();
     if (s.ok()) {
-      http_ret_code_ = 200;
+      // Get src_object_ meta
+      s = store_->GetObject(user_name_, src_bucket_name_, src_object_name_,
+                            &src_object_);
+      if (s.ok()) {
+        http_ret_code_ = 200;
 
-      // Initial new_object_
-      new_object_.bucket_name = bucket_name_;
-      new_object_.object_name = object_name_;
-      new_object_.etag = src_object_.etag;
-      new_object_.size = src_object_.size;
-      new_object_.owner = user_name_;
-      new_object_.last_modified = slash::NowMicros();
-      new_object_.storage_class = 0; // Unused
-      new_object_.acl = "FULL_CONTROL";
-      new_object_.upload_id = "_"; // Doesn't need
-      new_object_.data_block = src_object_.data_block;
+        // Initial new_object_
+        new_object_.bucket_name = bucket_name_;
+        new_object_.object_name = object_name_;
+        new_object_.etag = src_object_.etag;
+        new_object_.size = src_object_.size;
+        new_object_.owner = user_name_;
+        new_object_.last_modified = slash::NowMicros();
+        new_object_.storage_class = 0; // Unused
+        new_object_.acl = "FULL_CONTROL";
+        new_object_.upload_id = "_"; // Doesn't need
+        new_object_.data_block = src_object_.data_block;
 
-      s = store_->AddObject(new_object_);
-      if (!s.ok()) {
-        http_ret_code_ = 500;
+        s = store_->AddObject(new_object_, false);
+        if (!s.ok()) {
+          http_ret_code_ = 500;
+        } else {
+          // TODO(gaodq) Add reference to zp
+          GenerateRespXml();
+          DLOG(INFO) << "CopyObject: " << src_bucket_name_ + "/" + src_object_name_ + " To " << bucket_name_ + "/" + object_name_ + " Success";
+        }
       } else {
-        // TODO(gaodq) Add reference to zp
-        GenerateRespXml();
+        if (s.ToString().find("Bucket Doesn't Belong To This User") !=
+            std::string::npos) {
+          http_ret_code_ = 404;
+          GenerateErrorXml(kNoSuchBucket, bucket_name_);
+        } else if (s.ToString().find("Object Not Found") != std::string::npos) {
+          http_ret_code_ = 404;
+          GenerateErrorXml(kNoSuchKey, object_name_);
+        }
       }
-    } else {
-      if (s.ToString().find("Bucket Doesn't Belong To This User") !=
-          std::string::npos) {
-        http_ret_code_ = 404;
-        GenerateErrorXml(kNoSuchBucket, bucket_name_);
-      } else if (s.ToString().find("Object Not Found") != std::string::npos) {
-        http_ret_code_ = 404;
-        GenerateErrorXml(kNoSuchKey, object_name_);
-      }
+
+      s = store_->UnLock();
+    }
+    if (!s.ok()) {
+      http_ret_code_ = 500;
     }
   }
 
@@ -65,7 +78,7 @@ void PutObjectCopyCmd::GenerateRespXml() {
   S3XmlDoc doc("CopyObjectResult");
   doc.AppendToRoot(doc.AllocateNode("LastModified",
                                     iso8601_time(new_object_.last_modified)));
-  doc.AppendToRoot(doc.AllocateNode("ETag", new_object_.etag));
+  doc.AppendToRoot(doc.AllocateNode("ETag", "\"" + new_object_.etag + "\""));
 
   doc.ToString(&http_response_xml_);
 }

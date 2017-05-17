@@ -1,10 +1,14 @@
 #include "src/zgw_s3_rest.h"
 
 #include <glog/logging.h>
+#include "slash/include/slash_hash.h"
+#include "slash/include/env.h"
 #include "src/zgwstore/zgw_store.h"
 #include "src/s3_cmds/zgw_s3_command.h"
 #include "src/zgw_utils.h"
 #include "src/zgw_server.h"
+
+extern ZgwConfig* g_zgw_conf;
 
 bool ZgwHttpHandles::ReqHeadersHandle(const pink::HttpRequest* req) {
   // req->Dump();
@@ -15,8 +19,8 @@ bool ZgwHttpHandles::ReqHeadersHandle(const pink::HttpRequest* req) {
     return true;
   }
 
-  if (req->headers_.count("expect")) {
-    Timer t("Send 100-continue -");
+  if (g_zgw_conf->support_100continue &&
+      req->headers_.count("expect")) {
     LOG(INFO) << "Expect 100-continue";
     need_100_continue_ = true;
     // Need reply right now
@@ -42,6 +46,9 @@ void ZgwHttpHandles::RespHeaderHandle(pink::HttpResponse* resp) {
   }
 
   cmd_->DoAndResponse(resp);
+  resp->SetHeaders("x-amz-request-id", cmd_->request_id()); // TODO (gaodq)
+  resp->SetHeaders("Date", http_nowtime(slash::NowMicros()));
+  resp->SetHeaders("Server", "Zeppelin gateway 2.0");
 }
 
 int ZgwHttpHandles::RespBodyPartHandle(char* buf, size_t max_size) {
@@ -138,6 +145,7 @@ S3Cmd* ZgwHttpHandles::SelectS3Cmd(const pink::HttpRequest* req) {
   cmd_ptr->SetQueryParams(req->query_params_);
   cmd_ptr->SetStorePtr(store);
   cmd_ptr->InitS3Auth(req);
+  cmd_ptr->SetRequestId(slash::md5("FOO")); // TODO (gaodq)
 
   return cmd_ptr;
 }

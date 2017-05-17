@@ -8,6 +8,10 @@ bool ListMultiPartUploadCmd::DoInitial() {
   all_virtual_bks_.clear();
   http_response_xml_.clear();
 
+  if (!TryAuth()) {
+    return false;
+  }
+
   std::string invalid_param;
   if (!SanitizeParams(&invalid_param)) {
     http_ret_code_ = 400;
@@ -15,7 +19,7 @@ bool ListMultiPartUploadCmd::DoInitial() {
     return false;
   }
 
-  return TryAuth();
+  return true;
 }
 
 bool ListMultiPartUploadCmd::SanitizeParams(std::string* invalid_param) {

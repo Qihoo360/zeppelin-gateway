@@ -24,7 +24,6 @@ void GetBucketLocationCmd::DoAndResponse(pink::HttpResponse* resp) {
     }
   }
 
-  resp->SetHeaders("Date", http_nowtime(slash::NowMicros()));
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

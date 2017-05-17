@@ -157,6 +157,9 @@ Status ZgwStore::UnLock() {
     // UnLock Success
   } else if (reply->integer == 0) {
     // The zgw_lock is held by other clients
+    // std::cout << "reply-int" << std::endl;
+    // redisReply* t_reply = static_cast<redisReply*>(redisCommand(redis_cli_, "GET zgw_lock"));
+    // std::cout <<t_reply->type << std::endl;
   }
   freeReplyObject(reply);
   return Status::OK();

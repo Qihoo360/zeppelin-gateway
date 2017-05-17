@@ -8,6 +8,10 @@ bool ListObjectsCmd::DoInitial() {
   all_objects_.clear();
   http_response_xml_.clear();
 
+  if (!TryAuth()) {
+    return false;
+  }
+
   std::string invalid_param;
   list_typeV2_ = query_params_.count("list-type");
   if (!SanitizeParams(&invalid_param)) {
@@ -16,7 +20,7 @@ bool ListObjectsCmd::DoInitial() {
     return false;
   }
 
-  return TryAuth();
+  return true;
 }
 
 void ListObjectsCmd::DoAndResponse(pink::HttpResponse* resp) {
@@ -156,9 +160,7 @@ void ListObjectsCmd::GenerateRespXml() {
     }
     doc.AppendToRoot(doc.AllocateNode("KeyCount", std::to_string(key_count)));
   } else {
-    if (!marker_.empty()) {
-      doc.AppendToRoot(doc.AllocateNode("Marker", marker_));
-    }
+    doc.AppendToRoot(doc.AllocateNode("Marker", marker_));
     if (is_trucated) {
       doc.AppendToRoot(doc.AllocateNode("NextMarker", next_marker));
     }
@@ -171,8 +173,7 @@ void ListObjectsCmd::GenerateRespXml() {
     contents->AppendNode(doc.AllocateNode("Key", o.object_name));
     contents->AppendNode(doc.AllocateNode("LastModified",
                                           iso8601_time(o.last_modified)));
-    contents->AppendNode(doc.AllocateNode("ETag",
-                                          std::string("\"" + o.etag + "\"")));
+    contents->AppendNode(doc.AllocateNode("ETag", "\"" + o.etag + "\""));
     contents->AppendNode(doc.AllocateNode("Size", std::to_string(o.size)));
     contents->AppendNode(doc.AllocateNode("StorageClass", "STANDARD"));
     if (!list_typeV2_ || (list_typeV2_ && fetch_owner_)) {

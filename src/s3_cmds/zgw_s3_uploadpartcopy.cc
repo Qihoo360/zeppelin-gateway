@@ -7,6 +7,10 @@
 bool UploadPartCopyCmd::DoInitial() {
   http_response_xml_.clear();
 
+  if (!TryAuth()) {
+    return false;
+  }
+
   std::string source_path = req_headers_.at("x-amz-copy-source");
   SplitBySecondSlash(source_path, &src_bucket_name_, &src_object_name_);
   if (src_bucket_name_.empty() || src_object_name_.empty()) {
@@ -18,15 +22,25 @@ bool UploadPartCopyCmd::DoInitial() {
   upload_id_ = query_params_.at("uploadId");
   part_number_ = query_params_.at("partNumber");
 
-  return TryAuth();
+  return true;
 }
 
 void UploadPartCopyCmd::DoAndResponse(pink::HttpResponse* resp) {
   if (http_ret_code_ == 200) {
+    // Lock
     // Get src_object_ meta
     Status s = store_->GetObject(user_name_, src_bucket_name_, src_object_name_,
                                  &src_object_);
-    if (s.ok()) {
+    if (!s.ok()) {
+      if (s.ToString().find("Bucket Doesn't Belong To This User") !=
+          std::string::npos) {
+        http_ret_code_ = 404;
+        GenerateErrorXml(kNoSuchBucket, bucket_name_);
+      } else if (s.ToString().find("Object Not Found") != std::string::npos) {
+        http_ret_code_ = 404;
+        GenerateErrorXml(kNoSuchKey, object_name_);
+      }
+    } else {
       std::string virtual_bucket = "__TMPB" + upload_id_ +
         bucket_name_ + "|" + object_name_;
 
@@ -42,23 +56,31 @@ void UploadPartCopyCmd::DoAndResponse(pink::HttpResponse* resp) {
       new_object_.upload_id = upload_id_;
       new_object_.data_block = src_object_.data_block;
 
-      s = store_->AddObject(new_object_);
+      // Check uploadId
+      zgwstore::Bucket dummy_bk;
+      Status s = store_->GetBucket(user_name_, virtual_bucket, &dummy_bk);
       if (!s.ok()) {
-        http_ret_code_ = 500;
+        if (s.ToString().find("Bucket Doesn't Belong To This User") ||
+            s.ToString().find("Bucket Not Found")) {
+          http_ret_code_ = 404;
+          GenerateErrorXml(kNoSuchUpload, upload_id_);
+        } else {
+          http_ret_code_ = 500;
+        }
       } else {
-        // TODO(gaodq) Add reference to zp
+        // TODO (gaodq) Add zp reference
+
+        // Add part meta
+        s = store_->AddObject(new_object_);
+        if (!s.ok()) {
+          http_ret_code_ = 500;
+        }
+
+        // Success
         GenerateRespXml();
       }
-    } else {
-      if (s.ToString().find("Bucket Doesn't Belong To This User") !=
-          std::string::npos) {
-        http_ret_code_ = 404;
-        GenerateErrorXml(kNoSuchBucket, bucket_name_);
-      } else if (s.ToString().find("Object Not Found") != std::string::npos) {
-        http_ret_code_ = 404;
-        GenerateErrorXml(kNoSuchKey, object_name_);
-      }
     }
+    // Unlock
   }
 
   resp->SetStatusCode(http_ret_code_);

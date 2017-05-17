@@ -203,24 +203,23 @@ class UploadPartCopyCmd : public S3Cmd {
 class UploadPartCopyPartialCmd : public S3Cmd {
 
  public:
-  UploadPartCopyPartialCmd()
-    : block_count_(0),
-      block_start_(0),
-      block_end_(0) {
-  }
+  UploadPartCopyPartialCmd() {}
 
   virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HttpResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
+  void GenerateRespXml();
   void ParseBlocksFrom(const std::vector<std::string>& block_indexes);
 
   std::string src_bucket_name_;
   std::string src_object_name_;
-  std::string range_;
   std::string upload_id_;
+  std::string part_number_;
   uint64_t data_size_;
+  bool need_copy_data_;
+  std::string src_data_block_;
   zgwstore::Object src_object_;
   zgwstore::Object new_object_;
   std::queue<std::tuple<uint64_t, uint64_t, uint64_t>> blocks_;
@@ -228,9 +227,6 @@ class UploadPartCopyPartialCmd : public S3Cmd {
   Status status_;
 
   MD5Ctx md5_ctx_;
-  size_t block_count_;
-  uint64_t block_start_;
-  uint64_t block_end_;
 };
 
 class ListPartsCmd: public S3Cmd {
@@ -254,7 +250,7 @@ class ListPartsCmd: public S3Cmd {
   std::string upload_id_;
   int max_parts_;
   std::string part_num_marker_;
-  std::vector<zgwstore::Object> all_candicate_parts_;
+  std::set<zgwstore::Object, ObjectsComparator> all_candicate_parts_;
 };
 
 class CompleteMultiUploadCmd : public S3Cmd {

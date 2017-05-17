@@ -103,12 +103,19 @@ class S3Cmd {
     assert(store_ != nullptr);
     s3_auth_.Initialize(req, store_);
   }
+  void SetRequestId(const std::string& request_id) {
+    request_id_ = request_id;
+  }
+  std::string request_id() {
+    return request_id_;
+  }
 
  protected:
   bool TryAuth();
   void GenerateErrorXml(S3ErrorType type, const std::string& message = "");
 
   // These parameters have been filled
+  std::string request_id_;
   std::string user_name_;
   std::string bucket_name_;
   std::string object_name_;

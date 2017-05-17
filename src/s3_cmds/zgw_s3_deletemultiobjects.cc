@@ -39,36 +39,39 @@ static bool ParseReqXml(const std::string& xml_str,
 }
 
 void DeleteMultiObjectsCmd::DoAndResponse(pink::HttpResponse* resp) {
-  std::vector<std::string> objects_to_delete;
-  if (!ParseReqXml(http_request_xml_, &objects_to_delete)) {
-    http_ret_code_ = 400;
-    GenerateErrorXml(kMalformedXML);
-  }
-
   if (http_ret_code_ == 200) {
-    zgwstore::Bucket dummy_bk;
-    Status s = store_->GetBucket(user_name_, bucket_name_, &dummy_bk);
-    if (!s.ok()) {
-      http_ret_code_ = 404;
-      GenerateErrorXml(kNoSuchBucket, bucket_name_);
+    std::vector<std::string> objects_to_delete;
+    if (!ParseReqXml(http_request_xml_, &objects_to_delete)) {
+      http_ret_code_ = 400;
+      GenerateErrorXml(kMalformedXML);
     }
-  }
 
-  if (http_ret_code_ == 200) {
-    S3XmlDoc doc("DeleteResult");
-    for (auto& obj : objects_to_delete) {
-      Status s = store_->DeleteObject(user_name_, bucket_name_, obj);
-      if (s.ok()) {
-        S3XmlNode* deleted_node = doc.AllocateNode("Deleted");
-        deleted_node->AppendNode("Key", obj);
-        doc.AppendToRoot(deleted_node);
-      } else {
-        S3XmlNode* error_node = doc.AllocateNode("Error");
-        error_node->AppendNode("Key", obj);
-        error_node->AppendNode("Code", "");
-        error_node->AppendNode("Message", "");
-        doc.AppendToRoot(error_node);
+    if (http_ret_code_ == 200) {
+      zgwstore::Bucket dummy_bk;
+      Status s = store_->GetBucket(user_name_, bucket_name_, &dummy_bk);
+      if (!s.ok()) {
+        http_ret_code_ = 404;
+        GenerateErrorXml(kNoSuchBucket, bucket_name_);
       }
+    }
+
+    if (http_ret_code_ == 200) {
+      S3XmlDoc doc("DeleteResult");
+      for (auto& obj : objects_to_delete) {
+        Status s = store_->DeleteObject(user_name_, bucket_name_, obj);
+        if (s.ok()) {
+          S3XmlNode* deleted_node = doc.AllocateNode("Deleted");
+          deleted_node->AppendNode("Key", obj);
+          doc.AppendToRoot(deleted_node);
+        } else {
+          S3XmlNode* error_node = doc.AllocateNode("Error");
+          error_node->AppendNode("Key", obj);
+          error_node->AppendNode("Code", "");
+          error_node->AppendNode("Message", "");
+          doc.AppendToRoot(error_node);
+        }
+      }
+      doc.ToString(&http_response_xml_);
     }
   }
 
