@@ -156,7 +156,12 @@ void GetObjectCmd::DoAndResponse(pink::HttpResponse* resp) {
 
       std::vector<std::string> sorted_block_indexes;
       if (object_.upload_id != "_") {
-        s = store_->GetMultiBlockSet(bucket_name_, object_name_,
+        std::string data_block = object_.data_block;
+        size_t pos = data_block.find("|");
+        assert(pos != std::string::npos);
+        std::string bkname = data_block.substr(32, pos - 32);
+        std::string obname = data_block.substr(pos + 1);
+        s = store_->GetMultiBlockSet(bkname, obname,
                                      object_.upload_id, &sorted_block_indexes);
         if (s.IsIOError()) {
           http_ret_code_ = 500;
