@@ -17,8 +17,8 @@ bool GetObjectCmd::DoInitial() {
   return TryAuth();
 }
 
-static int ParseRange(const std::string& range, uint64_t data_size,
-                      uint64_t* range_start, uint64_t* range_end) {
+int GetObjectCmd::ParseRange(const std::string& range, uint64_t data_size,
+                             uint64_t* range_start, uint64_t* range_end) {
   // Check whether range is valid
   // Support sigle range for only
   if (range.find("bytes=") == std::string::npos) {
@@ -84,19 +84,20 @@ void GetObjectCmd::ParseBlocksFrom(const std::vector<std::string>& block_indexes
                      &start_block, &end_block, &start_byte, &data_size);
 
     // Select block interval index
-    if (range_start >= data_size) {
-      range_start -= data_size;
+    if (range_start >= (data_size - start_byte)) {
+      range_start -= (data_size - start_byte);
+      start_byte = 0;
+      // Next block group
       continue;
     }
 
     for (uint64_t b = start_block; b <= end_block; b++) {
-      uint64_t end_of_block = (b - start_block + 1) * zgwstore::kZgwBlockSize;
-      if (b == end_block) {
-        end_of_block = data_size;
-      }
-
+      uint64_t cur_bsize = std::min(data_size, zgwstore::kZgwBlockSize) - start_byte;
       // Select block
-      if (range_start >= end_of_block) {
+      if (range_start >= cur_bsize) {
+        range_start -= cur_bsize;
+        start_byte = 0;
+        // Next block
         continue;
       }
 
@@ -107,17 +108,17 @@ void GetObjectCmd::ParseBlocksFrom(const std::vector<std::string>& block_indexes
       blocks_.push(std::make_tuple(b, start_byte + range_start, remain));
       needed_size -= remain;
       start_byte = 0;
-    }
 
-    if (needed_size == 0) {
-      break;
-    }
+      if (needed_size == 0) {
+        return;
+      }
 
-    range_start = 0;
+      range_start = 0;
+    }
   }
 }
 
-static void SortBlockIndexes(std::vector<std::string>* block_indexes) {
+void GetObjectCmd::SortBlockIndexes(std::vector<std::string>* block_indexes) {
   std::sort(block_indexes->begin(), block_indexes->end(),
             [](const std::string& a, const std::string& b) {
               return std::atoi(a.substr(0, 5).c_str()) <

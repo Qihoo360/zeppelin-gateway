@@ -23,7 +23,11 @@ class GetObjectCmd : public S3Cmd {
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
+  int ParseRange(const std::string& range, uint64_t data_size,
+                 uint64_t* range_start, uint64_t* range_end);
+  void SortBlockIndexes(std::vector<std::string>* block_indexes);
   void ParseBlocksFrom(const std::vector<std::string>& block_indexes);
+
   zgwstore::Object object_;
 
   uint64_t data_size_;
@@ -37,7 +41,8 @@ class GetObjectCmd : public S3Cmd {
 class HeadObjectCmd : public S3Cmd {
 
  public:
-  HeadObjectCmd() {}
+  HeadObjectCmd() {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HttpResponse* resp) override;
@@ -75,7 +80,8 @@ class PostObjectCmd : public S3Cmd {
 class PutObjectCopyCmd : public S3Cmd {
 
  public:
-  PutObjectCopyCmd() {}
+  PutObjectCopyCmd() {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HttpResponse* resp) override;
@@ -211,6 +217,9 @@ class UploadPartCopyPartialCmd : public S3Cmd {
 
  private:
   void GenerateRespXml();
+  int ParseRange(const std::string& range, uint64_t data_size,
+                 uint64_t* range_start, uint64_t* range_end);
+  void SortBlockIndexes(std::vector<std::string>* block_indexes);
   void ParseBlocksFrom(const std::vector<std::string>& block_indexes);
 
   std::string src_bucket_name_;
@@ -219,7 +228,7 @@ class UploadPartCopyPartialCmd : public S3Cmd {
   std::string part_number_;
   uint64_t data_size_;
   bool need_copy_data_;
-  std::string src_data_block_;
+  std::vector<std::string> src_data_block_;
   zgwstore::Object src_object_;
   zgwstore::Object new_object_;
   std::queue<std::tuple<uint64_t, uint64_t, uint64_t>> blocks_;

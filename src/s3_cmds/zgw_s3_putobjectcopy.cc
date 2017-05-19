@@ -41,7 +41,7 @@ void PutObjectCopyCmd::DoAndResponse(pink::HttpResponse* resp) {
         new_object_.last_modified = slash::NowMicros();
         new_object_.storage_class = 0; // Unused
         new_object_.acl = "FULL_CONTROL";
-        new_object_.upload_id = "_"; // Doesn't need
+        new_object_.upload_id = src_object_.upload_id;
         new_object_.data_block = src_object_.data_block;
 
         s = store_->AddObject(new_object_, false);

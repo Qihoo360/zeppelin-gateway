@@ -43,7 +43,10 @@ bool CompleteMultiUploadCmd::ParseReqXml() {
       return false;
     }
     // Trim quote of etag
-    std::string etag_s = etag.value().substr(1, 32);
+    std::string etag_s = etag.value();
+    if (!etag_s.empty() && etag_s.at(0) == '"') {
+      etag_s.assign(etag_s.substr(1, 32));
+    }
     received_parts_info_.push_back(std::make_pair(part_num.value(), etag_s));
   } while (node.NextSibling());
   return true;
@@ -200,7 +203,7 @@ void CompleteMultiUploadCmd::GenerateRespXml() {
   S3XmlDoc doc("CompleteMultipartUploadResult");
   doc.AppendToRoot(doc.AllocateNode("Bucket", bucket_name_));
   doc.AppendToRoot(doc.AllocateNode("Key", object_name_));
-  doc.AppendToRoot(doc.AllocateNode("ETag", new_object_.etag));
+  doc.AppendToRoot(doc.AllocateNode("ETag", "\"" + new_object_.etag + "\""));
   doc.ToString(&http_response_xml_);
 }
 

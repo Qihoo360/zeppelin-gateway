@@ -24,7 +24,6 @@ struct ZgwConfig {
   int minloglevel;
   int cron_interval;
   int worker_num;
-  bool support_100continue;
 
   std::string log_path;
   std::string pid_file;

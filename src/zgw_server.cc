@@ -1,5 +1,7 @@
 #include "src/zgw_server.h"
 
+#include <atomic>
+
 #include <glog/logging.h>
 #include "slash/include/slash_mutex.h"
 #include "slash/include/env.h"
@@ -7,12 +9,12 @@
 
 extern ZgwConfig* g_zgw_conf;
 
+static std::atomic<int> zgw_thread_id(0);
+
 int ZgwThreadEnvHandle::SetEnv(void** env) const {
   zgwstore::ZgwStore* store;
-  uint64_t now = slash::NowMicros();
   char buf[100] = {0};
   gethostname(buf, 100);
-  static int zgw_thread_id = 0;
   std::string lock_name = std::string(buf) +
     std::to_string(g_zgw_conf->server_port) + std::to_string(zgw_thread_id++);
   Status s = zgwstore::ZgwStore::Open(g_zgw_conf->zp_meta_ip_ports,
@@ -101,7 +103,7 @@ void ZgwServer::Exit() {
 
 Status ZgwServer::Start() {
   Status s;
-  LOG(INFO) << "Waiting for ZgwServerThread Init, maybe "<< worker_num_ * 10 << "s";
+  LOG(INFO) << "Waiting for ZgwServerThread Init...";
 
   if (zgw_dispatch_thread_->StartThread() != 0) {
     return Status::Corruption("Launch DispatchThread failed");

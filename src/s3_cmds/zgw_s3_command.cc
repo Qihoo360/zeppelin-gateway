@@ -4,6 +4,27 @@
 #include "src/s3_cmds/zgw_s3_bucket.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
 
+class ZgwTestCmd : public S3Cmd {
+  virtual bool DoInitial() {
+    http_response_xml_.clear();
+    return true;
+  }
+  virtual void DoAndResponse(pink::HttpResponse* resp) {
+
+    resp->SetStatusCode(200);
+    resp->SetContentLength(http_response_xml_.size());
+  }
+  virtual int DoResponseBody(char* buf, size_t max_size) {
+    if (max_size < http_response_xml_.size()) {
+      memcpy(buf, http_response_xml_.data(), max_size);
+      http_response_xml_.assign(http_response_xml_.substr(max_size));
+    } else {
+      memcpy(buf, http_response_xml_.data(), http_response_xml_.size());
+    }
+    return std::min(max_size, http_response_xml_.size());
+  };
+};
+
 class UnImplementCmd : public S3Cmd {
   virtual bool DoInitial() {
     return false;
@@ -47,6 +68,7 @@ void InitCmdTable(S3CmdTable* cmd_table) {
   cmd_table->insert(std::make_pair(kAbortMultiUpload, new AbortMultiUploadCmd()));
   cmd_table->insert(std::make_pair(kListParts, new ListPartsCmd()));
   cmd_table->insert(std::make_pair(kUnImplement, new UnImplementCmd()));
+  cmd_table->insert(std::make_pair(kZgwTest, new ZgwTestCmd()));
 }
 
 void DestroyCmdTable(S3CmdTable* cmd_table) {

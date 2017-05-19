@@ -8,8 +8,6 @@
 #include "src/zgw_utils.h"
 #include "src/zgw_server.h"
 
-extern ZgwConfig* g_zgw_conf;
-
 bool ZgwHttpHandles::ReqHeadersHandle(const pink::HttpRequest* req) {
   // req->Dump();
 
@@ -19,8 +17,8 @@ bool ZgwHttpHandles::ReqHeadersHandle(const pink::HttpRequest* req) {
     return true;
   }
 
-  if (g_zgw_conf->support_100continue &&
-      req->headers_.count("expect")) {
+  if (req->headers_.count("expect") &&
+      req->headers_.at("content-length") != "0") {
     LOG(INFO) << "Expect 100-continue";
     need_100_continue_ = true;
     // Need reply right now
@@ -53,7 +51,7 @@ void ZgwHttpHandles::RespHeaderHandle(pink::HttpResponse* resp) {
 
 int ZgwHttpHandles::RespBodyPartHandle(char* buf, size_t max_size) {
   if (need_100_continue_) {
-    return 0;
+    return -2;
   }
 
   return cmd_->DoResponseBody(buf, max_size);
@@ -83,7 +81,11 @@ S3Cmd* ZgwHttpHandles::SelectS3Cmd(const pink::HttpRequest* req) {
     } else if (req->method_ == "DELETE") {
       cmd = kDeleteBucket;
     } else if (req->method_ == "HEAD") {
-      cmd = kHeadBucket;
+      if (bucket_name == "_zgwtest") {
+        cmd = kZgwTest;
+      } else {
+        cmd = kHeadBucket;
+      }
     } else if (req->method_ == "POST") {
       if (req->query_params_.count("delete")) {
         cmd = kDeleteMultiObjects;

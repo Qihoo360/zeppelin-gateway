@@ -31,6 +31,7 @@ enum S3Commands {
   kAbortMultiUpload,
   kListParts,
   kUnImplement,
+  kZgwTest,
 };
 
 enum S3ErrorType {

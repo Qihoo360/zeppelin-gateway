@@ -6,9 +6,10 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 
 bool UploadPartCopyPartialCmd::DoInitial() {
+  DLOG(INFO) << "UploadPartCopyPartial(DoInitial) - " <<
+    req_headers_.at("x-amz-copy-source-range");
   http_response_xml_.clear();
   src_data_block_.clear();
-  need_copy_data_ = false;
   data_size_ = 0;
   upload_id_ = query_params_.at("uploadId");
   part_number_ = query_params_.at("partNumber");
@@ -29,8 +30,8 @@ bool UploadPartCopyPartialCmd::DoInitial() {
   return true;
 }
 
-static int ParseRange(const std::string& range, uint64_t data_size,
-                      uint64_t* range_start, uint64_t* range_end) {
+int UploadPartCopyPartialCmd::ParseRange(const std::string& range, uint64_t data_size,
+                                         uint64_t* range_start, uint64_t* range_end) {
   // Check whether range is valid
   // Support sigle range for only
   if (range.find("bytes=") == std::string::npos) {
@@ -53,6 +54,11 @@ static int ParseRange(const std::string& range, uint64_t data_size,
 }
 
 void UploadPartCopyPartialCmd::ParseBlocksFrom(const std::vector<std::string>& block_indexes) {
+  if (data_size_ == 0) {
+    http_ret_code_ = 416;
+    GenerateErrorXml(kInvalidRange, src_object_.object_name);
+    return;
+  }
   assert(data_size_ > 0);
   uint64_t range_start = 0;
   uint64_t range_end = data_size_ - 1;
@@ -63,7 +69,7 @@ void UploadPartCopyPartialCmd::ParseBlocksFrom(const std::vector<std::string>& b
     GenerateErrorXml(kInvalidArgument, "range");
     return;
   } else if (http_ret_code_ == 416) {
-    GenerateErrorXml(kInvalidRange, object_name_);
+    GenerateErrorXml(kInvalidRange, src_object_.object_name);
     return;
   } else if (http_ret_code_ == 206) {
     // Success partial
@@ -74,39 +80,38 @@ void UploadPartCopyPartialCmd::ParseBlocksFrom(const std::vector<std::string>& b
     assert(true);
   }
 
+  uint64_t partial_start_b, partial_end_b;
   uint64_t needed_size = range_end - range_start + 1;
+  char buf[100];
   for (size_t i = 0; i < block_indexes.size(); i++) {
+    uint64_t partial_size = 0;
     // Parse all block needed
     uint64_t start_block, end_block, start_byte, data_size;
     int ret = sscanf(block_indexes[i].c_str(), "%lu-%lu(%lu,%lu)",
                      &start_block, &end_block, &start_byte, &data_size);
 
     // Select block interval index
-    if (range_start >= data_size) {
-      range_start -= data_size;
+    if (range_start >= (data_size - start_byte)) {
+      range_start -= (data_size - start_byte);
+      start_byte = 0;
+      // Next block group
       continue;
     }
 
-    if (needed_size > data_size) {
-      // Cross multi block group
-      need_copy_data_ = true;
-    } else {
-      char buf[100];
-      sprintf(buf, "%lu-%lu(%lu,%lu)",
-              start_block, end_block, range_start, needed_size);
-      src_data_block_.assign(buf);
-    }
-
+    partial_start_b = start_block;
     for (uint64_t b = start_block; b <= end_block; b++) {
-      uint64_t end_of_block = (b - start_block + 1) * zgwstore::kZgwBlockSize;
-      if (b == end_block) {
-        end_of_block = data_size;
-      }
-
+      uint64_t cur_bsize = std::min(data_size, zgwstore::kZgwBlockSize) - start_byte;
       // Select block
-      if (range_start >= end_of_block) {
+      if (range_start >= cur_bsize) {
+        partial_start_b = b + 1;
+        range_start -= cur_bsize;
+        start_byte = 0;
+        // Next block
         continue;
       }
+
+      partial_end_b = b;
+      partial_size += cur_bsize - range_start;
 
       uint64_t remain = std::min(needed_size,
                                  zgwstore::kZgwBlockSize - range_start);
@@ -117,15 +122,24 @@ void UploadPartCopyPartialCmd::ParseBlocksFrom(const std::vector<std::string>& b
       start_byte = 0;
 
       if (needed_size == 0) {
+        // The last block group
+        sprintf(buf, "%lu-%lu(%lu,%lu)", partial_start_b, partial_end_b,
+                range_start, partial_size);
+        src_data_block_.push_back(std::string(buf));
         return;
       }
+
+      range_start = 0;
     }
 
-    range_start = 0;
+    // Include this block group
+    sprintf(buf, "%lu-%lu(%lu,%lu)", partial_start_b, partial_end_b,
+            range_start, partial_size);
+    src_data_block_.push_back(std::string(buf));
   }
 }
 
-static void SortBlockIndexes(std::vector<std::string>* block_indexes) {
+void UploadPartCopyPartialCmd::SortBlockIndexes(std::vector<std::string>* block_indexes) {
   std::sort(block_indexes->begin(), block_indexes->end(),
             [](const std::string& a, const std::string& b) {
               return std::atoi(a.substr(0, 5).c_str()) <
@@ -178,23 +192,21 @@ void UploadPartCopyPartialCmd::DoAndResponse(pink::HttpResponse* resp) {
       } else {
         // Parse range
         data_size_ = src_object_.size;
-        if (data_size_ != 0) {
-          std::vector<std::string> sorted_block_indexes;
-          if (src_object_.upload_id != "_") {
-            s = store_->GetMultiBlockSet(src_object_.bucket_name, src_object_.object_name,
-                                         src_object_.upload_id, &sorted_block_indexes);
-            if (s.IsIOError()) {
-              http_ret_code_ = 500;
-            }
-            // Sort block indexes load from redis set
-            SortBlockIndexes(&sorted_block_indexes);
-          } else {
-            // Sigle block index needn't sorting
-            sorted_block_indexes.push_back(src_object_.data_block);
+        std::vector<std::string> sorted_block_indexes;
+        if (src_object_.upload_id != "_") {
+          s = store_->GetMultiBlockSet(src_object_.bucket_name, src_object_.object_name,
+                                       src_object_.upload_id, &sorted_block_indexes);
+          if (s.IsIOError()) {
+            http_ret_code_ = 500;
           }
-          if (http_ret_code_ == 200) {
-            ParseBlocksFrom(sorted_block_indexes);
-          }
+          // Sort block indexes load from redis set
+          SortBlockIndexes(&sorted_block_indexes);
+        } else {
+          // Sigle block index needn't sorting
+          sorted_block_indexes.push_back(src_object_.data_block);
+        }
+        if (http_ret_code_ == 200) {
+          ParseBlocksFrom(sorted_block_indexes);
         }
       }
     }
@@ -212,38 +224,13 @@ void UploadPartCopyPartialCmd::DoAndResponse(pink::HttpResponse* resp) {
     new_object_.storage_class = 0; // Unused
     new_object_.acl = "FULL_CONTROL";
     new_object_.upload_id = upload_id_;
-    new_object_.data_block = ""; // Postpone
+    new_object_.data_block.clear();
 
-    // Allocate block if need copy data
-    uint64_t block_start, block_end;
-    if (need_copy_data_) {
-      LOG(WARNING) << "Upload copy partial Unimplement";
-      /* TODO (gaodq)
-      size_t m = data_size_ % zgwstore::kZgwBlockSize;
-      size_t block_count = data_size_ / zgwstore::kZgwBlockSize + (m > 0 ? 1 : 0);
-      status_ = store_->AllocateId(user_name_, virtual_bucket, part_number,
-                                    block_count, &block_end);
-      if (status_.ok()) {
-        block_start = block_end - block_count;
-        http_ret_code_ = 200;
-        char buf[100];
-        sprintf(buf, "%lu-%lu(0,%lu)", block_start, block_end - 1, data_size_);
-        new_object_.data_block.assign(buf);
-      } else if (status_.ToString().find("Bucket NOT Exists") != std::string::npos ||
-                 status_.ToString().find("Bucket Doesn't Belong To This User") !=
-                 std::string::npos) {
-        http_ret_code_ = 404;
-        GenerateErrorXml(kNoSuchUpload, upload_id);
-      } else {
-        http_ret_code_ = 500;
-      }
-      */
-      status_ = Status::NotSupported("copy not support");
-    } else {
-      new_object_.data_block = src_data_block_;
+    for (auto& db : src_data_block_) {
+      new_object_.data_block.append(db + "|");
     }
 
-    // Calc blocks MD5 or copy blocks data from blocks_ queue
+    // Calc blocks MD5 from blocks_ queue
     std::string block_buffer(zgwstore::kZgwBlockSize, 0);
     while (!blocks_.empty() && status_.ok()) {
       std::string block_num = std::to_string(std::get<0>(blocks_.front()));
