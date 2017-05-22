@@ -5,7 +5,7 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
 
-bool PutObjectCopyCmd::DoInitial() {
+bool PutObjectCopyCmd::DoInitial(pink::HTTPResponse* resp) {
   std::string source_path = req_headers_.at("x-amz-copy-source");
 
   if (!TryAuth()) {
@@ -22,7 +22,7 @@ bool PutObjectCopyCmd::DoInitial() {
   return true;
 }
 
-void PutObjectCopyCmd::DoAndResponse(pink::HttpResponse* resp) {
+void PutObjectCopyCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     Status s = store_->Lock();
     if (s.ok()) {

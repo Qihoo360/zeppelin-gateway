@@ -3,7 +3,7 @@
 #include "slash/include/env.h"
 #include "src/zgwstore/zgw_define.h"
 
-bool PostObjectCmd::DoInitial() {
+bool PostObjectCmd::DoInitial(pink::HTTPResponse* resp) {
 
   return TryAuth();
 }
@@ -11,7 +11,7 @@ bool PostObjectCmd::DoInitial() {
 void PostObjectCmd::DoReceiveBody(const char* data, size_t data_size) {
 }
 
-void PostObjectCmd::DoAndResponse(pink::HttpResponse* resp) {
+void PostObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
 
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());

@@ -8,12 +8,12 @@
 #include "src/zgwstore/zgw_define.h"
 #include "src/zgwstore/zgw_store.h"
 
-bool ZgwAdminHandles::ReqHeadersHandle(const pink::HttpRequest* req) {
+bool ZgwAdminHandles::HandleRequest(const pink::HTTPRequest* req, pink::HTTPResponse* resp) {
   Initialize();
 
-  SplitBySecondSlash(req->path_, &command_, &params_);
+  SplitBySecondSlash(req->path(), &command_, &params_);
 
-  if (req->method_ == "PUT" &&
+  if (req->method() == "PUT" &&
       command_ == kAddUser) {
     zgwstore::User new_user;
     new_user.display_name = params_;
@@ -28,7 +28,7 @@ bool ZgwAdminHandles::ReqHeadersHandle(const pink::HttpRequest* req) {
       http_ret_code_ = 200;
       result_.assign(key_pair.first + "\r\n" + key_pair.second + "\r\n");
     }
-  } else if (req->method_ == "GET" &&
+  } else if (req->method() == "GET" &&
              command_ == kListUsers) {
     std::vector<zgwstore::User> all_users;
     store_->ListUsers(&all_users);
@@ -42,7 +42,7 @@ bool ZgwAdminHandles::ReqHeadersHandle(const pink::HttpRequest* req) {
       result_ += "\r\n";
     }
     http_ret_code_ = 200;
-  } else if (req->method_ == "GET" &&
+  } else if (req->method() == "GET" &&
              command_ == kGetStatus) {
     http_ret_code_ = 200;
     result_ = GetZgwStatus();
@@ -55,12 +55,12 @@ bool ZgwAdminHandles::ReqHeadersHandle(const pink::HttpRequest* req) {
   return false;
 }
 
-void ZgwAdminHandles::RespHeaderHandle(pink::HttpResponse* resp) {
+void ZgwAdminHandles::PrepareResponse(pink::HTTPResponse* resp) {
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(result_.size());
 }
 
-int ZgwAdminHandles::RespBodyPartHandle(char* buf, size_t max_size) {
+int ZgwAdminHandles::WriteBodyData(char* buf, size_t max_size) {
   if (max_size < result_.size()) {
     memcpy(buf, result_.data(), max_size);
     result_.assign(result_.substr(max_size));

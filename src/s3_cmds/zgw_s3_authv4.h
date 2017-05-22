@@ -16,7 +16,7 @@ enum AuthErrorType {
 
 class S3AuthV4 {
  public:
-  void Initialize(const pink::HttpRequest* req, zgwstore::ZgwStore* store);
+  void Initialize(const pink::HTTPRequest* req, zgwstore::ZgwStore* store);
 
   AuthErrorType TryAuth();
   std::string user_name();

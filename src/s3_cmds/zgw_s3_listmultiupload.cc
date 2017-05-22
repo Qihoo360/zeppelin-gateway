@@ -4,7 +4,7 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
 
-bool ListMultiPartUploadCmd::DoInitial() {
+bool ListMultiPartUploadCmd::DoInitial(pink::HTTPResponse* resp) {
   all_virtual_bks_.clear();
   http_response_xml_.clear();
 
@@ -60,7 +60,7 @@ bool ListMultiPartUploadCmd::SanitizeParams(std::string* invalid_param) {
   return true;
 }
 
-void ListMultiPartUploadCmd::DoAndResponse(pink::HttpResponse* resp) {
+void ListMultiPartUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     std::vector<zgwstore::Bucket> all_buckets;
     Status s = store_->ListBuckets(user_name_, &all_buckets);

@@ -6,7 +6,7 @@
 #include "slash/include/env.h"
 #include "slash/include/slash_string.h"
 
-bool GetObjectCmd::DoInitial() {
+bool GetObjectCmd::DoInitial(pink::HTTPResponse* resp) {
   block_buffer_.clear();
   data_size_ = 0;
   range_result_.clear();
@@ -137,7 +137,7 @@ void GetObjectCmd::SortBlockIndexes(std::vector<std::string>* block_indexes) {
   }
 }
 
-void GetObjectCmd::DoAndResponse(pink::HttpResponse* resp) {
+void GetObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     // Get object_ meta
     Status s = store_->GetObject(user_name_, bucket_name_, object_name_,
@@ -184,6 +184,8 @@ void GetObjectCmd::DoAndResponse(pink::HttpResponse* resp) {
       resp->SetHeaders("ETag", "\"" + object_.etag + "\"");
       resp->SetHeaders("Last-Modified", http_nowtime(object_.last_modified));
       resp->SetContentLength(data_size_);
+      DLOG(INFO) << "GetObject(DoAndResponse) - " << bucket_name_ <<
+        "/" << object_name_ << " size: " << data_size_;
     }
   }
   if (http_ret_code_ != 206 &&
@@ -227,5 +229,9 @@ int GetObjectCmd::DoResponseBody(char* buf, size_t max_size) {
   }
   memcpy(buf, block_buffer_.data() + start_byte, block_size);
   data_size_ -= block_size; // Has written
+  if (data_size_ == 0) {
+    DLOG(INFO) << "GetObject(DoResponseBody) - Complete " << bucket_name_ << "/"
+      << object_name_ << " size: " << object_.size;
+  }
   return block_size;
 }

@@ -5,7 +5,7 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
 
-bool InitMultipartUploadCmd::DoInitial() {
+bool InitMultipartUploadCmd::DoInitial(pink::HTTPResponse* resp) {
   upload_id_ = md5(bucket_name_ + object_name_ +
                    std::to_string(slash::NowMicros()));
   DLOG(INFO) << "InitialMultiUpload(DoInitial) - " <<
@@ -33,7 +33,7 @@ bool InitMultipartUploadCmd::DoInitial() {
   return true;
 }
 
-void InitMultipartUploadCmd::DoAndResponse(pink::HttpResponse* resp) {
+void InitMultipartUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     // Initial new virtual bucket as multipart object meta
     zgwstore::Bucket virtual_bucket;

@@ -15,6 +15,7 @@ const std::string kZgwLockFile = "zgw.lock";
 ////// Server State /////
 // const int kZgwCronCount = 30;
 const int kZgwCronInterval = 2000000; // 1s
-const int kZgwRedisLockTTL = 5000; // 5s
+const int kZgwRedisLockTTL = 300000; // 5 minutes
+// const int kZgwRedisLockTTL = 5000; // 5s
 
 #endif

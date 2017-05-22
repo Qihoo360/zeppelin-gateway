@@ -2,14 +2,14 @@
 
 #include "src/zgw_utils.h"
 
-bool AbortMultiUploadCmd::DoInitial() {
+bool AbortMultiUploadCmd::DoInitial(pink::HTTPResponse* resp) {
   http_response_xml_.clear();
   upload_id_ = query_params_.at("uploadId");
 
   return TryAuth();
 }
 
-void AbortMultiUploadCmd::DoAndResponse(pink::HttpResponse* resp) {
+void AbortMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     Status s;
     std::string virtual_bucket = "__TMPB" + upload_id_ +

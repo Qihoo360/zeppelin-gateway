@@ -4,14 +4,14 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
 
-bool ListAllBucketsCmd::DoInitial() {
+bool ListAllBucketsCmd::DoInitial(pink::HTTPResponse* resp) {
   all_buckets_.clear();
   http_response_xml_.clear();
 
   return TryAuth();
 }
 
-void ListAllBucketsCmd::DoAndResponse(pink::HttpResponse* resp) {
+void ListAllBucketsCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     Status s = store_->ListBuckets(user_name_, &all_buckets_);
     if (!s.ok()) {

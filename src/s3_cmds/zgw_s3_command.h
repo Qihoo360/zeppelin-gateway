@@ -72,12 +72,12 @@ class S3Cmd {
   // Step 1.
   void Clear();
   // Step 2.
-  virtual bool DoInitial() = 0;
+  virtual bool DoInitial(pink::HTTPResponse* resp) = 0;
   // Step 3.
   virtual void DoReceiveBody(const char* data, size_t data_size) {
   };
   // Step 4.
-  virtual void DoAndResponse(pink::HttpResponse* resp) = 0;
+  virtual void DoAndResponse(pink::HTTPResponse* resp) = 0;
   // Step 5.
   virtual int DoResponseBody(char* buf, size_t max_size) {
     return 0;
@@ -100,7 +100,7 @@ class S3Cmd {
   void SetStorePtr(zgwstore::ZgwStore* store) {
     store_ = store;
   }
-  void InitS3Auth(const pink::HttpRequest* req) {
+  void InitS3Auth(const pink::HTTPRequest* req) {
     assert(store_ != nullptr);
     s3_auth_.Initialize(req, store_);
   }

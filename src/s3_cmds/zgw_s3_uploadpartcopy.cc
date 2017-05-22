@@ -4,7 +4,7 @@
 #include "src/zgwstore/zgw_define.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
 
-bool UploadPartCopyCmd::DoInitial() {
+bool UploadPartCopyCmd::DoInitial(pink::HTTPResponse* resp) {
   http_response_xml_.clear();
 
   if (!TryAuth()) {
@@ -25,7 +25,7 @@ bool UploadPartCopyCmd::DoInitial() {
   return true;
 }
 
-void UploadPartCopyCmd::DoAndResponse(pink::HttpResponse* resp) {
+void UploadPartCopyCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     Status s = store_->Lock();
     if (s.ok()) {

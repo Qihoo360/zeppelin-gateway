@@ -42,7 +42,7 @@ struct S3AuthV4::Rep {
   bool ParseHeaderAuthStr(const std::map<std::string, std::string>& headers);
   bool ParseQueryAuthStr(const std::map<std::string, std::string>& query_params);
   bool ParseCredential(const std::string& credential_str);
-  void CreateCanonicalRequest(const pink::HttpRequest *req);
+  void CreateCanonicalRequest(const pink::HTTPRequest *req);
 };
 
 S3AuthV4::S3AuthV4() {
@@ -53,10 +53,10 @@ S3AuthV4::~S3AuthV4() {
   delete rep_;
 }
 
-void S3AuthV4::Initialize(const pink::HttpRequest* req, zgwstore::ZgwStore* store) {
+void S3AuthV4::Initialize(const pink::HTTPRequest* req, zgwstore::ZgwStore* store) {
   rep_->Clear();
-  if (!rep_->ParseHeaderAuthStr(req->headers_) &&
-      !rep_->ParseQueryAuthStr(req->query_params_)) {
+  if (!rep_->ParseHeaderAuthStr(req->headers()) &&
+      !rep_->ParseQueryAuthStr(req->query_params())) {
     return;
   }
   // Task 1: Create a Canonical Request
@@ -276,15 +276,15 @@ std::string HMAC_SHA256(const std::string key, const std::string value, bool raw
   return std::string(buf);
 }
 
-void S3AuthV4::Rep::CreateCanonicalRequest(const pink::HttpRequest *req) {
+void S3AuthV4::Rep::CreateCanonicalRequest(const pink::HTTPRequest *req) {
   canonical_request_.clear();
   // <HTTPMethod>\n
-  canonical_request_.append(req->method_ + "\n");
+  canonical_request_.append(req->method()+ "\n");
   // <CanonicalURI>\n
-  std::string ori_path = UrlDecode(req->path_);
+  std::string ori_path = UrlDecode(req->path());
   canonical_request_.append(UrlEncode(ori_path) + "\n");
   // <CanonicalQueryString>\n
-  for (auto &q : req->query_params_) {
+  for (auto &q : req->query_params()) {
     if (q.first.compare("X-Amz-Signature") == 0) {
       continue;
     }
@@ -296,15 +296,15 @@ void S3AuthV4::Rep::CreateCanonicalRequest(const pink::HttpRequest *req) {
   canonical_request_.append("\n");
   // <CanonicalHeaders>\n
   for (auto &q : signed_headers_) {
-    if (req->headers_.count(q)) {
-      canonical_request_.append(slash::StringToLower(q) + ":" + req->headers_.at(q) + "\n");
+    if (req->headers().count(q)) {
+      canonical_request_.append(slash::StringToLower(q) + ":" + req->headers().at(q) + "\n");
     }
   }
   canonical_request_.append("\n");
   
   std::string content_sha265;
-  if (req->headers_.count("x-amz-content-sha256")) {
-    content_sha265.assign(req->headers_.at("x-amz-content-sha256"));
+  if (req->headers().count("x-amz-content-sha256")) {
+    content_sha265.assign(req->headers().at("x-amz-content-sha256"));
   }
   canonical_request_.append(signed_headers_str_ + "\n");
   canonical_request_.append(is_presign_url_ ? "UNSIGNED-PAYLOAD" : content_sha265);

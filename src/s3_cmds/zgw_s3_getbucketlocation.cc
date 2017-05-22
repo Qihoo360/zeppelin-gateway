@@ -4,13 +4,13 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
 
-bool GetBucketLocationCmd::DoInitial() {
+bool GetBucketLocationCmd::DoInitial(pink::HTTPResponse* resp) {
   http_response_xml_.clear();
 
   return TryAuth();
 }
 
-void GetBucketLocationCmd::DoAndResponse(pink::HttpResponse* resp) {
+void GetBucketLocationCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     Status s = store_->GetBucket(user_name_, bucket_name_, &bucket_);
     if (s.ok()) {

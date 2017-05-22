@@ -4,10 +4,13 @@
 #include "slash/include/env.h"
 #include "src/zgwstore/zgw_define.h"
 
-bool PutObjectCmd::DoInitial() {
+bool PutObjectCmd::DoInitial(pink::HTTPResponse* resp) {
   Timer t("PutObjectCmd: DoInitial -");
   http_response_xml_.clear();
   md5_ctx_.Init();
+  status_ = Status::OK();
+  block_start_ = 0;
+  block_end_ = 0;
 
   size_t data_size = std::stoul(req_headers_["content-length"]);
   size_t m = data_size % zgwstore::kZgwBlockSize;
@@ -38,7 +41,8 @@ bool PutObjectCmd::DoInitial() {
     char buf[100];
     sprintf(buf, "%lu-%lu(0,%lu)", block_start_, block_end_ - 1, data_size);
     new_object_.data_block = std::string(buf);
-    LOG(INFO) << "AllocateId: " << block_start_ << "-" << block_end_;
+    LOG(INFO) << "PutObject(DoInitial) - " << bucket_name_ << "/" <<
+      object_name_ << "AllocateId: " << block_start_ << "-" << block_end_ - 1;
   } else if (s.ToString().find("Bucket NOT Exists") != std::string::npos ||
              s.ToString().find("Bucket Doesn't Belong To This User") !=
              std::string::npos) {
@@ -47,6 +51,7 @@ bool PutObjectCmd::DoInitial() {
     return false;
   } else {
     http_ret_code_ = 500;
+    LOG(ERROR) << "PutObject(DoInitial) - AllocateId error" << s.ToString();
     return false;
   }
 
@@ -83,11 +88,12 @@ void PutObjectCmd::DoReceiveBody(const char* data, size_t data_size) {
   }
 }
 
-void PutObjectCmd::DoAndResponse(pink::HttpResponse* resp) {
+void PutObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
   Timer t("PutObjectCmd: DoAndResponse -");
   if (http_ret_code_ == 200) {
     if (!status_.ok()) {
       // Error happend while transmiting to zeppelin
+      LOG(ERROR) << "PutObject(DoAndResponse) - writing to zp error" << status_.ToString();
       http_ret_code_ = 500;
     } else {
       // Write meta
@@ -100,6 +106,7 @@ void PutObjectCmd::DoAndResponse(pink::HttpResponse* resp) {
 
       status_ = store_->AddObject(new_object_);
       if (!status_.ok()) {
+        LOG(ERROR) << "PutObject(DoAndResponse) - AddObject error" << status_.ToString();
         http_ret_code_ = 500;
       }
       DLOG(INFO) << "AddObject: " << bucket_name_ + "/" + object_name_ + " Success";

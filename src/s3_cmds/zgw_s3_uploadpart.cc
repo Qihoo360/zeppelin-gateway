@@ -4,7 +4,7 @@
 #include "src/zgwstore/zgw_define.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
 
-bool UploadPartCmd::DoInitial() {
+bool UploadPartCmd::DoInitial(pink::HTTPResponse* resp) {
   http_response_xml_.clear();
   md5_ctx_.Init();
 
@@ -92,7 +92,7 @@ void UploadPartCmd::DoReceiveBody(const char* data, size_t data_size) {
   }
 }
 
-void UploadPartCmd::DoAndResponse(pink::HttpResponse* resp) {
+void UploadPartCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     if (!status_.ok()) {
       // Error happend while transmiting to zeppelin

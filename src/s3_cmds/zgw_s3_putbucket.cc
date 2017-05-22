@@ -3,7 +3,8 @@
 #include "slash/include/env.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
 
-bool PutBucketCmd::DoInitial() {
+bool PutBucketCmd::DoInitial(pink::HTTPResponse* resp) {
+  DLOG(INFO) << "PutBucket(DoInitial) - " << bucket_name_;
   http_request_xml_.clear();
   http_response_xml_.clear(); 
 
@@ -14,7 +15,7 @@ void PutBucketCmd::DoReceiveBody(const char* data, size_t data_size) {
   http_request_xml_.append(data, data_size);
 }
 
-void PutBucketCmd::DoAndResponse(pink::HttpResponse* resp) {
+void PutBucketCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     S3XmlDoc doc;
     S3XmlNode root, loc;

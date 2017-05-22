@@ -4,7 +4,7 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
 
-bool ListPartsCmd::DoInitial() {
+bool ListPartsCmd::DoInitial(pink::HTTPResponse* resp) {
   all_candicate_parts_.clear();
   http_response_xml_.clear();
   upload_id_ = query_params_.at("uploadId");
@@ -33,7 +33,7 @@ bool ListPartsCmd::DoInitial() {
   return true;
 }
 
-void ListPartsCmd::DoAndResponse(pink::HttpResponse* resp) {
+void ListPartsCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     std::vector<zgwstore::Object> all_parts;
     std::string virtual_bucket = "__TMPB" + upload_id_ +

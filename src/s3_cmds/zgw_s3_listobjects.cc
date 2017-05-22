@@ -4,7 +4,7 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
 
-bool ListObjectsCmd::DoInitial() {
+bool ListObjectsCmd::DoInitial(pink::HTTPResponse* resp) {
   all_objects_.clear();
   http_response_xml_.clear();
 
@@ -23,7 +23,7 @@ bool ListObjectsCmd::DoInitial() {
   return true;
 }
 
-void ListObjectsCmd::DoAndResponse(pink::HttpResponse* resp) {
+void ListObjectsCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     std::vector<zgwstore::Object> all_objects;
     Status s = store_->ListObjects(user_name_, bucket_name_, &all_objects);

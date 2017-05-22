@@ -5,7 +5,7 @@
 #include "src/zgwstore/zgw_define.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
 
-bool UploadPartCopyPartialCmd::DoInitial() {
+bool UploadPartCopyPartialCmd::DoInitial(pink::HTTPResponse* resp) {
   DLOG(INFO) << "UploadPartCopyPartial(DoInitial) - " <<
     req_headers_.at("x-amz-copy-source-range");
   http_response_xml_.clear();
@@ -159,7 +159,7 @@ void UploadPartCopyPartialCmd::SortBlockIndexes(std::vector<std::string>* block_
 }
 
 
-void UploadPartCopyPartialCmd::DoAndResponse(pink::HttpResponse* resp) {
+void UploadPartCopyPartialCmd::DoAndResponse(pink::HTTPResponse* resp) {
   uint64_t range_start, range_end;
   std::string virtual_bucket = "__TMPB" + upload_id_ +
     bucket_name_ + "|" + object_name_;

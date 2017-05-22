@@ -5,11 +5,11 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 
 class ZgwTestCmd : public S3Cmd {
-  virtual bool DoInitial() {
+  virtual bool DoInitial(pink::HTTPResponse* resp) {
     http_response_xml_.clear();
     return true;
   }
-  virtual void DoAndResponse(pink::HttpResponse* resp) {
+  virtual void DoAndResponse(pink::HTTPResponse* resp) {
 
     resp->SetStatusCode(200);
     resp->SetContentLength(http_response_xml_.size());
@@ -26,10 +26,10 @@ class ZgwTestCmd : public S3Cmd {
 };
 
 class UnImplementCmd : public S3Cmd {
-  virtual bool DoInitial() {
+  virtual bool DoInitial(pink::HTTPResponse* resp) {
     return false;
   }
-  virtual void DoAndResponse(pink::HttpResponse* resp) {
+  virtual void DoAndResponse(pink::HTTPResponse* resp) {
     GenerateErrorXml(kNotImplemented);
     resp->SetStatusCode(501);
     resp->SetContentLength(http_response_xml_.size());

@@ -6,7 +6,7 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
 
-bool CompleteMultiUploadCmd::DoInitial() {
+bool CompleteMultiUploadCmd::DoInitial(pink::HTTPResponse* resp) {
   http_request_xml_.clear();
   http_response_xml_.clear();
   received_parts_info_.clear();
@@ -52,7 +52,7 @@ bool CompleteMultiUploadCmd::ParseReqXml() {
   return true;
 }
 
-void CompleteMultiUploadCmd::DoAndResponse(pink::HttpResponse* resp) {
+void CompleteMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     if (!ParseReqXml()) {
       http_ret_code_ = 400;

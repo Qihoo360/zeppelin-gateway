@@ -3,12 +3,13 @@
 #include "slash/include/env.h"
 #include "src/zgw_utils.h"
 
-bool HeadBucketCmd::DoInitial() {
+bool HeadBucketCmd::DoInitial(pink::HTTPResponse* resp) {
+  DLOG(INFO) << "HeadBucket(DoInitial) - " << bucket_name_;
 
   return TryAuth();
 }
 
-void HeadBucketCmd::DoAndResponse(pink::HttpResponse* resp) {
+void HeadBucketCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     Status s = store_->GetBucket(user_name_, bucket_name_, &bucket_);
     if (s.ok()) {
@@ -23,8 +24,4 @@ void HeadBucketCmd::DoAndResponse(pink::HttpResponse* resp) {
 
   resp->SetContentLength(0); // HEAD needn't response data
   resp->SetStatusCode(http_ret_code_);
-}
-
-int HeadBucketCmd::DoResponseBody(char* buf, size_t max_size) {
-  return -2;
 }

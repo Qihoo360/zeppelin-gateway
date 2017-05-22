@@ -3,9 +3,10 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgwstore/zgw_define.h"
 
-bool DeleteMultiObjectsCmd::DoInitial() {
+bool DeleteMultiObjectsCmd::DoInitial(pink::HTTPResponse* resp) {
   http_request_xml_.clear();
   http_response_xml_.clear();
+  DLOG(INFO) << "DeleteMultiObjects(DoInitial) - " << bucket_name_;
 
   return TryAuth();
 }
@@ -38,7 +39,7 @@ static bool ParseReqXml(const std::string& xml_str,
   return true;
 }
 
-void DeleteMultiObjectsCmd::DoAndResponse(pink::HttpResponse* resp) {
+void DeleteMultiObjectsCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     std::vector<std::string> objects_to_delete;
     if (!ParseReqXml(http_request_xml_, &objects_to_delete)) {

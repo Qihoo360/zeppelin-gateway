@@ -101,4 +101,4 @@ cases="\
 
 S3_USE_SIGV4=1 S3TEST_CONF=test4zgw.conf virtualenv/bin/nosetests $cases -a \
 auth_aws4 -x --debug-log=./tests.log --cover-html --process-timeout=60 \
---processes=1
+--processes=10

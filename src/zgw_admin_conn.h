@@ -10,15 +10,15 @@ static const std::string kAddUser = "admin_put_user";
 static const std::string kListUsers = "admin_list_users";
 static const std::string kGetStatus = "status";
 
-class ZgwAdminHandles : public pink::HttpHandles {
+class ZgwAdminHandles : public pink::HTTPHandles {
  public:
   ZgwAdminHandles() {}
-  ~ZgwAdminHandles() {}
+  virtual ~ZgwAdminHandles() {}
 
-  virtual bool ReqHeadersHandle(const pink::HttpRequest* req) override;
-  virtual void ReqBodyPartHandle(const char* data, size_t data_size) override {}
-  virtual void RespHeaderHandle(pink::HttpResponse* resp) override;
-  virtual int RespBodyPartHandle(char* buf, size_t max_size) override;
+  virtual bool HandleRequest(const pink::HTTPRequest* req, pink::HTTPResponse* resp) override;
+  virtual void ReadBodyData(const char* data, size_t data_size) override {}
+  virtual void PrepareResponse(pink::HTTPResponse* resp) override;
+  virtual int WriteBodyData(char* buf, size_t max_size) override;
 
  private:
   void Initialize();
@@ -34,15 +34,13 @@ class ZgwAdminHandles : public pink::HttpHandles {
   std::string result_;
 };
 
-
 class ZgwAdminConnFactory : public pink::ConnFactory {
  public:
   virtual pink::PinkConn* NewPinkConn(int connfd,
                                       const std::string& ip_port,
                                       pink::Thread* thread) const {
-    // Deleted in HttpConn's deconstructor
-    ZgwAdminHandles* handles = new ZgwAdminHandles();
-    return new pink::HttpConn(connfd, ip_port, thread, handles);
+    auto handles = std::make_shared<ZgwAdminHandles>();
+    return new pink::HTTPConn(connfd, ip_port, thread, handles);
   }
 };
 

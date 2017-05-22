@@ -3,13 +3,15 @@
 #include "slash/include/env.h"
 #include "src/zgwstore/zgw_define.h"
 
-bool DeleteObjectCmd::DoInitial() {
+bool DeleteObjectCmd::DoInitial(pink::HTTPResponse* resp) {
   http_response_xml_.clear();
+  DLOG(INFO) << "DeleteObject(DoInitial) - " << bucket_name_ << "/" <<
+    object_name_;
 
   return TryAuth();
 }
 
-void DeleteObjectCmd::DoAndResponse(pink::HttpResponse* resp) {
+void DeleteObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     zgwstore::Bucket dummy_bk;
     Status s = store_->GetBucket(user_name_, bucket_name_, &dummy_bk);

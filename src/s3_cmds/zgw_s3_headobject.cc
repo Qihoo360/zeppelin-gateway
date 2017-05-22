@@ -3,12 +3,14 @@
 #include "slash/include/env.h"
 #include "src/zgwstore/zgw_define.h"
 
-bool HeadObjectCmd::DoInitial() {
+bool HeadObjectCmd::DoInitial(pink::HTTPResponse* resp) {
+  DLOG(INFO) << "HeadObject(DoInitial) - " << bucket_name_ << "/"
+    << object_name_;
 
   return TryAuth();
 }
 
-void HeadObjectCmd::DoAndResponse(pink::HttpResponse* resp) {
+void HeadObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     Status s = store_->GetObject(user_name_, bucket_name_, object_name_,
                                  &object_);
@@ -27,14 +29,8 @@ void HeadObjectCmd::DoAndResponse(pink::HttpResponse* resp) {
   }
 
   if (http_ret_code_ == 200) {
-    resp->SetContentLength(object_.size);
-  } else {
-    resp->SetContentLength(0);
+    resp->SetHeaders("Content-Length", object_.size);
   }
+  resp->SetContentLength(0);
   resp->SetStatusCode(http_ret_code_);
-}
-
-int HeadObjectCmd::DoResponseBody(char* buf, size_t max_size) {
-  // HEAD needn't response data
-  return -2;
 }

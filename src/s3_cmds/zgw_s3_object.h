@@ -18,8 +18,8 @@ class GetObjectCmd : public S3Cmd {
     block_buffer_.resize(zgwstore::kZgwBlockSize);
   }
 
-  virtual bool DoInitial() override;
-  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
@@ -44,9 +44,8 @@ class HeadObjectCmd : public S3Cmd {
   HeadObjectCmd() {
   }
 
-  virtual bool DoInitial() override;
-  virtual void DoAndResponse(pink::HttpResponse* resp) override;
-  virtual int DoResponseBody(char* buf, size_t max_size) override;
+  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual void DoAndResponse(pink::HTTPResponse* resp) override;
 
  private:
   zgwstore::Object object_;
@@ -61,9 +60,9 @@ class PostObjectCmd : public S3Cmd {
       block_end_(0) {
   }
 
-  virtual bool DoInitial() override;
+  virtual bool DoInitial(pink::HTTPResponse* resp) override;
   virtual void DoReceiveBody(const char* data, size_t data_size) override;
-  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
@@ -83,8 +82,8 @@ class PutObjectCopyCmd : public S3Cmd {
   PutObjectCopyCmd() {
   }
 
-  virtual bool DoInitial() override;
-  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
@@ -105,9 +104,9 @@ class PutObjectCmd : public S3Cmd {
       block_end_(0) {
   }
 
-  virtual bool DoInitial() override;
+  virtual bool DoInitial(pink::HTTPResponse* resp) override;
   virtual void DoReceiveBody(const char* data, size_t data_size) override;
-  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
@@ -126,8 +125,8 @@ class DeleteObjectCmd : public S3Cmd {
  public:
   DeleteObjectCmd() {}
 
-  virtual bool DoInitial() override;
-  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
@@ -138,8 +137,8 @@ class InitMultipartUploadCmd: public S3Cmd {
  public:
   InitMultipartUploadCmd() {}
 
-  virtual bool DoInitial() override;
-  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
@@ -153,8 +152,8 @@ class AbortMultiUploadCmd : public S3Cmd {
  public:
   AbortMultiUploadCmd() {}
 
-  virtual bool DoInitial() override;
-  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
@@ -170,9 +169,9 @@ class UploadPartCmd : public S3Cmd {
       block_end_(0) {
   }
 
-  virtual bool DoInitial() override;
+  virtual bool DoInitial(pink::HTTPResponse* resp) override;
   virtual void DoReceiveBody(const char* data, size_t data_size) override;
-  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
@@ -191,8 +190,8 @@ class UploadPartCopyCmd : public S3Cmd {
  public:
   UploadPartCopyCmd() {}
 
-  virtual bool DoInitial() override;
-  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
@@ -211,8 +210,8 @@ class UploadPartCopyPartialCmd : public S3Cmd {
  public:
   UploadPartCopyPartialCmd() {}
 
-  virtual bool DoInitial() override;
-  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
@@ -243,8 +242,8 @@ class ListPartsCmd: public S3Cmd {
  public:
   ListPartsCmd() {}
 
-  virtual bool DoInitial() override;
-  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:
@@ -267,9 +266,9 @@ class CompleteMultiUploadCmd : public S3Cmd {
  public:
   CompleteMultiUploadCmd() {}
 
-  virtual bool DoInitial() override;
+  virtual bool DoInitial(pink::HTTPResponse* resp) override;
   virtual void DoReceiveBody(const char* data, size_t data_size) override;
-  virtual void DoAndResponse(pink::HttpResponse* resp) override;
+  virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
  private:

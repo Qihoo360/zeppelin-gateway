@@ -5,43 +5,38 @@
 
 #include "src/s3_cmds/zgw_s3_command.h"
 
-class ZgwHttpHandles : public pink::HttpHandles {
+// Every HTTP connection has its own handles
+class ZgwHTTPHandles : public pink::HTTPHandles {
  public:
-  ZgwHttpHandles()
-      : cmd_(nullptr),
-        need_100_continue_(false) {
+  ZgwHTTPHandles()
+      : cmd_(nullptr) {
     cmd_table_ = new S3CmdTable;
     InitCmdTable(cmd_table_);
   }
-  ~ZgwHttpHandles() {
+  virtual ~ZgwHTTPHandles() {
     DestroyCmdTable(cmd_table_);
     delete cmd_table_;
   }
 
-  virtual bool ReqHeadersHandle(const pink::HttpRequest* req) override;
-  virtual void ReqBodyPartHandle(const char* data, size_t data_size) override;
-  virtual void RespHeaderHandle(pink::HttpResponse* resp) override;
-  virtual int RespBodyPartHandle(char* buf, size_t max_size) override;
+  virtual bool HandleRequest(const pink::HTTPRequest* req, pink::HTTPResponse* resp);
+  virtual void ReadBodyData(const char* data, size_t data_size) override;
+  virtual void PrepareResponse(pink::HTTPResponse* resp) override;
+  virtual int WriteBodyData(char* buf, size_t max_size) override;
 
  private:
   S3CmdTable* cmd_table_;
   S3Cmd* cmd_;
-  S3Cmd* SelectS3Cmd(const pink::HttpRequest* req);
-
-  bool need_100_continue_;
+  S3Cmd* SelectS3CmdBy(const pink::HTTPRequest* req);
 };
-
-static ZgwHttpHandles zgw_handles;
 
 class ZgwConnFactory : public pink::ConnFactory {
  public:
-  // Deleted in HttpConn deconstructor
+  // Deleted in HTTPConn deconstructor
   virtual pink::PinkConn* NewPinkConn(int connfd,
                                       const std::string& ip_port,
                                       pink::Thread* thread) const {
-    // Deleted in HttpConn's deconstructor
-    ZgwHttpHandles* zgw_handles = new ZgwHttpHandles();
-    return new pink::HttpConn(connfd, ip_port, thread, zgw_handles);
+    auto zgw_handles = std::make_shared<ZgwHTTPHandles>();
+    return new pink::HTTPConn(connfd, ip_port, thread, zgw_handles);
   }
 };
 
