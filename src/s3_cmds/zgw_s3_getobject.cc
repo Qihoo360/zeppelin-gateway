@@ -150,6 +150,9 @@ void GetObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
       } else if (s.ToString().find("Object Not Found") != std::string::npos) {
         http_ret_code_ = 404;
         GenerateErrorXml(kNoSuchKey, object_name_);
+      } else {
+        LOG(ERROR) << "GetObject(DoAndResponse) - GetObject Error" << s.ToString();
+        http_ret_code_ = 500;
       }
     } else {
       data_size_ = object_.size;
@@ -164,6 +167,7 @@ void GetObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
         s = store_->GetMultiBlockSet(bkname, obname,
                                      object_.upload_id, &sorted_block_indexes);
         if (s.IsIOError()) {
+          LOG(ERROR) << "GetObject(DoAndResponse) - GetMultiBlockSet Error" << s.ToString();
           http_ret_code_ = 500;
         }
         // Sort block indexes load from redis set

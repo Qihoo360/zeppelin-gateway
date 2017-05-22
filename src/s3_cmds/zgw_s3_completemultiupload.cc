@@ -93,8 +93,8 @@ void CompleteMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
             // sort stored parts
             std::sort(stored_parts.begin(), stored_parts.end(),
                       [](const zgwstore::Object& a, const zgwstore::Object& b) {
-                      return std::atoi(a.object_name.c_str()) <
-                      std::atoi(b.object_name.c_str());
+                        return std::atoi(a.object_name.c_str()) <
+                                std::atoi(b.object_name.c_str());
                       });
             for (size_t i = 0 ; i < received_parts_info_.size(); i++) {
               bool found_part = false;
@@ -121,6 +121,19 @@ void CompleteMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
               }
               md5_ctx_.Update(stored_parts[i].etag);
               data_size += stored_parts[i].size;
+
+              // AddMultiBlockSet
+              // Add  sort sign
+              char buf[100];
+              sprintf(buf, "%05d", std::atoi(stored_parts[i].object_name.c_str()));
+              s = store_->AddMultiBlockSet(bucket_name_, object_name_, upload_id_,
+                                           std::string(buf) + stored_parts[i].data_block);
+              if (!s.ok()) {
+                http_ret_code_ = 500;
+                LOG(ERROR) << "CompleteMultiUpload(DoAndResponse) - AddMultiBlockSet"
+                  << stored_parts[i].object_name << " " << upload_id_
+                  << " error: " << s.ToString();
+              }
             }
           }
         }
@@ -149,22 +162,11 @@ void CompleteMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
         } else {
           DLOG(INFO) << "CompleteMultiUpload(DoAndResponse) - AddObject success, cleaning...";
           for (auto& p : stored_parts) {
-            // Add  sort sign
-            char buf[100];
-            sprintf(buf, "%05d", std::atoi(p.object_name.c_str()));
-            s = store_->AddMultiBlockSet(bucket_name_, object_name_, upload_id_,
-                                         std::string(buf) + p.data_block);
-            if (!s.ok()) {
+            s = store_->DeleteObject(user_name_, virtual_bucket, p.object_name, false);
+            if (s.IsIOError()) {
               http_ret_code_ = 500;
-              LOG(ERROR) << "CompleteMultiUpload(DoAndResponse) - AddMultiBlockSet"
-                << p.object_name << " " << upload_id_ << " error: " << s.ToString();
-            } else {
-              s = store_->DeleteObject(user_name_, virtual_bucket, p.object_name, false);
-              if (s.IsIOError()) {
-                http_ret_code_ = 500;
-                LOG(ERROR) << "CompleteMultiUpload(DoAndResponse) - DeleteObject "
-                  << p.object_name << " error: " << s.ToString();
-              }
+              LOG(ERROR) << "CompleteMultiUpload(DoAndResponse) - DeleteObject "
+                << p.object_name << " error: " << s.ToString();
             }
           }
           if (http_ret_code_ == 200) {
