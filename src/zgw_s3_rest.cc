@@ -28,7 +28,7 @@ void ZgwHTTPHandles::HandleBodyData(const char* data, size_t data_size) {
 
 void ZgwHTTPHandles::PrepareResponse(pink::HTTPResponse* resp) {
   cmd_->DoAndResponse(resp);
-  resp->SetHeaders("x-amz-request-id", cmd_->request_id()); // TODO (gaodq)
+  resp->SetHeaders("x-amz-request-id", cmd_->request_id());
   resp->SetHeaders("Date", http_nowtime(slash::NowMicros()));
   resp->SetHeaders("Server", "Zeppelin gateway 2.0");
 }

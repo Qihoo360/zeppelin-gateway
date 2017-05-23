@@ -1,12 +1,25 @@
 #include "src/s3_cmds/zgw_s3_object.h"
 
+#include "slash/include/env.h"
 #include "src/zgw_utils.h"
 
 bool AbortMultiUploadCmd::DoInitial() {
   http_response_xml_.clear();
   upload_id_ = query_params_.at("uploadId");
+  request_id_ = md5(bucket_name_ +
+                    object_name_ +
+                    upload_id_ + 
+                    std::to_string(slash::NowMicros()));
+  if (!TryAuth()) {
+    DLOG(ERROR) << request_id_ <<
+      "AbortMultiUpload(DoInitial) - Auth failed: " << client_ip_port_;
+    return false;
+  }
 
-  return TryAuth();
+  DLOG(INFO) << request_id_ <<
+    "AbortMultiUpload(DoInitial) - " << bucket_name_ << "/" << object_name_ <<
+    ", uploadId: " << upload_id_;
+  return true;
 }
 
 void AbortMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
@@ -26,38 +39,57 @@ void AbortMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
           GenerateErrorXml(kNoSuchUpload, upload_id_);
           resp->SetContentLength(http_response_xml_.size());
         } else {
+          LOG(ERROR) << request_id_ <<
+            "AbortMultiUpload(DoAndResponse) - GetVirtBucket failed: " <<
+            virtual_bucket << " " << s.ToString();
           http_ret_code_ = 500;
         }
       } else {
         // Delete objects
         std::vector<zgwstore::Object> all_parts;
-        s = store_->ListObjects(user_name_, bucket_name_, &all_parts);
+        s = store_->ListObjects(user_name_, virtual_bucket, &all_parts);
         if (!s.ok()) {
+          LOG(ERROR) << request_id_ <<
+            "AbortMultiUpload(DoAndResponse) - ListVirtObjects failed: " <<
+            virtual_bucket << " " << s.ToString();
           http_ret_code_ = 500;
         } else {
           for (auto& p : all_parts) {
             s = store_->DeleteObject(user_name_, virtual_bucket, p.object_name, false);
             if (s.IsIOError()) {
+              LOG(ERROR) << request_id_ <<
+                "AbortMultiUpload(DoAndResponse) - DeleteVirtObject failed: " <<
+                virtual_bucket << "/" << p.object_name << " " << s.ToString();
               http_ret_code_ = 500;
             }
           }
           if (http_ret_code_ == 200) {
             s = store_->DeleteBucket(user_name_, virtual_bucket, false);
             if (s.IsIOError()) {
+              LOG(ERROR) << request_id_ <<
+                "AbortMultiUpload(DoAndResponse) - DeleteVirtBucketfailed: " <<
+                virtual_bucket << " " << s.ToString();
               http_ret_code_ = 500;
             }
           }
 
           // Success delete
           http_ret_code_ = 204;
+          LOG(INFO) << request_id_ <<
+            "AbortMultiUpload(DoAndResponse) - Success: " << virtual_bucket;
         }
       }
 
       s = store_->UnLock();
     }
     if (!s.ok()) {
+      LOG(ERROR) << request_id_ <<
+        "AbortMultiUpload(DoAndResponse) - Lock or Unlock failed: " <<
+        s.ToString();
       http_ret_code_ = 500;
     }
+    DLOG(INFO) << request_id_ <<
+      "AbortMultiUpload(DoAndResponse) - Unlock success: " << virtual_bucket;
   }
 
   resp->SetStatusCode(http_ret_code_);

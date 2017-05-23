@@ -4,10 +4,18 @@
 #include "src/zgwstore/zgw_define.h"
 
 bool HeadObjectCmd::DoInitial() {
-  DLOG(INFO) << "HeadObject(DoInitial) - " << bucket_name_ << "/"
-    << object_name_;
+  request_id_ = md5(bucket_name_ +
+                    object_name_ +
+                    std::to_string(slash::NowMicros()));
+  if (!TryAuth()) {
+    DLOG(ERROR) << request_id_ <<
+      "HeadObject(DoInitial) - Auth failed: " << client_ip_port_;
+    return false;
+  }
 
-  return TryAuth();
+  DLOG(INFO) << request_id_ <<
+    "HeadObject(DoInitial) - " << bucket_name_ << "/" << object_name_;
+  return true;
 }
 
 void HeadObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
@@ -24,6 +32,11 @@ void HeadObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
         http_ret_code_ = 404;
       } else if (s.ToString().find("Object Not Found") != std::string::npos) {
         http_ret_code_ = 404;
+      } else if (s.IsIOError()) {
+        LOG(ERROR) << request_id_ <<
+          "HeadObject(DoAndResponse) - GetObject failed: " <<
+          bucket_name_ << "/" << object_name_ << " " << s.ToString();
+        http_ret_code_ = 500;
       }
     }
   }

@@ -9,18 +9,29 @@
 extern ZgwConfig* g_zgw_conf;
 
 bool InitMultipartUploadCmd::DoInitial() {
+  http_response_xml_.clear();
   upload_id_ = md5(bucket_name_ + "|" + object_name_ + hostname() +
                    std::to_string(g_zgw_conf->server_port) +
                    std::to_string(slash::NowMicros()));
-  DLOG(INFO) << "InitialMultiUpload(DoInitial) - " <<
-    bucket_name_ << "/" << object_name_ << "-uploadId: " << upload_id_;
-
+  request_id_ = md5(bucket_name_ +
+                    object_name_ +
+                    upload_id_ + 
+                    std::to_string(slash::NowMicros()));
   if (!TryAuth()) {
+    DLOG(ERROR) << request_id_ <<
+      "InitMultipartUpload(DoInitial) - Auth failed: " << client_ip_port_;
     return false;
   }
 
-  zgwstore::Bucket bucket;
-  Status s = store_->GetBucket(user_name_, bucket_name_, &bucket);
+  DLOG(INFO) << request_id_ <<
+    "InitMultipartUpload(DoInitial) - " << bucket_name_ << "/" <<
+    object_name_ << ", uploadId: " << upload_id_;
+  return true;
+}
+
+void InitMultipartUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
+  zgwstore::Bucket dummy_bk;
+  Status s = store_->GetBucket(user_name_, bucket_name_, &dummy_bk);
   if (!s.ok()) {
     if (s.ToString().find("Bucket Doesn't Belong To This User") ||
         s.ToString().find("Bucket Not Found")) {
@@ -28,16 +39,12 @@ bool InitMultipartUploadCmd::DoInitial() {
       GenerateErrorXml(kNoSuchBucket, bucket_name_);
     } else {
       http_ret_code_ = 500;
-      LOG(ERROR) << "InitialMultiUpload(DoInitial) - GetBucket Error " <<
-        s.ToString();
+      LOG(ERROR) << request_id_ <<
+        "InitialMultiUpload(DoAndResponse) - GetBucket Error " <<
+        bucket_name_ << " " << s.ToString();
     }
-    return false;
   }
 
-  return true;
-}
-
-void InitMultipartUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     // Initial new virtual bucket as multipart object meta
     zgwstore::Bucket virtual_bucket;
@@ -50,18 +57,17 @@ void InitMultipartUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
     virtual_bucket.volumn = 0;
     virtual_bucket.uploading_volumn = 0;
 
-    Status s = store_->AddBucket(virtual_bucket);
+    s = store_->AddBucket(virtual_bucket);
     if (!s.ok()) {
       // Duplicate bucket must not exist
       http_ret_code_ = 500;
-      LOG(ERROR) << "InitialMultiUpload(DoAndResponse) - Error Add virtual_bucket: "
+      LOG(ERROR) << request_id_ <<
+        "InitialMultiUpload(DoAndResponse) - Error Add virtual_bucket: "
         << virtual_bucket.bucket_name;
     }
     GenerateRespXml();
-    DLOG(INFO) << "InitialMultiUpload(DoAndResponse) - Add virtual_bucket success";
   }
 
-  DLOG(INFO) << "InitialMultiUpload(DoAndResponse) - http code " << http_ret_code_;
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }
