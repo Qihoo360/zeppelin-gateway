@@ -62,7 +62,7 @@ void CompleteMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
     std::string virtual_bucket = "__TMPB" + upload_id_ +
       bucket_name_ + "|" + object_name_;
     std::string new_data_blocks;
-    int data_size = 0;
+    uint64_t data_size = 0;
     std::vector<zgwstore::Object> stored_parts;
 
     DLOG(INFO) << "CompleteMultiUpload(DoAndResponse) - virtual_bucket: " <<

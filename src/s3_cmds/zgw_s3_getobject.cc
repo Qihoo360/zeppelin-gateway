@@ -25,9 +25,9 @@ int GetObjectCmd::ParseRange(const std::string& range, uint64_t data_size,
     return 400;
   }
   std::string range_header = range.substr(6);
-  int start = 0;
-  int end = INT32_MAX;
-  int res = sscanf(range_header.c_str(), "%d-%d", &start, &end);
+  int64_t start = 0;
+  int64_t end = INT64_MAX;
+  int res = sscanf(range_header.c_str(), "%ld-%ld", &start, &end);
   end = std::min(data_size - 1, static_cast<uint64_t>(end));
   if (res == 1 && start < 0) {
     start = data_size + start;
