@@ -9,10 +9,10 @@
 namespace zgwstore {
 
 ZgwStore::ZgwStore(const std::string& zp_table,const std::string& lock_name,
-    const int32_t lock_ttl) :
+    const int32_t lock_ttl, const std::string& redis_passwd) :
   zp_table_(zp_table), zp_cli_(nullptr), redis_cli_(nullptr), redis_ip_(""),
   redis_port_(-1), lock_name_(lock_name), lock_ttl_(lock_ttl),
-  redis_error_(false) {
+  redis_passwd_(redis_passwd), redis_error_(false) {
   };
 
 ZgwStore::~ZgwStore() {
@@ -27,7 +27,7 @@ ZgwStore::~ZgwStore() {
 Status ZgwStore::Open(const std::vector<std::string>& zp_addrs,
     const std::string& redis_addr, const std::string& zp_table,
     const std::string& lock_name, const int32_t lock_ttl,
-    ZgwStore** store) {
+    const std::string& redis_passwd, ZgwStore** store) {
 
   *store = nullptr;
 /*
@@ -79,8 +79,20 @@ Status ZgwStore::Open(const std::vector<std::string>& zp_addrs,
       return Status::Corruption("Connection error: can't allocate redis context");
     }
   }
+  if (!redis_passwd.empty()) {
+    redisReply* reply = static_cast<redisReply*>(redisCommand(redis_cli,
+                "AUTH %s", redis_passwd.c_str()));
+    if (reply == NULL) {
+      return Status::IOError("Failed to auth to redis");
+    }
+    assert(reply->type == REDIS_REPLY_STRING);
+    if (std::string(reply->str) != "OK") {
+      return Status::Corruption("Failed to auth to redis");
+    }
+    freeReplyObject(reply);
+  }
   
-  *store = new ZgwStore(zp_table, lock_name, lock_ttl);
+  *store = new ZgwStore(zp_table, lock_name, lock_ttl, redis_passwd);
   (*store)->InstallClients(zp_cli, redis_cli);
   (*store)->set_redis_ip(t_ip);
   (*store)->set_redis_port(t_port);
@@ -1119,7 +1131,21 @@ bool ZgwStore::MaybeHandleRedisError() {
     }
     return false;
   }
-  redis_error_ = true;
+
+  if (!redis_passwd_.empty()) {
+    redisReply* reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+                "AUTH %s", redis_passwd_.c_str()));
+    if (reply == NULL) {
+      return false;
+    }
+    assert(reply->type == REDIS_REPLY_STRING);
+    if (std::string(reply->str) != "OK") {
+      return false;
+    }
+    freeReplyObject(reply);
+  }
+  
+  redis_error_ = false;
   return true;
 }
 

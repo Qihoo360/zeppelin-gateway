@@ -7,7 +7,7 @@ int main() {
   std::string redis_addr = "127.0.0.1:6379";
 
   slash::Status s = zgwstore::ZgwStore::Open(zp_addrs, redis_addr,
-      "s3_1", "lock_name", 30000, &store);
+      "s3_1", "lock_name", 30000, "", &store);
   std::cout << "Open ret: " << s.ToString() << std::endl;
   
   zgwstore::User user1;

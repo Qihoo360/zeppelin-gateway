@@ -13,12 +13,12 @@ namespace zgwstore {
 class ZgwStore {
  public:
   ZgwStore(const std::string& zp_table, const std::string& lock_name,
-      const int32_t lock_ttl);
+      const int32_t lock_ttl, const std::string& redis_passwd);
   ~ZgwStore();
   static Status Open(const std::vector<std::string>& zp_addrs,
       const std::string& redis_addr, const std::string& zp_table,
       const std::string& lock_name, const int32_t lock_ttl,
-      ZgwStore** store);
+      const std::string& redis_passwd, ZgwStore** store);
   void set_redis_ip(const std::string& redis_ip) {
     redis_ip_ = redis_ip;
   }
@@ -80,6 +80,7 @@ class ZgwStore {
   int32_t redis_port_;
   std::string lock_name_;
   int32_t lock_ttl_;
+  std::string redis_passwd_;
   bool redis_error_;
 };
 
