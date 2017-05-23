@@ -9,6 +9,7 @@ bool HeadBucketCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) << request_id_ << " " <<
       "HeadBucket(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -26,13 +27,14 @@ void HeadBucketCmd::DoAndResponse(pink::HTTPResponse* resp) {
                s.ToString().find("Bucket Not Found")) {
       http_ret_code_ = 404;
     } else if (s.IsIOError()){
+      http_ret_code_ = 500;
       LOG(ERROR) << request_id_ << " " <<
         "HeadBucket(DoAndResponse) - GetBucket failed: " <<
         bucket_name_ << " " << s.ToString();
-      http_ret_code_ = 500;
     }
   }
 
+  g_zgw_monitor->AddApiRequest(kHeadBucket, http_ret_code_);
   resp->SetContentLength(0); // HEAD needn't response data
   resp->SetStatusCode(http_ret_code_);
 }

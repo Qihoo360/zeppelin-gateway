@@ -10,6 +10,7 @@ bool HeadObjectCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) << request_id_ << " " <<
       "HeadObject(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -44,6 +45,7 @@ void HeadObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     resp->SetHeaders("Content-Length", object_.size);
   }
+  g_zgw_monitor->AddApiRequest(kHeadObject, http_ret_code_);
   resp->SetContentLength(0);
   resp->SetStatusCode(http_ret_code_);
 }

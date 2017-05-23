@@ -12,6 +12,7 @@ bool DeleteBucketCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) << request_id_ << " " <<
       "DeleteBucket(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -106,6 +107,7 @@ void DeleteBucketCmd::DoAndResponse(pink::HTTPResponse* resp) {
     }
   }
 
+  g_zgw_monitor->AddApiRequest(kDeleteBucket, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

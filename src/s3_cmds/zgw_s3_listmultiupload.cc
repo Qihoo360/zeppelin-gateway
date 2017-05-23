@@ -12,6 +12,7 @@ bool ListMultiPartUploadCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) << "ListMultiPartUpload(DoInitial) - Auth failed: " <<
       client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -78,10 +79,10 @@ void ListMultiPartUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
     std::vector<zgwstore::Bucket> all_buckets;
     Status s = store_->ListBuckets(user_name_, &all_buckets);
     if (!s.ok()) {
+      http_ret_code_ = 500;
       LOG(ERROR) << request_id_ << " " <<
         "ListMultiPartUpload(DoAndResponse) - ListBuckets failed: " <<
         user_name_ << " " << s.ToString();
-      http_ret_code_ = 500;
     }
 
     // Sorting
@@ -108,6 +109,7 @@ void ListMultiPartUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
     GenerateRespXml();
   }
 
+  g_zgw_monitor->AddApiRequest(kListMultiPartUpload, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

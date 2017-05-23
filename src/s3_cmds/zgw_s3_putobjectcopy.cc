@@ -11,6 +11,7 @@ bool PutObjectCopyCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) <<
       "PutObjectCopy(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -57,9 +58,9 @@ void PutObjectCopyCmd::DoAndResponse(pink::HTTPResponse* resp) {
 
         s = store_->AddObject(new_object_, false);
         if (!s.ok()) {
+          http_ret_code_ = 500;
           LOG(ERROR) << request_id_ << " " <<
             "PutObjectCopy(DoAndResponse) - AddObject failed: " << s.ToString();
-          http_ret_code_ = 500;
         } else {
           // TODO(gaodq) Add reference to zp
           GenerateRespXml();
@@ -73,21 +74,22 @@ void PutObjectCopyCmd::DoAndResponse(pink::HTTPResponse* resp) {
           http_ret_code_ = 404;
           GenerateErrorXml(kNoSuchKey, object_name_);
         } else if (s.IsIOError()) {
+          http_ret_code_ = 500;
           LOG(ERROR) << request_id_ << " " <<
             "PutObjectCopy(DoAndResponse) - GetSrcObject failed: " << s.ToString();
-          http_ret_code_ = 500;
         }
       }
 
       s = store_->UnLock();
     }
     if (!s.ok()) {
+      http_ret_code_ = 500;
       LOG(ERROR) << request_id_ << " " <<
         "PutObjectCopy(DoAndResponse) - Lock or UnLock failed: " << s.ToString();
-      http_ret_code_ = 500;
     }
   }
 
+  g_zgw_monitor->AddApiRequest(kPutObjectCopy, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

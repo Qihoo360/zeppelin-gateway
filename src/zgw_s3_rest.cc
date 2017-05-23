@@ -6,7 +6,10 @@
 #include "src/zgwstore/zgw_store.h"
 #include "src/s3_cmds/zgw_s3_command.h"
 #include "src/zgw_utils.h"
+#include "src/zgw_monitor.h"
 #include "src/zgw_server.h"
+
+extern ZgwMonitor* g_zgw_monitor;
 
 bool ZgwHTTPHandles::HandleRequest(const pink::HTTPRequest* req) {
   // req->Dump();
@@ -133,6 +136,7 @@ S3Cmd* ZgwHTTPHandles::SelectS3CmdBy(const pink::HTTPRequest* req) {
   cmd_ptr->SetQueryParams(req->query_params());
   cmd_ptr->SetStorePtr(store);
   cmd_ptr->InitS3Auth(req);
+  g_zgw_monitor->AddQueryNum();
 
   return cmd_ptr;
 }

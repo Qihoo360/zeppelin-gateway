@@ -5,6 +5,9 @@
 
 #include "slash/include/slash_status.h"
 #include "src/zgwstore/zgw_define.h"
+#include "src/zgw_monitor.h"
+
+extern ZgwMonitor* g_zgw_monitor;
 
 using slash::Status;
 

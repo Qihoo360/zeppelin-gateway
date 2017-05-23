@@ -15,6 +15,7 @@ bool ListPartsCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) <<
       "ListParts(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -65,13 +66,14 @@ void ListPartsCmd::DoAndResponse(pink::HTTPResponse* resp) {
       http_ret_code_ = 404;
       GenerateErrorXml(kNoSuchBucket, bucket_name_);
     } else {
+      http_ret_code_ = 500;
       LOG(ERROR) << request_id_ << " " <<
         "ListParts(DoAndResponse) - ListVirtObjects failed: " <<
         virtual_bucket << " " << s.ToString();
-      http_ret_code_ = 500;
     }
   }
 
+  g_zgw_monitor->AddApiRequest(kListParts, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

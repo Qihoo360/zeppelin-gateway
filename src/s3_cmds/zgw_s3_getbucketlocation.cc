@@ -11,6 +11,7 @@ bool GetBucketLocationCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) << request_id_ << " " <<
       "GetBucketLocation(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -29,13 +30,14 @@ void GetBucketLocationCmd::DoAndResponse(pink::HTTPResponse* resp) {
       http_ret_code_ = 404;
       GenerateErrorXml(kNoSuchBucket, bucket_name_);
     } else {
+      http_ret_code_ = 500;
       LOG(ERROR) << request_id_ << " " <<
         "GetBucketLocation(DoAndResponse) - GetBucket failed: " <<
         bucket_name_ << " " << s.ToString();
-      http_ret_code_ = 500;
     }
   }
 
+  g_zgw_monitor->AddApiRequest(kGetBucketLocation, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

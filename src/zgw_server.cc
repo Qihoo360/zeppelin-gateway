@@ -6,8 +6,10 @@
 #include "slash/include/slash_mutex.h"
 #include "slash/include/env.h"
 #include "src/s3_cmds/zgw_s3_command.h"
+#include "src/zgw_monitor.h"
 
 extern ZgwConfig* g_zgw_conf;
+extern ZgwMonitor* g_zgw_monitor;
 
 static std::atomic<int> zgw_thread_id(0);
 
@@ -41,12 +43,7 @@ static ZgwThreadEnvHandle env_handle;
 
 ZgwServer::ZgwServer()
     : should_exit_(false),
-      worker_num_(g_zgw_conf->worker_num),
-      last_query_num_(0),
-      cur_query_num_(0),
-      last_time_us_(0) {
-  pthread_rwlock_init(&qps_lock_, NULL);
-  last_time_us_ = slash::NowMicros();
+      worker_num_(g_zgw_conf->worker_num) {
   if (worker_num_ > kMaxWorkerThread) {
     LOG(WARNING) << "Exceed max worker thread num: " << kMaxWorkerThread;
     worker_num_ = kMaxWorkerThread;
@@ -76,24 +73,6 @@ ZgwServer::~ZgwServer() {
   LOG(INFO) << "ZgwServerThread exit!!!";
 }
 
-uint64_t ZgwServer::qps() {
-  uint64_t cur_time_us = slash::NowMicros();
-  slash::RWLock l(&qps_lock_, false);
-  uint64_t qps = (cur_query_num_ - last_query_num_) * 1000000
-    / (cur_time_us - last_time_us_ + 1);
-  if (qps == 0) {
-    cur_query_num_ = 0;
-  }
-  last_query_num_ = cur_query_num_;
-  last_time_us_ = cur_time_us;
-  return qps;
-}
-
-void ZgwServer::AddQueryNum() {
-  slash::RWLock l(&qps_lock_, true);
-  ++cur_query_num_;
-}
-
 void ZgwServer::Exit() {
   zgw_dispatch_thread_->StopThread();
   zgw_admin_thread_->StopThread();
@@ -116,7 +95,7 @@ Status ZgwServer::Start() {
   while (running()) {
     // DoTimingTask
     slash::SleepForMicroseconds(kZgwCronInterval);
-    qps();
+    g_zgw_monitor->UpdateAndGetQPS();
   }
 
   return Status::OK();

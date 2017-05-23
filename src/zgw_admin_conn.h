@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "pink/include/http_conn.h"
+#include "slash/include/env.h"
 #include "src/zgwstore/zgw_store.h"
 
 static const std::string kAddUser = "admin_put_user";
@@ -12,7 +13,9 @@ static const std::string kGetStatus = "status";
 
 class ZgwAdminHandles : public pink::HTTPHandles {
  public:
-  ZgwAdminHandles() {}
+  ZgwAdminHandles()
+      : bk_update_time_(0) {
+  }
   virtual ~ZgwAdminHandles() {}
 
   virtual bool HandleRequest(const pink::HTTPRequest* req) override;
@@ -23,12 +26,16 @@ class ZgwAdminHandles : public pink::HTTPHandles {
  private:
   void Initialize();
 
-  std::string GetZgwStatus();
+  std::string GetZgwStatus(bool force = false);
   std::pair<std::string, std::string> GenerateKeyPair();
+  std::string GenBucketInfo(bool force = false);
+  std::string GenCommandsInfo();
 
   zgwstore::ZgwStore* store_;
   std::string command_;
   std::string params_;
+  std::vector<zgwstore::Bucket> all_buckets_;
+  uint64_t bk_update_time_;
   
   int http_ret_code_;
   std::string result_;

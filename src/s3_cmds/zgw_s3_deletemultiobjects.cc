@@ -12,6 +12,7 @@ bool DeleteMultiObjectsCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) << request_id_ << " " <<
       "DeleteMultiObjects(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -85,6 +86,7 @@ void DeleteMultiObjectsCmd::DoAndResponse(pink::HTTPResponse* resp) {
     }
   }
 
+  g_zgw_monitor->AddApiRequest(kDeleteMultiObjects, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

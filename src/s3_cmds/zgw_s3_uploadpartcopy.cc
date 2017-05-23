@@ -10,6 +10,7 @@ bool UploadPartCopyCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) <<
       "UploadPartCopy(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -52,10 +53,10 @@ void UploadPartCopyCmd::DoAndResponse(pink::HTTPResponse* resp) {
           http_ret_code_ = 404;
           GenerateErrorXml(kNoSuchKey, object_name_);
         } else if (s.IsIOError()) {
+          http_ret_code_ = 500;
           LOG(ERROR) << request_id_ << " " <<
             "UploadPartCopy(DoAndResponse) - GetSrcObject failed: " <<
             src_bucket_name_ << "/" << src_object_name_ << " " << s.ToString();
-          http_ret_code_ = 500;
         }
       } else {
         std::string virtual_bucket = "__TMPB" + upload_id_ +
@@ -82,10 +83,10 @@ void UploadPartCopyCmd::DoAndResponse(pink::HTTPResponse* resp) {
             http_ret_code_ = 404;
             GenerateErrorXml(kNoSuchUpload, upload_id_);
           } else {
+            http_ret_code_ = 500;
             LOG(ERROR) << request_id_ << " " <<
               "UploadPartCopy(DoAndResponse) - GetVirtBucket failed: " <<
               virtual_bucket << " " << s.ToString();
-            http_ret_code_ = 500;
           }
         } else {
           // TODO (gaodq) Add zp reference
@@ -93,9 +94,9 @@ void UploadPartCopyCmd::DoAndResponse(pink::HTTPResponse* resp) {
           // Add part meta
           s = store_->AddObject(new_object_, false);
           if (!s.ok()) {
+            http_ret_code_ = 500;
             LOG(ERROR) << request_id_ << " " <<
               "UploadPartCopy(DoAndResponse) - AddObject failed: " << s.ToString();
-            http_ret_code_ = 500;
           }
 
           // Success
@@ -105,12 +106,13 @@ void UploadPartCopyCmd::DoAndResponse(pink::HTTPResponse* resp) {
       s = store_->UnLock();
     }
     if (!s.ok()) {
+      http_ret_code_ = 500;
       LOG(ERROR) << request_id_ << " " <<
         "UploadPartCopy(DoAndResponse) - Lock or UnLock failed: " << s.ToString();
-      http_ret_code_ = 500;
     }
   }
 
+  g_zgw_monitor->AddApiRequest(kUploadPartCopy, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

@@ -13,10 +13,12 @@
 #include "slash/include/slash_string.h"
 #include "src/zgw_server.h"
 #include "src/zgw_config.h"
+#include "src/zgw_monitor.h"
 #include "src/zgw_const.h"
 
 ZgwServer* g_zgw_server;
 ZgwConfig* g_zgw_conf;
+ZgwMonitor* g_zgw_monitor;
 
 static void GlogInit() {
   std::string log_path = g_zgw_conf->log_path;
@@ -157,6 +159,7 @@ int main(int argc, char** argv) {
   LOG(INFO) << "admin port on:" << g_zgw_conf->admin_port;
 
   g_zgw_server = new ZgwServer();
+  g_zgw_monitor = new ZgwMonitor();
   Status s = g_zgw_server->Start();
   if (!s.ok()) {
     LOG(ERROR) << "Start Server failed: " << s.ToString();

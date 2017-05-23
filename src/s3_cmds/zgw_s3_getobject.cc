@@ -19,6 +19,7 @@ bool GetObjectCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) << request_id_ << " " <<
       "GetObject(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -164,10 +165,10 @@ void GetObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
         http_ret_code_ = 404;
         GenerateErrorXml(kNoSuchKey, object_name_);
       } else {
+        http_ret_code_ = 500;
         LOG(ERROR) << request_id_ << " " <<
           "GetObject(DoAndResponse) - GetObject Error" << bucket_name_ << "/" <<
           object_name_ << s.ToString();
-        http_ret_code_ = 500;
       }
     } else {
       data_size_ = object_.size;
@@ -182,10 +183,10 @@ void GetObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
         s = store_->GetMultiBlockSet(bkname, obname,
                                      object_.upload_id, &sorted_block_indexes);
         if (s.IsIOError()) {
+          http_ret_code_ = 500;
           LOG(ERROR) << request_id_ << " " <<
             "GetObject(DoAndResponse) - GetMultiBlockSet Error: " << data_block
             << s.ToString();
-          http_ret_code_ = 500;
         }
         // Sort block indexes load from redis set
         SortBlockIndexes(&sorted_block_indexes);
@@ -216,6 +217,7 @@ void GetObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
     // Response error xml
     resp->SetContentLength(http_response_xml_.size());
   }
+  g_zgw_monitor->AddApiRequest(kGetObject, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
 }
 
@@ -232,9 +234,6 @@ int GetObjectCmd::DoResponseBody(char* buf, size_t max_size) {
     }
     return std::min(max_size, http_response_xml_.size());
   }
-
-  Timer t(request_id_ + " GetObject "+
-          bucket_name_ + "/" + object_name_ + ": DoResponseBody -");
 
   // Response object data
   if (data_size_ == 0) {
@@ -257,6 +256,7 @@ int GetObjectCmd::DoResponseBody(char* buf, size_t max_size) {
     return -1;
   }
   memcpy(buf, block_buffer_.data() + start_byte, block_size);
+  g_zgw_monitor->AddBucketTraffic(bucket_name_, block_size);
   data_size_ -= block_size; // Has written
   if (data_size_ == 0) {
     DLOG(INFO) << request_id_ << " " <<

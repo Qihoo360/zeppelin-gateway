@@ -26,6 +26,7 @@ bool UploadPartCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) << request_id_ << " " <<
       "UploadPart(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -72,12 +73,11 @@ bool UploadPartCmd::DoInitial() {
   return true;
 }
 
+// Data size from HTTP is 8MB per invocation, or smaller as the last
 void UploadPartCmd::DoReceiveBody(const char* data, size_t data_size) {
   if (http_ret_code_ != 200) {
     return;
   }
-  Timer t(request_id_ + " UploadPart "+
-          bucket_name_ + "/" + object_name_ + ": DoReceiveBody -");
 
   char* buf_pos = const_cast<char*>(data);
   size_t remain_size = data_size;
@@ -93,6 +93,7 @@ void UploadPartCmd::DoReceiveBody(const char* data, size_t data_size) {
                                std::string(buf_pos, nwritten));
     if (status_.ok()) {
       md5_ctx_.Update(buf_pos, nwritten);
+      g_zgw_monitor->AddBucketTraffic(bucket_name_, nwritten);
     } else {
       http_ret_code_ = 500;
       LOG(ERROR) << request_id_ << " " <<
@@ -138,6 +139,7 @@ void UploadPartCmd::DoAndResponse(pink::HTTPResponse* resp) {
     }
   }
 
+  g_zgw_monitor->AddApiRequest(kUploadPart, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

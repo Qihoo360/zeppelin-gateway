@@ -13,6 +13,7 @@ bool AbortMultiUploadCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) << request_id_ << " " <<
       "AbortMultiUpload(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -92,6 +93,7 @@ void AbortMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
       "AbortMultiUpload(DoAndResponse) - Unlock success: " << virtual_bucket;
   }
 
+  g_zgw_monitor->AddApiRequest(kAbortMultiUpload, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

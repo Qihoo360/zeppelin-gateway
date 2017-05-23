@@ -12,6 +12,7 @@ bool ListObjectsCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) <<
       "ListObjects(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -50,12 +51,14 @@ void ListObjectsCmd::DoAndResponse(pink::HTTPResponse* resp) {
       GenerateErrorXml(kNoSuchBucket, bucket_name_);
     } else {
       http_ret_code_ = 500;
+      GenerateErrorXml(kNoSuchBucket, bucket_name_);
       LOG(ERROR) << request_id_ << " " <<
         "ListObjects(DoAndResponse) - ListObjects failed: " <<
         bucket_name_ << " " << s.ToString();
     }
   }
 
+  g_zgw_monitor->AddApiRequest(kListObjects, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

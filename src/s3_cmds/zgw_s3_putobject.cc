@@ -22,6 +22,7 @@ bool PutObjectCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) << request_id_ << " " <<
       "PutObject(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -69,12 +70,11 @@ bool PutObjectCmd::DoInitial() {
   return true;
 }
 
+// Data size from HTTP is 8MB per invocation, or smaller as the last
 void PutObjectCmd::DoReceiveBody(const char* data, size_t data_size) {
   if (http_ret_code_ != 200) {
     return;
   }
-  Timer t(request_id_ + " PutObject "+
-          bucket_name_ + "/" + object_name_ +": DoReceiveBody -");
 
   char* buf_pos = const_cast<char*>(data);
   size_t remain_size = data_size;
@@ -94,10 +94,11 @@ void PutObjectCmd::DoReceiveBody(const char* data, size_t data_size) {
                                std::string(buf_pos, nwritten));
     if (status_.ok()) {
       md5_ctx_.Update(buf_pos, nwritten);
+      g_zgw_monitor->AddBucketTraffic(bucket_name_, nwritten);
     } else {
+      http_ret_code_ = 500;
       LOG(ERROR) << request_id_ << " " <<
         "PutObject(DoReceiveBody) - BlockSet: " << block_start_ - 1 << " error";
-      http_ret_code_ = 500;
     }
 
     remain_size -= nwritten;
@@ -108,10 +109,10 @@ void PutObjectCmd::DoReceiveBody(const char* data, size_t data_size) {
 void PutObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     if (!status_.ok()) {
+      http_ret_code_ = 500;
       // Error happend while transmiting to zeppelin
       LOG(ERROR) << request_id_ << " " <<
         "PutObject(DoAndResponse) - writing to zp error" << status_.ToString();
-      http_ret_code_ = 500;
     } else {
       // Write meta
       new_object_.etag = md5_ctx_.ToString();
@@ -123,9 +124,9 @@ void PutObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
 
       status_ = store_->AddObject(new_object_);
       if (!status_.ok()) {
+        http_ret_code_ = 500;
         LOG(ERROR) << request_id_ << " " <<
           "PutObject(DoAndResponse) - AddObject error" << status_.ToString();
-        http_ret_code_ = 500;
       }
       DLOG(INFO) << "AddObject: " << bucket_name_ + "/" + object_name_ + " Success";
     }
@@ -133,6 +134,7 @@ void PutObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
     resp->SetHeaders("ETag", "\"" + new_object_.etag + "\"");
   }
 
+  g_zgw_monitor->AddApiRequest(kPutObject, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

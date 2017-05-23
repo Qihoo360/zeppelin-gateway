@@ -12,6 +12,7 @@ bool ListAllBucketsCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) << request_id_ << " " <<
       "ListAllBuckets(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -24,16 +25,17 @@ void ListAllBucketsCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
     Status s = store_->ListBuckets(user_name_, &all_buckets_);
     if (!s.ok()) {
+      http_ret_code_ = 500;
       LOG(ERROR) << request_id_ << " " <<
         "ListAllBuckets(DoAndResponse) - ListBuckets failed: " <<
         user_name_ << " " << s.ToString();
-      http_ret_code_ = 500;
     }
 
     // Build response XML using all_buckets_
     GenerateRespXml();
   }
 
+  g_zgw_monitor->AddApiRequest(kListAllBuckets, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

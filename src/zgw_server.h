@@ -23,12 +23,7 @@ using slash::Status;
 
 class ZgwThreadEnvHandle : public pink::ThreadEnvHandle {
  public:
-  struct ThreadEnvs {
-    zgwstore::ZgwStore* store;
-    S3CmdTable* cmd_table;
-  };
-
-  ZgwThreadEnvHandle() {}
+  ZgwThreadEnvHandle() = default;
   virtual ~ZgwThreadEnvHandle();
 
   virtual int SetEnv(void** env) const;
@@ -42,13 +37,6 @@ class ZgwServer {
   explicit ZgwServer();
   virtual ~ZgwServer();
   Status Start();
-
-  std::map<S3Commands, S3Cmd*>& thread_cmd_table() {
-
-  }
-
-  uint64_t qps();
-  void AddQueryNum();
 
   bool running() const {
     return !should_exit_.load();
@@ -68,11 +56,6 @@ class ZgwServer {
   ZgwAdminConnFactory* admin_conn_factory_;
   pink::ServerThread* zgw_dispatch_thread_;
   pink::ServerThread* zgw_admin_thread_;
-
-  uint64_t last_query_num_;
-  uint64_t cur_query_num_;
-  uint64_t last_time_us_;
-  pthread_rwlock_t qps_lock_;
 };
 
 #endif

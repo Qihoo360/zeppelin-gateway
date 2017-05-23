@@ -4,9 +4,14 @@
 #include <vector>
 
 #include "slash/include/slash_hash.h"
-#include "src/zgw_utils.h"
 #include "src/zgwstore/zgw_define.h"
 #include "src/zgwstore/zgw_store.h"
+#include "src/s3_cmds/zgw_s3_command.h"
+#include "src/zgw_monitor.h"
+#include "src/zgw_utils.h"
+
+extern ZgwMonitor* g_zgw_monitor;
+static const char* S3CommandsToString(S3Commands cmd_type);
 
 bool ZgwAdminHandles::HandleRequest(const pink::HTTPRequest* req) {
   Initialize();
@@ -45,7 +50,8 @@ bool ZgwAdminHandles::HandleRequest(const pink::HTTPRequest* req) {
   } else if (req->method() == "GET" &&
              command_ == kGetStatus) {
     http_ret_code_ = 200;
-    result_ = GetZgwStatus();
+    bool force = req->query_params().count("force");
+    result_ = GetZgwStatus(force);
   } else {
     http_ret_code_ = 501;
     result_ = ":(";
@@ -71,8 +77,35 @@ int ZgwAdminHandles::WriteResponseBody(char* buf, size_t max_size) {
   return std::min(max_size, result_.size());
 }
 
-std::string ZgwAdminHandles::GetZgwStatus() {
-  return "";
+std::string ZgwAdminHandles::GetZgwStatus(bool force) {
+  const size_t buf_size = 1024 * 1024;
+  char buf[buf_size]; // 1MB
+  const char* format = "\
+  {\
+      \"qps\": \"%lu\",\
+      \"cluster_traffic\": \"%lu\",\
+      \"request_count\": \"%lu\",\
+      \"failed_request\": \"%lu\",\
+      \"avg_upload_part_time\": \"%lu\",\
+      \"auth_failed\": \"%lu\",\
+      \"buckets_info\": [\
+      %s \
+      ],\
+      \"commands_info\": [\
+      %s \
+      ]\
+  }";
+
+  snprintf(buf, buf_size, format,
+           g_zgw_monitor->UpdateAndGetQPS(),
+           g_zgw_monitor->cluster_traffic(),
+           g_zgw_monitor->request_count(),
+           g_zgw_monitor->failed_request(),
+           g_zgw_monitor->avg_upload_part_time(),
+           g_zgw_monitor->auth_failed_count(),
+           GenBucketInfo(force).c_str(),
+           GenCommandsInfo().c_str());
+  return std::string(buf);
 }
 
 void ZgwAdminHandles::Initialize() {
@@ -106,4 +139,142 @@ std::pair<std::string, std::string> ZgwAdminHandles::GenerateKeyPair() {
   key1 = GenRandomStr(20);
   key2 = GenRandomStr(40);
   return std::make_pair(key1, key2);
+}
+
+std::string ZgwAdminHandles::GenBucketInfo(bool force) {
+  char buf[1024];
+  const char* format = "\
+  {\
+    \"name\": \"%s\",\
+      \"traffic\": %lu,\
+      \"volume\": %lu\
+  },";
+  static uint64_t _5minutes = 5 * 60 * 1e6;
+  if (slash::NowMicros() - bk_update_time_ > _5minutes || force) {
+    // Update Buckets meta info
+    std::vector<zgwstore::User> all_users;
+    store_->ListUsers(&all_users);
+    http_ret_code_ = 200;
+    all_buckets_.clear();
+    for (auto& user : all_users) {
+      std::vector<zgwstore::Bucket> user_bks;
+      store_->ListBuckets(user.display_name, &user_bks);
+      all_buckets_.insert(all_buckets_.begin(),
+                          user_bks.begin(), user_bks.end());
+    }
+    bk_update_time_ = slash::NowMicros();
+  }
+
+  std::string bks_info;
+  for (auto b : all_buckets_) {
+    sprintf(buf, format,
+            b.bucket_name.c_str(),
+            g_zgw_monitor->bucket_traffic(b.bucket_name),
+            b.volumn);
+    bks_info.append(buf);
+  }
+  if (!bks_info.empty() && bks_info.back() == ',') {
+    bks_info.resize(bks_info.size() - 1);
+  }
+  return bks_info;
+}
+
+std::string ZgwAdminHandles::GenCommandsInfo() {
+  char buf[1024];
+  const char* format = "\
+  {\
+    \"cmd\": \"%s\",\
+      \"request_count\": \"%lu\",\
+      \"4xx_error\": \"%lu\",\
+      \"5xx_error\": \"%lu\"\
+  },";
+  std::vector<S3Commands> all_cmds {
+    kListAllBuckets,
+    kDeleteBucket,
+    kListObjects,
+    kGetBucketLocation,
+    kHeadBucket,
+    kListMultiPartUpload,
+    kPutBucket,
+    kDeleteObject,
+    kDeleteMultiObjects,
+    kGetObject,
+    kHeadObject,
+    kPostObject,
+    kPutObject,
+    kPutObjectCopy,
+    kInitMultipartUpload,
+    kUploadPart,
+    kUploadPartCopy,
+    kUploadPartCopyPartial,
+    kCompleteMultiUpload,
+    kAbortMultiUpload,
+    kListParts,
+    kUnImplement,
+    kZgwTest,
+  };
+
+  std::string cmd_info;
+  for (auto cmd : all_cmds) {
+    sprintf(buf, format,
+            S3CommandsToString(cmd),
+            g_zgw_monitor->api_request_count(cmd),
+            g_zgw_monitor->api_err4xx_count(cmd),
+            g_zgw_monitor->api_err5xx_count(cmd));
+    cmd_info.append(buf);
+  }
+
+  if (!cmd_info.empty() && cmd_info.back() == ',') {
+    cmd_info.resize(cmd_info.size() - 1);
+  }
+  return cmd_info;
+}
+
+static const char* S3CommandsToString(S3Commands cmd_type) {
+  switch(cmd_type) {
+    case kListAllBuckets:
+      return "ListAllBuckets: ";
+    case kDeleteBucket:
+      return "DeleteBucket: ";
+    case kListObjects:
+      return "ListObjects: ";
+    case kHeadBucket:
+      return "HeadBucket: ";
+    case kListMultiPartUpload:
+      return "ListMultiPartUpload: ";
+    case kPutBucket:
+      return "PutBucket: ";
+    case kDeleteObject:
+      return "DeleteObject: ";
+    case kDeleteMultiObjects:
+      return "DeleteMultiObjects: ";
+    case kGetObject:
+      return "GetObject: ";
+    case kHeadObject:
+      return "HeadObject: ";
+    case kPostObject:
+      return "PostObject: ";
+    case kPutObject:
+      return "PutObject: ";
+    case kPutObjectCopy:
+      return "PutObjectCopy: ";
+    case kInitMultipartUpload:
+      return "InitMultipartUpload: ";
+    case kUploadPart:
+      return "UploadPart: ";
+    case kUploadPartCopy:
+      return "UploadPartCopy: ";
+    case kUploadPartCopyPartial:
+      return "UploadPartCopyPartial: ";
+    case kCompleteMultiUpload:
+      return "CompleteMultiUpload: ";
+    case kAbortMultiUpload:
+      return "AbortMultiUpload: ";
+    case kListParts:
+      return "ListParts: ";
+    case kUnImplement:
+    case kZgwTest:
+    default:
+      return "UnImplement: ";
+  }
 }

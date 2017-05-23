@@ -18,6 +18,7 @@ bool UploadPartCopyPartialCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) <<
       "UploadPartCopyPartial(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -275,6 +276,7 @@ void UploadPartCopyPartialCmd::DoAndResponse(pink::HTTPResponse* resp) {
         break;
       }
       md5_ctx_.Update(block_buffer.data() + start_byte, size);
+      g_zgw_monitor->AddBucketTraffic(src_bucket_name_, size);
     }
     if (status_.ok()) {
       // TODO (gaodq) zp reference src_data_block_
@@ -299,6 +301,7 @@ void UploadPartCopyPartialCmd::DoAndResponse(pink::HTTPResponse* resp) {
       GenerateRespXml();
   }
 
+  g_zgw_monitor->AddApiRequest(kUploadPartCopyPartial, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

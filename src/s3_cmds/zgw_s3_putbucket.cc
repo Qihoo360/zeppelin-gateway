@@ -12,6 +12,7 @@ bool PutBucketCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) << request_id_ << " " <<
       "PutBucket(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -56,15 +57,16 @@ void PutBucketCmd::DoAndResponse(pink::HTTPResponse* resp) {
           http_ret_code_ = 409;
           GenerateErrorXml(kBucketAlreadyOwnedByYou);
         } else {
+          http_ret_code_ = 500;
           LOG(ERROR) << request_id_ << " " <<
             "PutBucket(DoAndResponse) - AddBucket failed: " <<
             bucket_name_ << " " << s.ToString();
-          http_ret_code_ = 500;
         }
       }
     }
   }
 
+  g_zgw_monitor->AddApiRequest(kPutBucket, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

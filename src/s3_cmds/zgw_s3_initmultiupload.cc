@@ -20,6 +20,7 @@ bool InitMultipartUploadCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) << request_id_ << " " <<
       "InitMultipartUpload(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -68,6 +69,7 @@ void InitMultipartUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
     GenerateRespXml();
   }
 
+  g_zgw_monitor->AddApiRequest(kInitMultipartUpload, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

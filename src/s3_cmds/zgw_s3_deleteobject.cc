@@ -11,6 +11,7 @@ bool DeleteObjectCmd::DoInitial() {
   if (!TryAuth()) {
     DLOG(ERROR) << request_id_ << " " <<
       "DeleteObject(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
     return false;
   }
 
@@ -31,10 +32,10 @@ void DeleteObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
         GenerateErrorXml(kNoSuchBucket, bucket_name_);
         resp->SetContentLength(http_response_xml_.size());
       } else {
+        http_ret_code_ = 500;
         LOG(ERROR) << request_id_ << " " <<
           "DeleteObject(DoAndResponse) - GetBucket failed: " <<
           bucket_name_ << " " << s.ToString();
-        http_ret_code_ = 500;
       }
     } else {
       s = store_->DeleteObject(user_name_, bucket_name_, object_name_);
@@ -45,14 +46,15 @@ void DeleteObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
         http_ret_code_ = 404;
         GenerateErrorXml(kNoSuchBucket, bucket_name_);
       } else if (s.IsIOError()) {
+        http_ret_code_ = 500;
         LOG(ERROR) << request_id_ << " " <<
           "DeleteObject(DoAndResponse) - DeleteObject failed: " <<
           bucket_name_ << "/" << object_name_ << " " << s.ToString();
-        http_ret_code_ = 500;
       }
     }
   }
 
+  g_zgw_monitor->AddApiRequest(kDeleteObject, http_ret_code_);
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }
