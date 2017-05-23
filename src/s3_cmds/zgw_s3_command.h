@@ -72,7 +72,7 @@ class S3Cmd {
   // Step 1.
   void Clear();
   // Step 2.
-  virtual bool DoInitial(pink::HTTPResponse* resp) = 0;
+  virtual bool DoInitial() = 0;
   // Step 3.
   virtual void DoReceiveBody(const char* data, size_t data_size) {
   };
@@ -82,6 +82,9 @@ class S3Cmd {
   virtual int DoResponseBody(char* buf, size_t max_size) {
     return 0;
   };
+
+  virtual void DoConnClosed() {
+  }
 
   void SetReqHeaders(const std::map<std::string, std::string>& req_headers) {
     req_headers_ = req_headers;
@@ -103,9 +106,6 @@ class S3Cmd {
   void InitS3Auth(const pink::HTTPRequest* req) {
     assert(store_ != nullptr);
     s3_auth_.Initialize(req, store_);
-  }
-  void SetRequestId(const std::string& request_id) {
-    request_id_ = request_id;
   }
   std::string request_id() {
     return request_id_;

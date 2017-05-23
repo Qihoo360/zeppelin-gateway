@@ -5,7 +5,7 @@
 #include "src/zgwstore/zgw_define.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
 
-bool UploadPartCopyPartialCmd::DoInitial(pink::HTTPResponse* resp) {
+bool UploadPartCopyPartialCmd::DoInitial() {
   DLOG(INFO) << "UploadPartCopyPartial(DoInitial) - " <<
     req_headers_.at("x-amz-copy-source-range");
   http_response_xml_.clear();

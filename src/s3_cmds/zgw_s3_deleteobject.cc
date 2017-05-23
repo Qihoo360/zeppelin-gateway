@@ -3,7 +3,7 @@
 #include "slash/include/env.h"
 #include "src/zgwstore/zgw_define.h"
 
-bool DeleteObjectCmd::DoInitial(pink::HTTPResponse* resp) {
+bool DeleteObjectCmd::DoInitial() {
   http_response_xml_.clear();
   DLOG(INFO) << "DeleteObject(DoInitial) - " << bucket_name_ << "/" <<
     object_name_;

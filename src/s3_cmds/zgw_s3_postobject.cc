@@ -3,7 +3,7 @@
 #include "slash/include/env.h"
 #include "src/zgwstore/zgw_define.h"
 
-bool PostObjectCmd::DoInitial(pink::HTTPResponse* resp) {
+bool PostObjectCmd::DoInitial() {
 
   return TryAuth();
 }

@@ -1,11 +1,12 @@
 #include "src/s3_cmds/zgw_s3_command.h"
 
+#include "src/zgw_utils.h"
 #include "src/s3_cmds/zgw_s3_object.h"
 #include "src/s3_cmds/zgw_s3_bucket.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
 
 class ZgwTestCmd : public S3Cmd {
-  virtual bool DoInitial(pink::HTTPResponse* resp) {
+  virtual bool DoInitial() {
     http_response_xml_.clear();
     return true;
   }
@@ -26,7 +27,7 @@ class ZgwTestCmd : public S3Cmd {
 };
 
 class UnImplementCmd : public S3Cmd {
-  virtual bool DoInitial(pink::HTTPResponse* resp) {
+  virtual bool DoInitial() {
     return false;
   }
   virtual void DoAndResponse(pink::HTTPResponse* resp) {
@@ -230,6 +231,6 @@ void S3Cmd::GenerateErrorXml(S3ErrorType type, const std::string& message) {
       break;
   }
   doc.AppendToRoot("RequestId", request_id_);
-  doc.AppendToRoot("HostId", request_id_); // TODO (gaodq)
+  doc.AppendToRoot("HostId", hostname());
   doc.ToString(&http_response_xml_);
 }

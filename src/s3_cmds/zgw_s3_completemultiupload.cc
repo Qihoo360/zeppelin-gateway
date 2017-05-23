@@ -6,7 +6,7 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
 
-bool CompleteMultiUploadCmd::DoInitial(pink::HTTPResponse* resp) {
+bool CompleteMultiUploadCmd::DoInitial() {
   http_request_xml_.clear();
   http_response_xml_.clear();
   received_parts_info_.clear();

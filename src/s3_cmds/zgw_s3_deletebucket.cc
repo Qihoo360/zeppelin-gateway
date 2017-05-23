@@ -3,7 +3,7 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
 
-bool DeleteBucketCmd::DoInitial(pink::HTTPResponse* resp) {
+bool DeleteBucketCmd::DoInitial() {
   http_response_xml_.clear();
   DLOG(INFO) << "DeleteBucket(DoInitial) - " << bucket_name_;
 

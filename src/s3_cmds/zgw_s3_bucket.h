@@ -12,7 +12,7 @@ class ListAllBucketsCmd : public S3Cmd {
  public:
   ListAllBucketsCmd() {}
 
-  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
@@ -26,7 +26,7 @@ class ListObjectsCmd : public S3Cmd {
  public:
   ListObjectsCmd() {}
 
-  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
@@ -59,7 +59,7 @@ class ListMultiPartUploadCmd : public S3Cmd {
  public:
   ListMultiPartUploadCmd() {}
 
-  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 
@@ -87,7 +87,7 @@ class PutBucketCmd : public S3Cmd {
  public:
   PutBucketCmd() {}
 
-  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual bool DoInitial() override;
   virtual void DoReceiveBody(const char* data, size_t data_size) override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
@@ -101,7 +101,7 @@ class DeleteBucketCmd : public S3Cmd {
  public:
   DeleteBucketCmd() {}
 
-  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 };
@@ -111,7 +111,7 @@ class DeleteMultiObjectsCmd : public S3Cmd {
  public:
   DeleteMultiObjectsCmd() {}
 
-  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual bool DoInitial() override;
   virtual void DoReceiveBody(const char* data, size_t data_size) override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
@@ -124,7 +124,7 @@ class HeadBucketCmd : public S3Cmd {
  public:
   HeadBucketCmd() {}
 
-  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
 
  private:
@@ -136,7 +136,7 @@ class GetBucketLocationCmd : public S3Cmd {
  public:
   GetBucketLocationCmd() {}
 
-  virtual bool DoInitial(pink::HTTPResponse* resp) override;
+  virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
   virtual int DoResponseBody(char* buf, size_t max_size) override;
 

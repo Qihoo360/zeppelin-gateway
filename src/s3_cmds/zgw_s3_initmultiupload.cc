@@ -3,10 +3,14 @@
 #include "slash/include/env.h"
 #include "src/zgwstore/zgw_define.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
+#include "src/zgw_config.h"
 #include "src/zgw_utils.h"
 
-bool InitMultipartUploadCmd::DoInitial(pink::HTTPResponse* resp) {
-  upload_id_ = md5(bucket_name_ + object_name_ +
+extern ZgwConfig* g_zgw_conf;
+
+bool InitMultipartUploadCmd::DoInitial() {
+  upload_id_ = md5(bucket_name_ + "|" + object_name_ + hostname() +
+                   std::to_string(g_zgw_conf->server_port) +
                    std::to_string(slash::NowMicros()));
   DLOG(INFO) << "InitialMultiUpload(DoInitial) - " <<
     bucket_name_ << "/" << object_name_ << "-uploadId: " << upload_id_;

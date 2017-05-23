@@ -3,7 +3,7 @@
 #include "slash/include/env.h"
 #include "src/zgw_utils.h"
 
-bool HeadBucketCmd::DoInitial(pink::HTTPResponse* resp) {
+bool HeadBucketCmd::DoInitial() {
   DLOG(INFO) << "HeadBucket(DoInitial) - " << bucket_name_;
 
   return TryAuth();

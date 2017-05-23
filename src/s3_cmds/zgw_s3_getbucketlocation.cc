@@ -4,7 +4,7 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
 
-bool GetBucketLocationCmd::DoInitial(pink::HTTPResponse* resp) {
+bool GetBucketLocationCmd::DoInitial() {
   http_response_xml_.clear();
 
   return TryAuth();

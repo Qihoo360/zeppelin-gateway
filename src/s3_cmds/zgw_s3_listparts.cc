@@ -4,7 +4,7 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
 
-bool ListPartsCmd::DoInitial(pink::HTTPResponse* resp) {
+bool ListPartsCmd::DoInitial() {
   all_candicate_parts_.clear();
   http_response_xml_.clear();
   upload_id_ = query_params_.at("uploadId");

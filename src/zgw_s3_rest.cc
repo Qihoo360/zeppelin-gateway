@@ -8,12 +8,12 @@
 #include "src/zgw_utils.h"
 #include "src/zgw_server.h"
 
-bool ZgwHTTPHandles::HandleRequest(const pink::HTTPRequest* req, pink::HTTPResponse* resp) {
+bool ZgwHTTPHandles::HandleRequest(const pink::HTTPRequest* req) {
   // req->Dump();
 
   cmd_ = SelectS3CmdBy(req);
 
-  if (!cmd_->DoInitial(resp)) {
+  if (!cmd_->DoInitial()) {
     // Something wrong happend, need reply right now
     return true;
   }
@@ -22,7 +22,7 @@ bool ZgwHTTPHandles::HandleRequest(const pink::HTTPRequest* req, pink::HTTPRespo
   return false;
 }
 
-void ZgwHTTPHandles::ReadBodyData(const char* data, size_t data_size) {
+void ZgwHTTPHandles::HandleBodyData(const char* data, size_t data_size) {
   cmd_->DoReceiveBody(data, data_size);
 }
 
@@ -33,8 +33,12 @@ void ZgwHTTPHandles::PrepareResponse(pink::HTTPResponse* resp) {
   resp->SetHeaders("Server", "Zeppelin gateway 2.0");
 }
 
-int ZgwHTTPHandles::WriteBodyData(char* buf, size_t max_size) {
+int ZgwHTTPHandles::WriteResponseBody(char* buf, size_t max_size) {
   return cmd_->DoResponseBody(buf, max_size);
+}
+
+void ZgwHTTPHandles::HandleConnClosed() {
+  return cmd_->DoConnClosed();
 }
 
 S3Cmd* ZgwHTTPHandles::SelectS3CmdBy(const pink::HTTPRequest* req) {
@@ -127,7 +131,6 @@ S3Cmd* ZgwHTTPHandles::SelectS3CmdBy(const pink::HTTPRequest* req) {
   cmd_ptr->SetQueryParams(req->query_params());
   cmd_ptr->SetStorePtr(store);
   cmd_ptr->InitS3Auth(req);
-  cmd_ptr->SetRequestId(slash::md5("FOO")); // TODO (gaodq)
 
   return cmd_ptr;
 }

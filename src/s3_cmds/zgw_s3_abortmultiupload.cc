@@ -2,7 +2,7 @@
 
 #include "src/zgw_utils.h"
 
-bool AbortMultiUploadCmd::DoInitial(pink::HTTPResponse* resp) {
+bool AbortMultiUploadCmd::DoInitial() {
   http_response_xml_.clear();
   upload_id_ = query_params_.at("uploadId");
 

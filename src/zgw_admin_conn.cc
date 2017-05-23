@@ -8,7 +8,7 @@
 #include "src/zgwstore/zgw_define.h"
 #include "src/zgwstore/zgw_store.h"
 
-bool ZgwAdminHandles::HandleRequest(const pink::HTTPRequest* req, pink::HTTPResponse* resp) {
+bool ZgwAdminHandles::HandleRequest(const pink::HTTPRequest* req) {
   Initialize();
 
   SplitBySecondSlash(req->path(), &command_, &params_);
@@ -60,7 +60,7 @@ void ZgwAdminHandles::PrepareResponse(pink::HTTPResponse* resp) {
   resp->SetContentLength(result_.size());
 }
 
-int ZgwAdminHandles::WriteBodyData(char* buf, size_t max_size) {
+int ZgwAdminHandles::WriteResponseBody(char* buf, size_t max_size) {
   if (max_size < result_.size()) {
     memcpy(buf, result_.data(), max_size);
     result_.assign(result_.substr(max_size));

@@ -3,7 +3,7 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgwstore/zgw_define.h"
 
-bool DeleteMultiObjectsCmd::DoInitial(pink::HTTPResponse* resp) {
+bool DeleteMultiObjectsCmd::DoInitial() {
   http_request_xml_.clear();
   http_response_xml_.clear();
   DLOG(INFO) << "DeleteMultiObjects(DoInitial) - " << bucket_name_;

@@ -6,7 +6,7 @@
 #include "slash/include/env.h"
 #include "slash/include/slash_string.h"
 
-bool GetObjectCmd::DoInitial(pink::HTTPResponse* resp) {
+bool GetObjectCmd::DoInitial() {
   block_buffer_.clear();
   data_size_ = 0;
   range_result_.clear();

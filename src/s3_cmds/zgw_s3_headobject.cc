@@ -3,7 +3,7 @@
 #include "slash/include/env.h"
 #include "src/zgwstore/zgw_define.h"
 
-bool HeadObjectCmd::DoInitial(pink::HTTPResponse* resp) {
+bool HeadObjectCmd::DoInitial() {
   DLOG(INFO) << "HeadObject(DoInitial) - " << bucket_name_ << "/"
     << object_name_;
 

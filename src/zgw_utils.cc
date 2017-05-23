@@ -44,6 +44,12 @@ std::string iso8601_time(uint64_t nowmicros) {
   return std::string(buf);
 }
 
+std::string hostname() {
+  char buf[100] = {0};
+  gethostname(buf, 100);
+  return std::string(buf);
+}
+
 std::string md5(const std::string& content) {
   MD5Ctx md5_ctx;
   md5_ctx.Init();
