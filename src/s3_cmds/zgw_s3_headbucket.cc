@@ -3,10 +3,18 @@
 #include "slash/include/env.h"
 #include "src/zgw_utils.h"
 
-bool HeadBucketCmd::DoInitial(pink::HTTPResponse* resp) {
-  DLOG(INFO) << "HeadBucket(DoInitial) - " << bucket_name_;
+bool HeadBucketCmd::DoInitial() {
+  request_id_ = md5(bucket_name_ +
+                    std::to_string(slash::NowMicros()));
+  if (!TryAuth()) {
+    DLOG(ERROR) << request_id_ <<
+      "HeadBucket(DoInitial) - Auth failed: " << client_ip_port_;
+    return false;
+  }
 
-  return TryAuth();
+  DLOG(INFO) << request_id_ <<
+    "HeadBucket(DoInitial) - " << bucket_name_;
+  return true;
 }
 
 void HeadBucketCmd::DoAndResponse(pink::HTTPResponse* resp) {
@@ -17,7 +25,10 @@ void HeadBucketCmd::DoAndResponse(pink::HTTPResponse* resp) {
     } else if (s.ToString().find("Bucket Doesn't Belong To This User") ||
                s.ToString().find("Bucket Not Found")) {
       http_ret_code_ = 404;
-    } else {
+    } else if (s.IsIOError()){
+      LOG(ERROR) << request_id_ <<
+        "HeadBucket(DoAndResponse) - GetBucket failed: " <<
+        bucket_name_ << " " << s.ToString();
       http_ret_code_ = 500;
     }
   }

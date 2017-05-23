@@ -13,10 +13,8 @@ static std::atomic<int> zgw_thread_id(0);
 
 int ZgwThreadEnvHandle::SetEnv(void** env) const {
   zgwstore::ZgwStore* store;
-  char buf[100] = {0};
-  gethostname(buf, 100);
-  std::string lock_name = std::string(buf) +
-    std::to_string(g_zgw_conf->server_port) + std::to_string(zgw_thread_id++);
+  std::string lock_name = hostname() + std::to_string(g_zgw_conf->server_port)
+    + std::to_string(zgw_thread_id++);
   Status s = zgwstore::ZgwStore::Open(g_zgw_conf->zp_meta_ip_ports,
                                       g_zgw_conf->redis_ip_port,
                                       g_zgw_conf->zp_table_name,

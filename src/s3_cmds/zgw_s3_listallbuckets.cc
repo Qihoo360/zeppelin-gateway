@@ -4,7 +4,7 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
 
-bool ListAllBucketsCmd::DoInitial(pink::HTTPResponse* resp) {
+bool ListAllBucketsCmd::DoInitial() {
   all_buckets_.clear();
   http_response_xml_.clear();
 

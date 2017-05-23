@@ -3,7 +3,7 @@
 #include "slash/include/env.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
 
-bool PutBucketCmd::DoInitial(pink::HTTPResponse* resp) {
+bool PutBucketCmd::DoInitial() {
   DLOG(INFO) << "PutBucket(DoInitial) - " << bucket_name_;
   http_request_xml_.clear();
   http_response_xml_.clear(); 

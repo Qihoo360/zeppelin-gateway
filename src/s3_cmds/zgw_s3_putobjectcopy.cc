@@ -5,7 +5,7 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
 
-bool PutObjectCopyCmd::DoInitial(pink::HTTPResponse* resp) {
+bool PutObjectCopyCmd::DoInitial() {
   std::string source_path = req_headers_.at("x-amz-copy-source");
 
   if (!TryAuth()) {

@@ -72,7 +72,7 @@ class S3Cmd {
   // Step 1.
   void Clear();
   // Step 2.
-  virtual bool DoInitial(pink::HTTPResponse* resp) = 0;
+  virtual bool DoInitial() = 0;
   // Step 3.
   virtual void DoReceiveBody(const char* data, size_t data_size) {
   };
@@ -82,6 +82,9 @@ class S3Cmd {
   virtual int DoResponseBody(char* buf, size_t max_size) {
     return 0;
   };
+
+  virtual void DoConnClosed() {
+  }
 
   void SetReqHeaders(const std::map<std::string, std::string>& req_headers) {
     req_headers_ = req_headers;
@@ -102,10 +105,8 @@ class S3Cmd {
   }
   void InitS3Auth(const pink::HTTPRequest* req) {
     assert(store_ != nullptr);
+    client_ip_port_.assign(req->client_ip_port());
     s3_auth_.Initialize(req, store_);
-  }
-  void SetRequestId(const std::string& request_id) {
-    request_id_ = request_id;
   }
   std::string request_id() {
     return request_id_;
@@ -116,7 +117,6 @@ class S3Cmd {
   void GenerateErrorXml(S3ErrorType type, const std::string& message = "");
 
   // These parameters have been filled
-  std::string request_id_;
   std::string user_name_;
   std::string bucket_name_;
   std::string object_name_;
@@ -125,9 +125,14 @@ class S3Cmd {
   zgwstore::ZgwStore* store_;
 
   S3AuthV4 s3_auth_; // Authorize in DoInitial()
+  std::string request_id_; // Specify command
+  std::string client_ip_port_;
 
   // Should clear in every request
   int http_ret_code_;
+  bool http_ok() {
+    return http_ret_code_ < 400;
+  }
   std::string http_request_xml_;
   std::string http_response_xml_;
 

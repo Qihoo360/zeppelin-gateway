@@ -6,15 +6,25 @@
 #include "slash/include/env.h"
 #include "slash/include/slash_string.h"
 
-bool GetObjectCmd::DoInitial(pink::HTTPResponse* resp) {
+bool GetObjectCmd::DoInitial() {
   block_buffer_.clear();
   data_size_ = 0;
   range_result_.clear();
   std::queue<std::tuple<uint64_t, uint64_t, uint64_t>> empty;
   std::swap(blocks_, empty);
   need_partial_ = req_headers_.count("range");
+  request_id_ = md5(bucket_name_ +
+                    object_name_ +
+                    std::to_string(slash::NowMicros()));
+  if (!TryAuth()) {
+    DLOG(ERROR) << request_id_ <<
+      "GetObject(DoInitial) - Auth failed: " << client_ip_port_;
+    return false;
+  }
 
-  return TryAuth();
+  DLOG(INFO) << request_id_ <<
+    "GetObject(DoInitial) - " << bucket_name_ << "/" << object_name_;
+  return true;
 }
 
 int GetObjectCmd::ParseRange(const std::string& range, uint64_t data_size,
@@ -25,9 +35,9 @@ int GetObjectCmd::ParseRange(const std::string& range, uint64_t data_size,
     return 400;
   }
   std::string range_header = range.substr(6);
-  int start = 0;
-  int end = INT32_MAX;
-  int res = sscanf(range_header.c_str(), "%d-%d", &start, &end);
+  int64_t start = 0;
+  int64_t end = INT64_MAX;
+  int res = sscanf(range_header.c_str(), "%ld-%ld", &start, &end);
   end = std::min(data_size - 1, static_cast<uint64_t>(end));
   if (res == 1 && start < 0) {
     start = data_size + start;
@@ -37,7 +47,9 @@ int GetObjectCmd::ParseRange(const std::string& range, uint64_t data_size,
   if (res > 0 &&
       start <= end) {
     // Valid range
-    LOG(INFO) << "Get range: " << start << "-" << end;
+    DLOG(INFO) << request_id_ <<
+      "Get " << bucket_name_ << "/" << object_name_  <<
+      "range: " << start << "-" << end;
     *range_start = start;
     *range_end = end;
     return 206;
@@ -150,6 +162,11 @@ void GetObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
       } else if (s.ToString().find("Object Not Found") != std::string::npos) {
         http_ret_code_ = 404;
         GenerateErrorXml(kNoSuchKey, object_name_);
+      } else {
+        LOG(ERROR) << request_id_ <<
+          "GetObject(DoAndResponse) - GetObject Error" << bucket_name_ << "/" <<
+          object_name_ << s.ToString();
+        http_ret_code_ = 500;
       }
     } else {
       data_size_ = object_.size;
@@ -164,6 +181,9 @@ void GetObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
         s = store_->GetMultiBlockSet(bkname, obname,
                                      object_.upload_id, &sorted_block_indexes);
         if (s.IsIOError()) {
+          LOG(ERROR) << request_id_ <<
+            "GetObject(DoAndResponse) - GetMultiBlockSet Error: " << data_block
+            << s.ToString();
           http_ret_code_ = 500;
         }
         // Sort block indexes load from redis set
@@ -184,8 +204,10 @@ void GetObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
       resp->SetHeaders("ETag", "\"" + object_.etag + "\"");
       resp->SetHeaders("Last-Modified", http_nowtime(object_.last_modified));
       resp->SetContentLength(data_size_);
-      DLOG(INFO) << "GetObject(DoAndResponse) - " << bucket_name_ <<
-        "/" << object_name_ << " size: " << data_size_;
+
+      DLOG(INFO) << request_id_ <<
+        "GetObject(DoAndResponse) - " << bucket_name_ <<
+        "/" << object_name_ << " Size: " << data_size_;
     }
   }
   if (http_ret_code_ != 206 &&
@@ -225,13 +247,16 @@ int GetObjectCmd::DoResponseBody(char* buf, size_t max_size) {
   Status s = store_->BlockGet(block_index, &block_buffer_);
   if (!s.ok()) {
     // Zeppelin error, close the http connection
+    LOG(ERROR) << request_id_ <<
+      "GetObject(DoResponseBody) - BlockGet: " << block_index << s.ToString();
     return -1;
   }
   memcpy(buf, block_buffer_.data() + start_byte, block_size);
   data_size_ -= block_size; // Has written
   if (data_size_ == 0) {
-    DLOG(INFO) << "GetObject(DoResponseBody) - Complete " << bucket_name_ << "/"
-      << object_name_ << " size: " << object_.size;
+    DLOG(INFO) << request_id_ <<
+      "GetObject(DoResponseBody) - Complete " << bucket_name_ << "/"
+      << object_name_ << " Size: " << object_.size;
   }
   return block_size;
 }

@@ -13,6 +13,7 @@ extern void SplitBySecondSlash(const std::string& req_path,
 extern std::string http_nowtime(uint64_t nowmicros);
 extern std::string iso8601_time(uint64_t nowmicros);
 
+extern std::string hostname();
 extern std::string md5(const std::string& content);
 extern std::string UrlEncode(const std::string& s, bool encode_slash = false);
 extern std::string UrlDecode(const std::string& url);

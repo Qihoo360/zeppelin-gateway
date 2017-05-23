@@ -4,7 +4,7 @@
 #include "src/zgwstore/zgw_define.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
 
-bool UploadPartCmd::DoInitial(pink::HTTPResponse* resp) {
+bool UploadPartCmd::DoInitial() {
   http_response_xml_.clear();
   md5_ctx_.Init();
 

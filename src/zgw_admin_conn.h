@@ -15,10 +15,10 @@ class ZgwAdminHandles : public pink::HTTPHandles {
   ZgwAdminHandles() {}
   virtual ~ZgwAdminHandles() {}
 
-  virtual bool HandleRequest(const pink::HTTPRequest* req, pink::HTTPResponse* resp) override;
-  virtual void ReadBodyData(const char* data, size_t data_size) override {}
+  virtual bool HandleRequest(const pink::HTTPRequest* req) override;
+  virtual void HandleBodyData(const char* data, size_t data_size) override {}
   virtual void PrepareResponse(pink::HTTPResponse* resp) override;
-  virtual int WriteBodyData(char* buf, size_t max_size) override;
+  virtual int WriteResponseBody(char* buf, size_t max_size) override;
 
  private:
   void Initialize();

@@ -4,7 +4,7 @@
 #include "slash/include/env.h"
 #include "src/zgwstore/zgw_define.h"
 
-bool PutObjectCmd::DoInitial(pink::HTTPResponse* resp) {
+bool PutObjectCmd::DoInitial() {
   Timer t("PutObjectCmd: DoInitial -");
   http_response_xml_.clear();
   md5_ctx_.Init();

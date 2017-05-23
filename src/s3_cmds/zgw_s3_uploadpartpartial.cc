@@ -5,7 +5,7 @@
 #include "src/zgwstore/zgw_define.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
 
-bool UploadPartCopyPartialCmd::DoInitial(pink::HTTPResponse* resp) {
+bool UploadPartCopyPartialCmd::DoInitial() {
   DLOG(INFO) << "UploadPartCopyPartial(DoInitial) - " <<
     req_headers_.at("x-amz-copy-source-range");
   http_response_xml_.clear();
@@ -38,9 +38,14 @@ int UploadPartCopyPartialCmd::ParseRange(const std::string& range, uint64_t data
     return 400;
   }
   std::string range_header = range.substr(6);
-  uint64_t start, end = UINT64_MAX;
-  int res = sscanf(range_header.c_str(), "%lu-%lu", &start, &end);
-  end = std::min(end, data_size - 1);
+  int64_t start = 0;
+  int64_t end = INT64_MAX;
+  int res = sscanf(range_header.c_str(), "%ld-%ld", &start, &end);
+  end = std::min(data_size - 1, static_cast<uint64_t>(end));
+  if (res == 1 && start < 0) {
+    start = data_size + start;
+    end = data_size - 1;
+  }
 
   if (res > 0 &&
       start <= end) {

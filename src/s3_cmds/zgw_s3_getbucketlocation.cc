@@ -4,10 +4,19 @@
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
 
-bool GetBucketLocationCmd::DoInitial(pink::HTTPResponse* resp) {
+bool GetBucketLocationCmd::DoInitial() {
   http_response_xml_.clear();
+  request_id_ = md5(bucket_name_ +
+                    std::to_string(slash::NowMicros()));
+  if (!TryAuth()) {
+    DLOG(ERROR) << request_id_ <<
+      "GetBucketLocation(DoInitial) - Auth failed: " << client_ip_port_;
+    return false;
+  }
 
-  return TryAuth();
+  DLOG(INFO) << request_id_ <<
+    "GetBucketLocation(DoInitial) - " << bucket_name_;
+  return true;
 }
 
 void GetBucketLocationCmd::DoAndResponse(pink::HTTPResponse* resp) {
@@ -20,6 +29,9 @@ void GetBucketLocationCmd::DoAndResponse(pink::HTTPResponse* resp) {
       http_ret_code_ = 404;
       GenerateErrorXml(kNoSuchBucket, bucket_name_);
     } else {
+      LOG(ERROR) << request_id_ <<
+        "GetBucketLocation(DoAndResponse) - GetBucket failed: " <<
+        bucket_name_ << " " << s.ToString();
       http_ret_code_ = 500;
     }
   }
