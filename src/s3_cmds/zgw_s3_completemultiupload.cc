@@ -18,12 +18,12 @@ bool CompleteMultiUploadCmd::DoInitial() {
                     std::to_string(slash::NowMicros()));
 
   if (!TryAuth()) {
-    DLOG(ERROR) << request_id_ <<
+    DLOG(ERROR) << request_id_ << " " <<
       "CompleteMultiUpload(DoInitial) - Auth failed: " << client_ip_port_;
     return false;
   }
 
-  DLOG(INFO) << request_id_ <<
+  DLOG(INFO) << request_id_ << " " <<
     "CompleteMultiUpload(DoInitial) - " << bucket_name_ << "/" << object_name_ <<
     ", uploadId: " << upload_id_;
 
@@ -76,12 +76,12 @@ void CompleteMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
     uint64_t data_size = 0;
     std::vector<zgwstore::Object> stored_parts;
 
-    DLOG(INFO) << request_id_ <<
+    DLOG(INFO) << request_id_ << " " <<
       "CompleteMultiUpload(DoAndResponse) - virtual_bucket: " << virtual_bucket;
 
     Status s = store_->Lock();
     if (s.ok()) {
-      DLOG(INFO) << request_id_ <<
+      DLOG(INFO) << request_id_ << " " <<
         "CompleteMultiUpload(DoAndResponse) - Lock success";
 
       if (http_ret_code_ == 200) {
@@ -93,7 +93,7 @@ void CompleteMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
             GenerateErrorXml(kNoSuchUpload, upload_id_);
           } else {
             http_ret_code_ = 500;
-            LOG(ERROR) << request_id_ <<
+            LOG(ERROR) << request_id_ << " " <<
               "CompleteMultiUpload(DoAndResponse) - ListVirtObjects " <<
               virtual_bucket << "error: " << s.ToString();
           }
@@ -143,7 +143,7 @@ void CompleteMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
                                            std::string(buf) + stored_parts[i].data_block);
               if (!s.ok()) {
                 http_ret_code_ = 500;
-                LOG(ERROR) << request_id_ <<
+                LOG(ERROR) << request_id_ << " " <<
                   "CompleteMultiUpload(DoAndResponse) - AddMultiBlockSet" <<
                   virtual_bucket << "/" << stored_parts[i].object_name << " " <<
                   upload_id_ << " error: " << s.ToString();
@@ -171,18 +171,18 @@ void CompleteMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
         Status s = store_->AddObject(new_object_, false);
         if (!s.ok()) {
           http_ret_code_ = 500;
-          LOG(ERROR) << request_id_ <<
+          LOG(ERROR) << request_id_ << " " <<
             "CompleteMultiUpload(DoAndResponse) - AddObject " << bucket_name_ <<
             "/" << object_name_ << "error: " << s.ToString();
         } else {
-          DLOG(INFO) << request_id_ <<
+          DLOG(INFO) << request_id_ << " " <<
             "CompleteMultiUpload(DoAndResponse) - AddObject " << bucket_name_ <<
             "/" << object_name_ << "success, cleaning...";
           for (auto& p : stored_parts) {
             s = store_->DeleteObject(user_name_, virtual_bucket, p.object_name, false);
             if (s.IsIOError()) {
               http_ret_code_ = 500;
-              LOG(ERROR) << request_id_ <<
+              LOG(ERROR) << request_id_ << " " <<
                 "CompleteMultiUpload(DoAndResponse) - DeleteVirtObject " <<
                 virtual_bucket << "/" << p.object_name << " error: " << s.ToString();
             }
@@ -191,7 +191,7 @@ void CompleteMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
             s = store_->DeleteBucket(user_name_, virtual_bucket, false);
             if (s.IsIOError()) {
               http_ret_code_ = 500;
-              LOG(ERROR) << request_id_ <<
+              LOG(ERROR) << request_id_ << " " <<
                 "CompleteMultiUpload(DoAndResponse) - DeleteVirtBucket " <<
                 virtual_bucket << " error: " << s.ToString();
             }
@@ -203,11 +203,11 @@ void CompleteMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
     }
     if (!s.ok()) {
       http_ret_code_ = 500;
-      LOG(ERROR) << request_id_ <<
+      LOG(ERROR) << request_id_ << " " <<
         "CompleteMultiUpload(DoAndResponse) - Lock or Unlock error:" <<
         s.ToString();
     }
-    DLOG(INFO) << request_id_ <<
+    DLOG(INFO) << request_id_ << " " <<
       "CompleteMultiUpload(DoAndResponse) - UnLock success";
 
     if (http_ret_code_ == 200) {

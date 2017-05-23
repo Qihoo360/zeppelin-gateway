@@ -16,6 +16,8 @@ bool UploadPartCopyPartialCmd::DoInitial() {
   md5_ctx_.Init();
 
   if (!TryAuth()) {
+    DLOG(ERROR) <<
+      "UploadPartCopyPartial(DoInitial) - Auth failed: " << client_ip_port_;
     return false;
   }
 
@@ -27,6 +29,17 @@ bool UploadPartCopyPartialCmd::DoInitial() {
     return false;
   }
 
+  request_id_ = md5(bucket_name_ +
+                    object_name_ +
+                    upload_id_ + 
+                    part_number_ +
+                    source_path +
+                    req_headers_.at("x-amz-copy-source-range") +
+                    std::to_string(slash::NowMicros()));
+
+  DLOG(INFO) << request_id_ << " " <<
+    "UploadPartCopyPartial(DoInitial) - " << bucket_name_ << "/" << object_name_ <<
+    ", uploadId: " << upload_id_ << " part_number: " << part_number_;
   return true;
 }
 
@@ -96,20 +109,21 @@ void UploadPartCopyPartialCmd::ParseBlocksFrom(const std::vector<std::string>& b
                      &start_block, &end_block, &start_byte, &data_size);
 
     // Select block interval index
-    if (range_start >= (data_size - start_byte)) {
-      range_start -= (data_size - start_byte);
-      start_byte = 0;
+    if (range_start >= data_size) {
+      range_start -= data_size;
       // Next block group
       continue;
     }
 
     partial_start_b = start_block;
+    uint64_t passed_dsize = 0;
     for (uint64_t b = start_block; b <= end_block; b++) {
-      uint64_t cur_bsize = std::min(data_size, zgwstore::kZgwBlockSize) - start_byte;
+      uint64_t cur_bsize = std::min(data_size - passed_dsize, zgwstore::kZgwBlockSize - start_byte);
       // Select block
       if (range_start >= cur_bsize) {
         partial_start_b = b + 1;
         range_start -= cur_bsize;
+        passed_dsize += cur_bsize;
         start_byte = 0;
         // Next block
         continue;
@@ -120,7 +134,6 @@ void UploadPartCopyPartialCmd::ParseBlocksFrom(const std::vector<std::string>& b
 
       uint64_t remain = std::min(needed_size,
                                  zgwstore::kZgwBlockSize - range_start);
-      remain = std::min(remain, data_size);
 
       blocks_.push(std::make_tuple(b, start_byte + range_start, remain));
       needed_size -= remain;
@@ -179,6 +192,9 @@ void UploadPartCopyPartialCmd::DoAndResponse(pink::HTTPResponse* resp) {
         http_ret_code_ = 404;
         GenerateErrorXml(kNoSuchUpload, upload_id_);
       } else {
+        LOG(ERROR) << request_id_ << " " <<
+          "UploadPartCopyPartial(DoAndResponse) - GetVirtBucket failed: " <<
+          virtual_bucket << " " << s.ToString();
         http_ret_code_ = 500;
       }
     } else {
@@ -193,6 +209,11 @@ void UploadPartCopyPartialCmd::DoAndResponse(pink::HTTPResponse* resp) {
         } else if (s.ToString().find("Object Not Found") != std::string::npos) {
           http_ret_code_ = 404;
           GenerateErrorXml(kNoSuchKey, object_name_);
+        } else if (s.IsIOError()) {
+          LOG(ERROR) << request_id_ << " " <<
+            "UploadPartCopyPartial(DoAndResponse) - GetSrcObject failed: " <<
+            s.ToString();
+          http_ret_code_ = 500;
         }
       } else {
         // Parse range
@@ -202,6 +223,9 @@ void UploadPartCopyPartialCmd::DoAndResponse(pink::HTTPResponse* resp) {
           s = store_->GetMultiBlockSet(src_object_.bucket_name, src_object_.object_name,
                                        src_object_.upload_id, &sorted_block_indexes);
           if (s.IsIOError()) {
+            LOG(ERROR) << request_id_ << " " <<
+              "UploadPartCopyPartial(DoAndResponse) - GetSrcMultiBlockSet failed: " <<
+              s.ToString();
             http_ret_code_ = 500;
           }
           // Sort block indexes load from redis set
@@ -244,6 +268,9 @@ void UploadPartCopyPartialCmd::DoAndResponse(pink::HTTPResponse* resp) {
       blocks_.pop();
       status_ = store_->BlockGet(block_num, &block_buffer);
       if (!status_.ok()) {
+        LOG(ERROR) << request_id_ << " " <<
+          "UploadPartCopyPartial(DoAndResponse) - BlockGet failed: " <<
+          block_num << " " << status_.ToString();
         http_ret_code_ = 500;
         break;
       }
@@ -259,6 +286,9 @@ void UploadPartCopyPartialCmd::DoAndResponse(pink::HTTPResponse* resp) {
       // Write part meta
       status_ = store_->AddObject(new_object_);
       if (!status_.ok()) {
+        LOG(ERROR) << request_id_ << " " <<
+          "UploadPartCopyPartial(DoAndResponse) - AddObject failed: " <<
+          status_.ToString();
         http_ret_code_ = 500;
       }
     }

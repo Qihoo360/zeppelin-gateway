@@ -16,6 +16,7 @@ struct ZgwConfig {
 
   std::vector<std::string> zp_meta_ip_ports;
   std::string redis_ip_port;
+  std::string redis_passwd;
   std::string server_ip;
   std::string zp_table_name;
   int server_port;

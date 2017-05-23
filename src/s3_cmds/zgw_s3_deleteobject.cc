@@ -9,12 +9,12 @@ bool DeleteObjectCmd::DoInitial() {
                     object_name_ +
                     std::to_string(slash::NowMicros()));
   if (!TryAuth()) {
-    DLOG(ERROR) << request_id_ <<
+    DLOG(ERROR) << request_id_ << " " <<
       "DeleteObject(DoInitial) - Auth failed: " << client_ip_port_;
     return false;
   }
 
-  DLOG(INFO) << request_id_ <<
+  DLOG(INFO) << request_id_ << " " <<
     "DeleteObject(DoInitial) - " << bucket_name_ << "/" << object_name_;
   return true;
 }
@@ -31,7 +31,7 @@ void DeleteObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
         GenerateErrorXml(kNoSuchBucket, bucket_name_);
         resp->SetContentLength(http_response_xml_.size());
       } else {
-        LOG(ERROR) << request_id_ <<
+        LOG(ERROR) << request_id_ << " " <<
           "DeleteObject(DoAndResponse) - GetBucket failed: " <<
           bucket_name_ << " " << s.ToString();
         http_ret_code_ = 500;
@@ -45,7 +45,7 @@ void DeleteObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
         http_ret_code_ = 404;
         GenerateErrorXml(kNoSuchBucket, bucket_name_);
       } else if (s.IsIOError()) {
-        LOG(ERROR) << request_id_ <<
+        LOG(ERROR) << request_id_ << " " <<
           "DeleteObject(DoAndResponse) - DeleteObject failed: " <<
           bucket_name_ << "/" << object_name_ << " " << s.ToString();
         http_ret_code_ = 500;

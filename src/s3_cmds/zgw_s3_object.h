@@ -249,7 +249,8 @@ class ListPartsCmd: public S3Cmd {
  private:
   struct ObjectsComparator {
     bool operator()(const zgwstore::Object& a, const zgwstore::Object& b) {
-      return a.object_name < b.object_name;
+      return std::atoi(a.object_name.c_str()) <
+        std::atoi(b.object_name.c_str());
     }
   };
 

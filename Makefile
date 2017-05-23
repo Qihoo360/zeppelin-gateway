@@ -22,6 +22,7 @@ VERSION = -D_GITVER_=$(shell git rev-list HEAD | head -n1) \
 
 LIB_PATH = -L$(SLASH_PATH)/slash/lib \
 					 -L$(PINK_PATH)/pink/lib \
+					 -L$(GLOG_PATH)/.libs \
 					 -L$(ZP_PATH)/libzp/lib
 
 LIBS = -lzp \
@@ -29,6 +30,7 @@ LIBS = -lzp \
 			 -lslash \
 			 -lprotobuf \
 			 -lcrypto \
+			 -lglog \
 			 -lpthread
 
 INCLUDE_PATH = -I. \
@@ -53,7 +55,7 @@ PINK = $(PINK_PATH)/pink/lib/libpink.a
 SLASH = $(SLASH_PATH)/slash/lib/libslash.a
 LIBZP = $(ZP_PATH)/libzp/lib/libzp.a
 HIREDIS_STATIC = $(HIREDIS_PATH)/libhiredis.a
-GLOG_STATIC = $(GLOG_PATH)/.libs/libglog.a
+GLOG = $(GLOG_PATH)/.libs/libglog.a
 
 all: $(OBJECT)
 	rm -rf $(OUTPUT)
@@ -65,8 +67,8 @@ all: $(OBJECT)
 	@echo "Success, go, go, go..."
 
 
-$(OBJECT): $(SLASH) $(PINK) $(LIBZP) $(GLOG_STATIC) $(HIREDIS_STATIC) $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(INCLUDE_PATH) $(LIB_PATH) $(LIBS) $(HIREDIS_STATIC) $(GLOG_STATIC)
+$(OBJECT): $(SLASH) $(PINK) $(LIBZP) $(GLOG) $(HIREDIS_STATIC) $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(INCLUDE_PATH) $(LIB_PATH) $(LIBS) $(HIREDIS_STATIC)
 
 $(OBJS): %.o : %.cc
 	$(CXX) $(CXXFLAGS) -c $< -o $@ $(INCLUDE_PATH) $(VERSION)
@@ -80,7 +82,7 @@ $(PINK):
 $(LIBZP):
 	make -C $(ZP_PATH)/libzp __PERF=$(__PERF) SLASH_PATH=$(SLASH_PATH) PINK_PATH=$(PINK_PATH)
 
-$(GLOG_STATIC):
+$(GLOG):
 	if [ ! -f $(GLOG) ]; then \
 		cd $(GLOG_PATH); \
 		autoreconf -ivf; ./configure; make; echo '*' > .gitignore;\

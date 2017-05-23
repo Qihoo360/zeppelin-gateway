@@ -19,6 +19,7 @@ int ZgwThreadEnvHandle::SetEnv(void** env) const {
                                       g_zgw_conf->redis_ip_port,
                                       g_zgw_conf->zp_table_name,
                                       lock_name, kZgwRedisLockTTL,
+                                      g_zgw_conf->redis_passwd,
                                       &store);
   if (!s.ok()) {
     LOG(FATAL) << "Can not open ZgwStore: " << s.ToString();

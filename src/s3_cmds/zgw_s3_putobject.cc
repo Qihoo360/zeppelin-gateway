@@ -5,20 +5,28 @@
 #include "src/zgwstore/zgw_define.h"
 
 bool PutObjectCmd::DoInitial() {
-  Timer t("PutObjectCmd: DoInitial -");
   http_response_xml_.clear();
   md5_ctx_.Init();
   status_ = Status::OK();
   block_start_ = 0;
   block_end_ = 0;
 
+  request_id_ = md5(bucket_name_ +
+                    object_name_ +
+                    std::to_string(slash::NowMicros()));
+
   size_t data_size = std::stoul(req_headers_["content-length"]);
   size_t m = data_size % zgwstore::kZgwBlockSize;
   block_count_ = data_size / zgwstore::kZgwBlockSize + (m > 0 ? 1 : 0);
 
   if (!TryAuth()) {
+    DLOG(ERROR) << request_id_ << " " <<
+      "PutObject(DoInitial) - Auth failed: " << client_ip_port_;
     return false;
   }
+
+  DLOG(INFO) << request_id_ << " " <<
+    "PutObject(DoInitial) - " << bucket_name_ << "/" << object_name_;
 
   // Initial new_object_
   new_object_.bucket_name = bucket_name_;
@@ -41,7 +49,8 @@ bool PutObjectCmd::DoInitial() {
     char buf[100];
     sprintf(buf, "%lu-%lu(0,%lu)", block_start_, block_end_ - 1, data_size);
     new_object_.data_block = std::string(buf);
-    LOG(INFO) << "PutObject(DoInitial) - " << bucket_name_ << "/" <<
+    DLOG(INFO) << request_id_ << " " <<
+      "PutObject(DoInitial) - " << bucket_name_ << "/" <<
       object_name_ << "AllocateId: " << block_start_ << "-" << block_end_ - 1;
   } else if (s.ToString().find("Bucket NOT Exists") != std::string::npos ||
              s.ToString().find("Bucket Doesn't Belong To This User") !=
@@ -51,7 +60,9 @@ bool PutObjectCmd::DoInitial() {
     return false;
   } else {
     http_ret_code_ = 500;
-    LOG(ERROR) << "PutObject(DoInitial) - AllocateId error" << s.ToString();
+    LOG(ERROR) << request_id_ << " " <<
+      "PutObject(DoInitial) - AllocateId " << bucket_name_ << "/" <<
+      object_name_ << "error" << s.ToString();
     return false;
   }
 
@@ -59,19 +70,23 @@ bool PutObjectCmd::DoInitial() {
 }
 
 void PutObjectCmd::DoReceiveBody(const char* data, size_t data_size) {
-  Timer t("PutObjectCmd: DoReceiveBody -");
   if (http_ret_code_ != 200) {
     return;
   }
+  Timer t(request_id_ + " PutObject "+
+          bucket_name_ + "/" + object_name_ +": DoReceiveBody -");
 
   char* buf_pos = const_cast<char*>(data);
   size_t remain_size = data_size;
-  LOG(INFO) << "remain size: " << remain_size;
+  DLOG(INFO) << request_id_ << " " <<
+    bucket_name_ << "/" << object_name_ << " Remain size: " << remain_size;
 
   while (remain_size > 0) {
     if (block_start_ >= block_end_) {
       // LOG WARNING
-      LOG(WARNING) << "PutObject Block error";
+      LOG(WARNING) << request_id_ << " " <<
+        "PutObject Block error, block_start_: " << block_start_ <<
+        " block_end_: " << block_end_;
       return;
     }
     size_t nwritten = std::min(remain_size, zgwstore::kZgwBlockSize);
@@ -80,6 +95,8 @@ void PutObjectCmd::DoReceiveBody(const char* data, size_t data_size) {
     if (status_.ok()) {
       md5_ctx_.Update(buf_pos, nwritten);
     } else {
+      LOG(ERROR) << request_id_ << " " <<
+        "PutObject(DoReceiveBody) - BlockSet: " << block_start_ - 1 << " error";
       http_ret_code_ = 500;
     }
 
@@ -89,11 +106,11 @@ void PutObjectCmd::DoReceiveBody(const char* data, size_t data_size) {
 }
 
 void PutObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
-  Timer t("PutObjectCmd: DoAndResponse -");
   if (http_ret_code_ == 200) {
     if (!status_.ok()) {
       // Error happend while transmiting to zeppelin
-      LOG(ERROR) << "PutObject(DoAndResponse) - writing to zp error" << status_.ToString();
+      LOG(ERROR) << request_id_ << " " <<
+        "PutObject(DoAndResponse) - writing to zp error" << status_.ToString();
       http_ret_code_ = 500;
     } else {
       // Write meta
@@ -106,7 +123,8 @@ void PutObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
 
       status_ = store_->AddObject(new_object_);
       if (!status_.ok()) {
-        LOG(ERROR) << "PutObject(DoAndResponse) - AddObject error" << status_.ToString();
+        LOG(ERROR) << request_id_ << " " <<
+          "PutObject(DoAndResponse) - AddObject error" << status_.ToString();
         http_ret_code_ = 500;
       }
       DLOG(INFO) << "AddObject: " << bucket_name_ + "/" + object_name_ + " Success";

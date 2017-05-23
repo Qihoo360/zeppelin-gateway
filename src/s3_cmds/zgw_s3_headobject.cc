@@ -8,12 +8,12 @@ bool HeadObjectCmd::DoInitial() {
                     object_name_ +
                     std::to_string(slash::NowMicros()));
   if (!TryAuth()) {
-    DLOG(ERROR) << request_id_ <<
+    DLOG(ERROR) << request_id_ << " " <<
       "HeadObject(DoInitial) - Auth failed: " << client_ip_port_;
     return false;
   }
 
-  DLOG(INFO) << request_id_ <<
+  DLOG(INFO) << request_id_ << " " <<
     "HeadObject(DoInitial) - " << bucket_name_ << "/" << object_name_;
   return true;
 }
@@ -33,7 +33,7 @@ void HeadObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
       } else if (s.ToString().find("Object Not Found") != std::string::npos) {
         http_ret_code_ = 404;
       } else if (s.IsIOError()) {
-        LOG(ERROR) << request_id_ <<
+        LOG(ERROR) << request_id_ << " " <<
           "HeadObject(DoAndResponse) - GetObject failed: " <<
           bucket_name_ << "/" << object_name_ << " " << s.ToString();
         http_ret_code_ = 500;

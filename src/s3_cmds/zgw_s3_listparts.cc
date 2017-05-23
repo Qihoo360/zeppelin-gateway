@@ -1,5 +1,6 @@
 #include "src/s3_cmds/zgw_s3_object.h"
 
+#include "slash/include/env.h"
 #include "slash/include/slash_hash.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
@@ -12,6 +13,8 @@ bool ListPartsCmd::DoInitial() {
   part_num_marker_ = "0";
 
   if (!TryAuth()) {
+    DLOG(ERROR) <<
+      "ListParts(DoInitial) - Auth failed: " << client_ip_port_;
     return false;
   }
 
@@ -30,6 +33,17 @@ bool ListPartsCmd::DoInitial() {
   if (query_params_.count("part-number-marker")) {
     part_num_marker_.assign(query_params_.at("part-number-marker"));
   }
+
+  request_id_ = md5(bucket_name_ +
+                    object_name_ +
+                    upload_id_ + 
+                    part_num_marker_ +
+                    std::to_string(max_parts_) +
+                    std::to_string(slash::NowMicros()));
+
+  DLOG(INFO) << request_id_ << " " <<
+    "ListParts(DoInitial) - " << bucket_name_ << "/" << object_name_ <<
+    ", uploadId: " << upload_id_;
   return true;
 }
 
@@ -51,6 +65,9 @@ void ListPartsCmd::DoAndResponse(pink::HTTPResponse* resp) {
       http_ret_code_ = 404;
       GenerateErrorXml(kNoSuchBucket, bucket_name_);
     } else {
+      LOG(ERROR) << request_id_ << " " <<
+        "ListParts(DoAndResponse) - ListVirtObjects failed: " <<
+        virtual_bucket << " " << s.ToString();
       http_ret_code_ = 500;
     }
   }

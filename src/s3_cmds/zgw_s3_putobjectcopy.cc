@@ -9,6 +9,8 @@ bool PutObjectCopyCmd::DoInitial() {
   std::string source_path = req_headers_.at("x-amz-copy-source");
 
   if (!TryAuth()) {
+    DLOG(ERROR) <<
+      "PutObjectCopy(DoInitial) - Auth failed: " << client_ip_port_;
     return false;
   }
 
@@ -19,6 +21,15 @@ bool PutObjectCopyCmd::DoInitial() {
     return false;
   }
 
+  request_id_ = md5(bucket_name_ +
+                    object_name_ +
+                    src_bucket_name_ +
+                    src_object_name_ +
+                    std::to_string(slash::NowMicros()));
+
+  DLOG(INFO) << request_id_ << " " <<
+    "PutObjectCopy(DoInitial) - " << src_bucket_name_ << "/" << src_object_name_ <<
+    " -> " << bucket_name_ << "/" << object_name_;
   return true;
 }
 
@@ -46,11 +57,12 @@ void PutObjectCopyCmd::DoAndResponse(pink::HTTPResponse* resp) {
 
         s = store_->AddObject(new_object_, false);
         if (!s.ok()) {
+          LOG(ERROR) << request_id_ << " " <<
+            "PutObjectCopy(DoAndResponse) - AddObject failed: " << s.ToString();
           http_ret_code_ = 500;
         } else {
           // TODO(gaodq) Add reference to zp
           GenerateRespXml();
-          DLOG(INFO) << "CopyObject: " << src_bucket_name_ + "/" + src_object_name_ + " To " << bucket_name_ + "/" + object_name_ + " Success";
         }
       } else {
         if (s.ToString().find("Bucket Doesn't Belong To This User") !=
@@ -60,12 +72,18 @@ void PutObjectCopyCmd::DoAndResponse(pink::HTTPResponse* resp) {
         } else if (s.ToString().find("Object Not Found") != std::string::npos) {
           http_ret_code_ = 404;
           GenerateErrorXml(kNoSuchKey, object_name_);
+        } else if (s.IsIOError()) {
+          LOG(ERROR) << request_id_ << " " <<
+            "PutObjectCopy(DoAndResponse) - GetSrcObject failed: " << s.ToString();
+          http_ret_code_ = 500;
         }
       }
 
       s = store_->UnLock();
     }
     if (!s.ok()) {
+      LOG(ERROR) << request_id_ << " " <<
+        "PutObjectCopy(DoAndResponse) - Lock or UnLock failed: " << s.ToString();
       http_ret_code_ = 500;
     }
   }

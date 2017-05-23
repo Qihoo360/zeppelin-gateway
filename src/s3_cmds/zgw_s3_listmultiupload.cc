@@ -1,5 +1,6 @@
 #include "src/s3_cmds/zgw_s3_bucket.h"
 
+#include "slash/include/env.h"
 #include "slash/include/slash_hash.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
@@ -9,6 +10,8 @@ bool ListMultiPartUploadCmd::DoInitial() {
   http_response_xml_.clear();
 
   if (!TryAuth()) {
+    DLOG(ERROR) << "ListMultiPartUpload(DoInitial) - Auth failed: " <<
+      client_ip_port_;
     return false;
   }
 
@@ -19,6 +22,16 @@ bool ListMultiPartUploadCmd::DoInitial() {
     return false;
   }
 
+  request_id_ = md5(bucket_name_ +
+                    delimiter_ +
+                    prefix_ +
+                    std::to_string(max_uploads_) +
+                    upload_id_marker_ +
+                    key_marker_ +
+                    std::to_string(slash::NowMicros()));
+
+  DLOG(INFO) << request_id_ << " " <<
+    "ListMultiPartUpload(DoInitial) - " << bucket_name_;
   return true;
 }
 
@@ -65,6 +78,9 @@ void ListMultiPartUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
     std::vector<zgwstore::Bucket> all_buckets;
     Status s = store_->ListBuckets(user_name_, &all_buckets);
     if (!s.ok()) {
+      LOG(ERROR) << request_id_ << " " <<
+        "ListMultiPartUpload(DoAndResponse) - ListBuckets failed: " <<
+        user_name_ << " " << s.ToString();
       http_ret_code_ = 500;
     }
 

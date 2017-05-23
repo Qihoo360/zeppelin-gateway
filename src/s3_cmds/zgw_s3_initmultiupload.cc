@@ -18,12 +18,12 @@ bool InitMultipartUploadCmd::DoInitial() {
                     upload_id_ + 
                     std::to_string(slash::NowMicros()));
   if (!TryAuth()) {
-    DLOG(ERROR) << request_id_ <<
+    DLOG(ERROR) << request_id_ << " " <<
       "InitMultipartUpload(DoInitial) - Auth failed: " << client_ip_port_;
     return false;
   }
 
-  DLOG(INFO) << request_id_ <<
+  DLOG(INFO) << request_id_ << " " <<
     "InitMultipartUpload(DoInitial) - " << bucket_name_ << "/" <<
     object_name_ << ", uploadId: " << upload_id_;
   return true;
@@ -39,7 +39,7 @@ void InitMultipartUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
       GenerateErrorXml(kNoSuchBucket, bucket_name_);
     } else {
       http_ret_code_ = 500;
-      LOG(ERROR) << request_id_ <<
+      LOG(ERROR) << request_id_ << " " <<
         "InitialMultiUpload(DoAndResponse) - GetBucket Error " <<
         bucket_name_ << " " << s.ToString();
     }
@@ -61,7 +61,7 @@ void InitMultipartUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
     if (!s.ok()) {
       // Duplicate bucket must not exist
       http_ret_code_ = 500;
-      LOG(ERROR) << request_id_ <<
+      LOG(ERROR) << request_id_ << " " <<
         "InitialMultiUpload(DoAndResponse) - Error Add virtual_bucket: "
         << virtual_bucket.bucket_name;
     }

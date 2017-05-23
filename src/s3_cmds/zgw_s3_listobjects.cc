@@ -1,5 +1,6 @@
 #include "src/s3_cmds/zgw_s3_bucket.h"
 
+#include "slash/include/env.h"
 #include "slash/include/slash_hash.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
@@ -9,6 +10,8 @@ bool ListObjectsCmd::DoInitial() {
   http_response_xml_.clear();
 
   if (!TryAuth()) {
+    DLOG(ERROR) <<
+      "ListObjects(DoInitial) - Auth failed: " << client_ip_port_;
     return false;
   }
 
@@ -20,6 +23,14 @@ bool ListObjectsCmd::DoInitial() {
     return false;
   }
 
+  request_id_ = md5(bucket_name_ +
+                    delimiter_ +
+                    prefix_ +
+                    std::to_string(max_keys_) +
+                    std::to_string(slash::NowMicros()));
+
+  DLOG(INFO) << request_id_ << " " <<
+    "ListObjects(DoInitial) - " << bucket_name_;
   return true;
 }
 
@@ -39,6 +50,9 @@ void ListObjectsCmd::DoAndResponse(pink::HTTPResponse* resp) {
       GenerateErrorXml(kNoSuchBucket, bucket_name_);
     } else {
       http_ret_code_ = 500;
+      LOG(ERROR) << request_id_ << " " <<
+        "ListObjects(DoAndResponse) - ListObjects failed: " <<
+        bucket_name_ << " " << s.ToString();
     }
   }
 

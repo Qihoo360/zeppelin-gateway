@@ -8,6 +8,8 @@ bool UploadPartCopyCmd::DoInitial() {
   http_response_xml_.clear();
 
   if (!TryAuth()) {
+    DLOG(ERROR) <<
+      "UploadPartCopy(DoInitial) - Auth failed: " << client_ip_port_;
     return false;
   }
 
@@ -22,6 +24,15 @@ bool UploadPartCopyCmd::DoInitial() {
   upload_id_ = query_params_.at("uploadId");
   part_number_ = query_params_.at("partNumber");
 
+  request_id_ = md5(bucket_name_ +
+                    object_name_ +
+                    upload_id_ + 
+                    part_number_ +
+                    std::to_string(slash::NowMicros()));
+
+  DLOG(INFO) << request_id_ << " " <<
+    "UploadPartCopy(DoInitial) - " << bucket_name_ << "/" << object_name_ <<
+    ", uploadId: " << upload_id_ << " part_number: " << part_number_;
   return true;
 }
 
@@ -40,6 +51,11 @@ void UploadPartCopyCmd::DoAndResponse(pink::HTTPResponse* resp) {
         } else if (s.ToString().find("Object Not Found") != std::string::npos) {
           http_ret_code_ = 404;
           GenerateErrorXml(kNoSuchKey, object_name_);
+        } else if (s.IsIOError()) {
+          LOG(ERROR) << request_id_ << " " <<
+            "UploadPartCopy(DoAndResponse) - GetSrcObject failed: " <<
+            src_bucket_name_ << "/" << src_object_name_ << " " << s.ToString();
+          http_ret_code_ = 500;
         }
       } else {
         std::string virtual_bucket = "__TMPB" + upload_id_ +
@@ -66,6 +82,9 @@ void UploadPartCopyCmd::DoAndResponse(pink::HTTPResponse* resp) {
             http_ret_code_ = 404;
             GenerateErrorXml(kNoSuchUpload, upload_id_);
           } else {
+            LOG(ERROR) << request_id_ << " " <<
+              "UploadPartCopy(DoAndResponse) - GetVirtBucket failed: " <<
+              virtual_bucket << " " << s.ToString();
             http_ret_code_ = 500;
           }
         } else {
@@ -74,6 +93,8 @@ void UploadPartCopyCmd::DoAndResponse(pink::HTTPResponse* resp) {
           // Add part meta
           s = store_->AddObject(new_object_, false);
           if (!s.ok()) {
+            LOG(ERROR) << request_id_ << " " <<
+              "UploadPartCopy(DoAndResponse) - AddObject failed: " << s.ToString();
             http_ret_code_ = 500;
           }
 
@@ -84,6 +105,8 @@ void UploadPartCopyCmd::DoAndResponse(pink::HTTPResponse* resp) {
       s = store_->UnLock();
     }
     if (!s.ok()) {
+      LOG(ERROR) << request_id_ << " " <<
+        "UploadPartCopy(DoAndResponse) - Lock or UnLock failed: " << s.ToString();
       http_ret_code_ = 500;
     }
   }

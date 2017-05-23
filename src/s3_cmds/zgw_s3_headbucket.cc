@@ -7,12 +7,12 @@ bool HeadBucketCmd::DoInitial() {
   request_id_ = md5(bucket_name_ +
                     std::to_string(slash::NowMicros()));
   if (!TryAuth()) {
-    DLOG(ERROR) << request_id_ <<
+    DLOG(ERROR) << request_id_ << " " <<
       "HeadBucket(DoInitial) - Auth failed: " << client_ip_port_;
     return false;
   }
 
-  DLOG(INFO) << request_id_ <<
+  DLOG(INFO) << request_id_ << " " <<
     "HeadBucket(DoInitial) - " << bucket_name_;
   return true;
 }
@@ -26,7 +26,7 @@ void HeadBucketCmd::DoAndResponse(pink::HTTPResponse* resp) {
                s.ToString().find("Bucket Not Found")) {
       http_ret_code_ = 404;
     } else if (s.IsIOError()){
-      LOG(ERROR) << request_id_ <<
+      LOG(ERROR) << request_id_ << " " <<
         "HeadBucket(DoAndResponse) - GetBucket failed: " <<
         bucket_name_ << " " << s.ToString();
       http_ret_code_ = 500;

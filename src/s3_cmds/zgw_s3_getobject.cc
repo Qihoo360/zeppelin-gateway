@@ -17,12 +17,12 @@ bool GetObjectCmd::DoInitial() {
                     object_name_ +
                     std::to_string(slash::NowMicros()));
   if (!TryAuth()) {
-    DLOG(ERROR) << request_id_ <<
+    DLOG(ERROR) << request_id_ << " " <<
       "GetObject(DoInitial) - Auth failed: " << client_ip_port_;
     return false;
   }
 
-  DLOG(INFO) << request_id_ <<
+  DLOG(INFO) << request_id_ << " " <<
     "GetObject(DoInitial) - " << bucket_name_ << "/" << object_name_;
   return true;
 }
@@ -47,7 +47,7 @@ int GetObjectCmd::ParseRange(const std::string& range, uint64_t data_size,
   if (res > 0 &&
       start <= end) {
     // Valid range
-    DLOG(INFO) << request_id_ <<
+    DLOG(INFO) << request_id_ << " " <<
       "Get " << bucket_name_ << "/" << object_name_  <<
       "range: " << start << "-" << end;
     *range_start = start;
@@ -96,18 +96,19 @@ void GetObjectCmd::ParseBlocksFrom(const std::vector<std::string>& block_indexes
                      &start_block, &end_block, &start_byte, &data_size);
 
     // Select block interval index
-    if (range_start >= (data_size - start_byte)) {
-      range_start -= (data_size - start_byte);
-      start_byte = 0;
+    if (range_start >= data_size) {
+      range_start -= data_size;
       // Next block group
       continue;
     }
 
+    uint64_t passed_dsize = 0;
     for (uint64_t b = start_block; b <= end_block; b++) {
-      uint64_t cur_bsize = std::min(data_size, zgwstore::kZgwBlockSize) - start_byte;
+      uint64_t cur_bsize = std::min(data_size - passed_dsize, zgwstore::kZgwBlockSize - start_byte);
       // Select block
       if (range_start >= cur_bsize) {
         range_start -= cur_bsize;
+        passed_dsize += cur_bsize;
         start_byte = 0;
         // Next block
         continue;
@@ -115,8 +116,8 @@ void GetObjectCmd::ParseBlocksFrom(const std::vector<std::string>& block_indexes
 
       uint64_t remain = std::min(needed_size,
                                  zgwstore::kZgwBlockSize - range_start);
-      remain = std::min(remain, data_size);
 
+      // First block choosed, start_byte maybe not zero
       blocks_.push(std::make_tuple(b, start_byte + range_start, remain));
       needed_size -= remain;
       start_byte = 0;
@@ -163,7 +164,7 @@ void GetObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
         http_ret_code_ = 404;
         GenerateErrorXml(kNoSuchKey, object_name_);
       } else {
-        LOG(ERROR) << request_id_ <<
+        LOG(ERROR) << request_id_ << " " <<
           "GetObject(DoAndResponse) - GetObject Error" << bucket_name_ << "/" <<
           object_name_ << s.ToString();
         http_ret_code_ = 500;
@@ -181,7 +182,7 @@ void GetObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
         s = store_->GetMultiBlockSet(bkname, obname,
                                      object_.upload_id, &sorted_block_indexes);
         if (s.IsIOError()) {
-          LOG(ERROR) << request_id_ <<
+          LOG(ERROR) << request_id_ << " " <<
             "GetObject(DoAndResponse) - GetMultiBlockSet Error: " << data_block
             << s.ToString();
           http_ret_code_ = 500;
@@ -205,7 +206,7 @@ void GetObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
       resp->SetHeaders("Last-Modified", http_nowtime(object_.last_modified));
       resp->SetContentLength(data_size_);
 
-      DLOG(INFO) << request_id_ <<
+      DLOG(INFO) << request_id_ << " " <<
         "GetObject(DoAndResponse) - " << bucket_name_ <<
         "/" << object_name_ << " Size: " << data_size_;
     }
@@ -231,6 +232,10 @@ int GetObjectCmd::DoResponseBody(char* buf, size_t max_size) {
     }
     return std::min(max_size, http_response_xml_.size());
   }
+
+  Timer t(request_id_ + " GetObject "+
+          bucket_name_ + "/" + object_name_ + ": DoResponseBody -");
+
   // Response object data
   if (data_size_ == 0) {
     return 0;
@@ -247,14 +252,14 @@ int GetObjectCmd::DoResponseBody(char* buf, size_t max_size) {
   Status s = store_->BlockGet(block_index, &block_buffer_);
   if (!s.ok()) {
     // Zeppelin error, close the http connection
-    LOG(ERROR) << request_id_ <<
+    LOG(ERROR) << request_id_ << " " <<
       "GetObject(DoResponseBody) - BlockGet: " << block_index << s.ToString();
     return -1;
   }
   memcpy(buf, block_buffer_.data() + start_byte, block_size);
   data_size_ -= block_size; // Has written
   if (data_size_ == 0) {
-    DLOG(INFO) << request_id_ <<
+    DLOG(INFO) << request_id_ << " " <<
       "GetObject(DoResponseBody) - Complete " << bucket_name_ << "/"
       << object_name_ << " Size: " << object_.size;
   }

@@ -9,12 +9,12 @@ bool GetBucketLocationCmd::DoInitial() {
   request_id_ = md5(bucket_name_ +
                     std::to_string(slash::NowMicros()));
   if (!TryAuth()) {
-    DLOG(ERROR) << request_id_ <<
+    DLOG(ERROR) << request_id_ << " " <<
       "GetBucketLocation(DoInitial) - Auth failed: " << client_ip_port_;
     return false;
   }
 
-  DLOG(INFO) << request_id_ <<
+  DLOG(INFO) << request_id_ << " " <<
     "GetBucketLocation(DoInitial) - " << bucket_name_;
   return true;
 }
@@ -29,7 +29,7 @@ void GetBucketLocationCmd::DoAndResponse(pink::HTTPResponse* resp) {
       http_ret_code_ = 404;
       GenerateErrorXml(kNoSuchBucket, bucket_name_);
     } else {
-      LOG(ERROR) << request_id_ <<
+      LOG(ERROR) << request_id_ << " " <<
         "GetBucketLocation(DoAndResponse) - GetBucket failed: " <<
         bucket_name_ << " " << s.ToString();
       http_ret_code_ = 500;

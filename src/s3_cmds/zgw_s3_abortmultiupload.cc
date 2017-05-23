@@ -11,12 +11,12 @@ bool AbortMultiUploadCmd::DoInitial() {
                     upload_id_ + 
                     std::to_string(slash::NowMicros()));
   if (!TryAuth()) {
-    DLOG(ERROR) << request_id_ <<
+    DLOG(ERROR) << request_id_ << " " <<
       "AbortMultiUpload(DoInitial) - Auth failed: " << client_ip_port_;
     return false;
   }
 
-  DLOG(INFO) << request_id_ <<
+  DLOG(INFO) << request_id_ << " " <<
     "AbortMultiUpload(DoInitial) - " << bucket_name_ << "/" << object_name_ <<
     ", uploadId: " << upload_id_;
   return true;
@@ -39,7 +39,7 @@ void AbortMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
           GenerateErrorXml(kNoSuchUpload, upload_id_);
           resp->SetContentLength(http_response_xml_.size());
         } else {
-          LOG(ERROR) << request_id_ <<
+          LOG(ERROR) << request_id_ << " " <<
             "AbortMultiUpload(DoAndResponse) - GetVirtBucket failed: " <<
             virtual_bucket << " " << s.ToString();
           http_ret_code_ = 500;
@@ -49,7 +49,7 @@ void AbortMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
         std::vector<zgwstore::Object> all_parts;
         s = store_->ListObjects(user_name_, virtual_bucket, &all_parts);
         if (!s.ok()) {
-          LOG(ERROR) << request_id_ <<
+          LOG(ERROR) << request_id_ << " " <<
             "AbortMultiUpload(DoAndResponse) - ListVirtObjects failed: " <<
             virtual_bucket << " " << s.ToString();
           http_ret_code_ = 500;
@@ -57,7 +57,7 @@ void AbortMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
           for (auto& p : all_parts) {
             s = store_->DeleteObject(user_name_, virtual_bucket, p.object_name, false);
             if (s.IsIOError()) {
-              LOG(ERROR) << request_id_ <<
+              LOG(ERROR) << request_id_ << " " <<
                 "AbortMultiUpload(DoAndResponse) - DeleteVirtObject failed: " <<
                 virtual_bucket << "/" << p.object_name << " " << s.ToString();
               http_ret_code_ = 500;
@@ -66,7 +66,7 @@ void AbortMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
           if (http_ret_code_ == 200) {
             s = store_->DeleteBucket(user_name_, virtual_bucket, false);
             if (s.IsIOError()) {
-              LOG(ERROR) << request_id_ <<
+              LOG(ERROR) << request_id_ << " " <<
                 "AbortMultiUpload(DoAndResponse) - DeleteVirtBucketfailed: " <<
                 virtual_bucket << " " << s.ToString();
               http_ret_code_ = 500;
@@ -75,7 +75,7 @@ void AbortMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
 
           // Success delete
           http_ret_code_ = 204;
-          LOG(INFO) << request_id_ <<
+          LOG(INFO) << request_id_ << " " <<
             "AbortMultiUpload(DoAndResponse) - Success: " << virtual_bucket;
         }
       }
@@ -83,12 +83,12 @@ void AbortMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
       s = store_->UnLock();
     }
     if (!s.ok()) {
-      LOG(ERROR) << request_id_ <<
+      LOG(ERROR) << request_id_ << " " <<
         "AbortMultiUpload(DoAndResponse) - Lock or Unlock failed: " <<
         s.ToString();
       http_ret_code_ = 500;
     }
-    DLOG(INFO) << request_id_ <<
+    DLOG(INFO) << request_id_ << " " <<
       "AbortMultiUpload(DoAndResponse) - Unlock success: " << virtual_bucket;
   }
 

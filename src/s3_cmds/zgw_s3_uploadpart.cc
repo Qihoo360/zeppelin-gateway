@@ -12,17 +12,26 @@ bool UploadPartCmd::DoInitial() {
   size_t m = data_size % zgwstore::kZgwBlockSize;
   block_count_ = data_size / zgwstore::kZgwBlockSize + (m > 0 ? 1 : 0);
 
-  if (!TryAuth()) {
-    return false;
-  }
-
   std::string upload_id = query_params_.at("uploadId");
   std::string part_number = query_params_.at("partNumber");
   std::string virtual_bucket = "__TMPB" + upload_id +
     bucket_name_ + "|" + object_name_;
 
-  DLOG(INFO) << "UploadPart(DoInitial) - virtual_bucket: " << virtual_bucket
-    << " upload_id: " << upload_id << " part_number: " << part_number;
+  request_id_ = md5(bucket_name_ +
+                    object_name_ +
+                    upload_id + 
+                    part_number +
+                    std::to_string(slash::NowMicros()));
+
+  if (!TryAuth()) {
+    DLOG(ERROR) << request_id_ << " " <<
+      "UploadPart(DoInitial) - Auth failed: " << client_ip_port_;
+    return false;
+  }
+
+  DLOG(INFO) << request_id_ << " " <<
+    "UploadPart(DoInitial) - " << virtual_bucket <<
+    " part_number: " << part_number;
 
   // Initial new_object_part_
   new_object_part_.bucket_name = virtual_bucket;
@@ -45,7 +54,8 @@ bool UploadPartCmd::DoInitial() {
     char buf[100];
     sprintf(buf, "%lu-%lu(0,%lu)", block_start_, block_end_ - 1, data_size);
     new_object_part_.data_block.assign(buf);
-    DLOG(INFO) << "UploadPart(DoInitial) - AllocateId: " << buf;
+    DLOG(INFO) << request_id_ << " " <<
+      "UploadPart(DoInitial) - AllocateId: " << buf;
   } else if (s.ToString().find("Bucket NOT Exists") != std::string::npos ||
              s.ToString().find("Bucket Doesn't Belong To This User") !=
              std::string::npos) {
@@ -54,7 +64,8 @@ bool UploadPartCmd::DoInitial() {
     return false;
   } else {
     http_ret_code_ = 500;
-    LOG(ERROR) << "UploadPart(DoInitial) - AllocateId error: " << s.ToString();
+    LOG(ERROR) << request_id_ << " " <<
+      "UploadPart(DoInitial) - AllocateId error: " << s.ToString();
     return false;
   }
 
@@ -65,6 +76,8 @@ void UploadPartCmd::DoReceiveBody(const char* data, size_t data_size) {
   if (http_ret_code_ != 200) {
     return;
   }
+  Timer t(request_id_ + " UploadPart "+
+          bucket_name_ + "/" + object_name_ + ": DoReceiveBody -");
 
   char* buf_pos = const_cast<char*>(data);
   size_t remain_size = data_size;
@@ -82,8 +95,8 @@ void UploadPartCmd::DoReceiveBody(const char* data, size_t data_size) {
       md5_ctx_.Update(buf_pos, nwritten);
     } else {
       http_ret_code_ = 500;
-      LOG(ERROR) << "UploadPart(DoReceiveBody) - BlockSet error: " <<
-        status_.ToString();
+      LOG(ERROR) << request_id_ << " " <<
+        "UploadPart(DoReceiveBody) - BlockSet error: " << status_.ToString();
       // TODO (gaodq) delete data already saved
     }
 
@@ -97,32 +110,34 @@ void UploadPartCmd::DoAndResponse(pink::HTTPResponse* resp) {
     if (!status_.ok()) {
       // Error happend while transmiting to zeppelin
       http_ret_code_ = 500;
-      LOG(ERROR) << "UploadPart(DoAndResponse) - BlockSet error: " <<
-        status_.ToString();
+      LOG(ERROR) << request_id_ << " " <<
+        "UploadPart(DoAndResponse) - BlockSet error: " << status_.ToString();
     } else {
       // Write meta
       new_object_part_.etag = md5_ctx_.ToString();
-      LOG(INFO) << "UploadPart(DoAndResponse) - MD5: " << new_object_part_.etag;
+      DLOG(INFO) << request_id_ << " " <<
+        "UploadPart(DoAndResponse) - MD5: " << new_object_part_.etag;
       if (new_object_part_.etag.empty()) {
         new_object_part_.etag = "_";
       }
       new_object_part_.last_modified = slash::NowMicros();
 
-      DLOG(INFO) << "UploadPart(DoAndResponse) - Lock success";
+      DLOG(INFO) << request_id_ << " " <<
+        "UploadPart(DoAndResponse) - Lock success";
       status_ = store_->AddObject(new_object_part_);
       if (!status_.ok()) {
         http_ret_code_ = 500;
-        LOG(ERROR) << "UploadPart(DoAndResponse) - AddObject error: " <<
-          status_.ToString();
+        LOG(ERROR) << request_id_ << " " <<
+          "UploadPart(DoAndResponse) - AddObject error: " << status_.ToString();
       } else {
-        DLOG(INFO) << "UploadPart(DoAndResponse) - UnLock success";
+        DLOG(INFO) << request_id_ << " " <<
+          "UploadPart(DoAndResponse) - UnLock success";
         resp->SetHeaders("Last-Modified", http_nowtime(new_object_part_.last_modified));
         resp->SetHeaders("ETag", "\"" + new_object_part_.etag + "\"");
       }
     }
   }
 
-  DLOG(INFO) << "UploadPart(DoAndResponse) - http code: " << http_ret_code_;
   resp->SetStatusCode(http_ret_code_);
   resp->SetContentLength(http_response_xml_.size());
 }

@@ -38,7 +38,9 @@ int ZgwHTTPHandles::WriteResponseBody(char* buf, size_t max_size) {
 }
 
 void ZgwHTTPHandles::HandleConnClosed() {
-  return cmd_->DoConnClosed();
+  if (cmd_ != nullptr) {
+    return cmd_->DoConnClosed();
+  }
 }
 
 S3Cmd* ZgwHTTPHandles::SelectS3CmdBy(const pink::HTTPRequest* req) {
