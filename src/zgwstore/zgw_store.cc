@@ -85,8 +85,8 @@ Status ZgwStore::Open(const std::vector<std::string>& zp_addrs,
     if (reply == NULL) {
       return Status::IOError("Failed to auth to redis");
     }
-    assert(reply->type == REDIS_REPLY_STATUS);
     if (std::string(reply->str) != "OK") {
+      freeReplyObject(reply);
       return Status::Corruption("Failed to auth to redis");
     }
     freeReplyObject(reply);
@@ -1138,8 +1138,8 @@ bool ZgwStore::MaybeHandleRedisError() {
     if (reply == NULL) {
       return false;
     }
-    assert(reply->type == REDIS_REPLY_STATUS);
     if (std::string(reply->str) != "OK") {
+      freeReplyObject(reply);
       return false;
     }
     freeReplyObject(reply);
