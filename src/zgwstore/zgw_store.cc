@@ -1138,7 +1138,7 @@ bool ZgwStore::MaybeHandleRedisError() {
     if (reply == NULL) {
       return false;
     }
-    assert(reply->type == REDIS_REPLY_STRING);
+    assert(reply->type == REDIS_REPLY_STATUS);
     if (std::string(reply->str) != "OK") {
       return false;
     }
