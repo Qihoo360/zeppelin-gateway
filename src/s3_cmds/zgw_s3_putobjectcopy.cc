@@ -1,6 +1,7 @@
 #include "src/s3_cmds/zgw_s3_object.h"
 
 #include "slash/include/env.h"
+#include "slash/include/slash_string.h"
 #include "src/zgwstore/zgw_define.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
 #include "src/zgw_utils.h"
@@ -34,58 +35,112 @@ bool PutObjectCopyCmd::DoInitial() {
   return true;
 }
 
+Status PutObjectCopyCmd::AddBlocksRef(const std::string& upload_id,
+                                      const std::string& data_blocks) {
+  Status s;
+  std::vector<std::string> block_indexes;
+  if (upload_id != "_") { // Has multipart
+    size_t pos = data_blocks.find("|");
+    assert(pos != std::string::npos);
+    std::string bkname = data_blocks.substr(32, pos - 32);
+    std::string obname = data_blocks.substr(pos + 1);
+    s = store_->GetMultiBlockSet(bkname, obname,
+                                 upload_id, &block_indexes);
+    if (s.IsIOError()) {
+      http_ret_code_ = 500;
+      LOG(ERROR) << request_id_ << " " <<
+        "PutObjectCopy(DoAndResponse) - GetMultiBlockSet Error: " << data_blocks
+        << s.ToString();
+    }
+    std::vector<std::string> tmp;
+    tmp.swap(block_indexes);
+    for (auto& b : tmp) {
+      // Trim sort sign e.g. 00012(3-9)(0,12) -> (3-9)(0,12)
+      b = b.substr(5);
+      std::vector<std::string> items;
+      slash::StringSplit(b, '|', items);
+      for (auto& i : items) {
+        block_indexes.push_back(i);
+      }
+    }
+  } else {
+    // Sigle block index needn't sorting
+    block_indexes.push_back(data_blocks);
+  }
+
+  s = store_->Lock();
+  if (!s.ok()) {
+    return s;
+  }
+  for (auto& blockg : block_indexes) {
+    uint64_t start_block, end_block, start_byte, data_size;
+    int ret = sscanf(blockg.c_str(), "%lu-%lu(%lu,%lu)",
+                     &start_block, &end_block, &start_byte, &data_size);
+    for (uint64_t b = start_block; b <= end_block; b++) {
+      s = store_->BlockRef(std::to_string(b));
+      if (!s.ok()) {
+      LOG(ERROR) << request_id_ << " " <<
+        "PutObjectCopy(DoAndResponse) - BlockRef Error: " << data_blocks;
+        return s;
+      }
+    }
+  }
+  s = store_->UnLock();
+  if (!s.ok()) {
+    return s;
+  }
+
+  return Status::OK();
+}
+
 void PutObjectCopyCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
-    Status s = store_->Lock();
+    // Get src_object_ meta
+    Status s = store_->GetObject(user_name_, src_bucket_name_, src_object_name_,
+                          &src_object_);
     if (s.ok()) {
-      // Get src_object_ meta
-      s = store_->GetObject(user_name_, src_bucket_name_, src_object_name_,
-                            &src_object_);
-      if (s.ok()) {
-        http_ret_code_ = 200;
+      http_ret_code_ = 200;
 
-        // Initial new_object_
-        new_object_.bucket_name = bucket_name_;
-        new_object_.object_name = object_name_;
-        new_object_.etag = src_object_.etag;
-        new_object_.size = src_object_.size;
-        new_object_.owner = user_name_;
-        new_object_.last_modified = slash::NowMicros();
-        new_object_.storage_class = 0; // Unused
-        new_object_.acl = "FULL_CONTROL";
-        new_object_.upload_id = src_object_.upload_id;
-        new_object_.data_block = src_object_.data_block;
+      // Initial new_object_
+      new_object_.bucket_name = bucket_name_;
+      new_object_.object_name = object_name_;
+      new_object_.etag = src_object_.etag;
+      new_object_.size = src_object_.size;
+      new_object_.owner = user_name_;
+      new_object_.last_modified = slash::NowMicros();
+      new_object_.storage_class = 0; // Unused
+      new_object_.acl = "FULL_CONTROL";
+      new_object_.upload_id = src_object_.upload_id;
+      new_object_.data_block = src_object_.data_block;
 
-        s = store_->AddObject(new_object_, false);
+      s = AddBlocksRef(src_object_.upload_id, src_object_.data_block);
+      if (!s.ok()) {
+        http_ret_code_ = 500;
+        LOG(ERROR) << request_id_ << " " <<
+          "PutObjectCopy(DoAndResponse) - AddBlocksRef failed: " << s.ToString();
+      } else {
+        s = store_->AddObject(new_object_);
         if (!s.ok()) {
           http_ret_code_ = 500;
           LOG(ERROR) << request_id_ << " " <<
             "PutObjectCopy(DoAndResponse) - AddObject failed: " << s.ToString();
         } else {
-          // TODO(gaodq) Add reference to zp
           GenerateRespXml();
         }
-      } else {
-        if (s.ToString().find("Bucket Doesn't Belong To This User") !=
-            std::string::npos) {
-          http_ret_code_ = 404;
-          GenerateErrorXml(kNoSuchBucket, bucket_name_);
-        } else if (s.ToString().find("Object Not Found") != std::string::npos) {
-          http_ret_code_ = 404;
-          GenerateErrorXml(kNoSuchKey, object_name_);
-        } else if (s.IsIOError()) {
-          http_ret_code_ = 500;
-          LOG(ERROR) << request_id_ << " " <<
-            "PutObjectCopy(DoAndResponse) - GetSrcObject failed: " << s.ToString();
-        }
       }
-
-      s = store_->UnLock();
-    }
-    if (!s.ok()) {
-      http_ret_code_ = 500;
-      LOG(ERROR) << request_id_ << " " <<
-        "PutObjectCopy(DoAndResponse) - Lock or UnLock failed: " << s.ToString();
+    } else {
+      if (s.ToString().find("Bucket Doesn't Belong To This User") !=
+          std::string::npos) {
+        http_ret_code_ = 404;
+        GenerateErrorXml(kNoSuchBucket, bucket_name_);
+      } else if (s.ToString().find("Object Not Found") != std::string::npos) {
+        http_ret_code_ = 404;
+        GenerateErrorXml(kNoSuchKey, object_name_);
+      } else if (s.IsIOError()) {
+        http_ret_code_ = 500;
+        LOG(ERROR) << request_id_ << " " <<
+          "PutObjectCopy(DoAndResponse) - GetSrcObject failed: " << s.ToString();
+      }
     }
   }
 

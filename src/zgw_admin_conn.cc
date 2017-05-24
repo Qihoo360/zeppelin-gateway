@@ -238,6 +238,8 @@ static const char* S3CommandsToString(S3Commands cmd_type) {
       return "DeleteBucket: ";
     case kListObjects:
       return "ListObjects: ";
+    case kGetBucketLocation:
+      return "GetBucketLocation"
     case kHeadBucket:
       return "HeadBucket: ";
     case kListMultiPartUpload:
@@ -272,8 +274,9 @@ static const char* S3CommandsToString(S3Commands cmd_type) {
       return "AbortMultiUpload: ";
     case kListParts:
       return "ListParts: ";
-    case kUnImplement:
     case kZgwTest:
+      return "ZgwTest: ";
+    case kUnImplement:
     default:
       return "UnImplement: ";
   }

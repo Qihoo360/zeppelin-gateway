@@ -91,6 +91,8 @@ class PutObjectCopyCmd : public S3Cmd {
 
  private:
   void GenerateRespXml();
+  Status AddBlocksRef(const std::string& upload_id,
+                      const std::string& data_blocks);
 
   std::string src_bucket_name_;
   std::string src_object_name_;
@@ -199,6 +201,8 @@ class UploadPartCopyCmd : public S3Cmd {
 
  private:
   void GenerateRespXml();
+  Status AddBlocksRef(const std::string& upload_id,
+                      const std::string& data_blocks);
 
   std::string upload_id_;
   std::string part_number_;
@@ -223,6 +227,7 @@ class UploadPartCopyPartialCmd : public S3Cmd {
                  uint64_t* range_start, uint64_t* range_end);
   void SortBlockIndexes(std::vector<std::string>* block_indexes);
   void ParseBlocksFrom(const std::vector<std::string>& block_indexes);
+  Status AddBlocksRef();
 
   std::string src_bucket_name_;
   std::string src_object_name_;
