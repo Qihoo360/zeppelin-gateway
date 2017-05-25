@@ -6,6 +6,8 @@
 #include <chrono>
 #include <thread>
 
+#include <glog/logging.h>
+
 namespace zgwstore {
 
 ZgwStore::ZgwStore(const std::string& zp_table,const std::string& lock_name,
@@ -1198,8 +1200,10 @@ bool ZgwStore::MaybeHandleRedisError() {
   }
 
   struct timeval timeout = { 1, 500000 }; // 1.5 seconds
+  LOG(WARNING) << "reconnect: " << redis_ip_ << ":" << redis_port_ << "," << redis_passwd_;
   redis_cli_ = redisConnectWithTimeout(redis_ip_.c_str(), redis_port_, timeout);
   if (redis_cli_ == NULL || redis_cli_->err) {
+    LOG(WARNING) << "redis_cli is null, error: " << (redis_cli_ != NULL) ? std::to_string(redis_cli_->err) : "";
     if (redis_cli_) {
       redisFree(redis_cli_);
     }
@@ -1210,9 +1214,11 @@ bool ZgwStore::MaybeHandleRedisError() {
     redisReply* reply = static_cast<redisReply*>(redisCommand(redis_cli_,
                 "AUTH %s", redis_passwd_.c_str()));
     if (reply == NULL) {
+      LOG(WARNING) << "reply is null";
       return false;
     }
     if (std::string(reply->str) != "OK") {
+      LOG(WARNING) << "reply is not ok, type: " << reply->type << " str: " << reply->str;
       freeReplyObject(reply);
       return false;
     }
@@ -1243,10 +1249,15 @@ Status ZgwStore::HandleLogicError(const std::string& str_err, redisReply* reply,
 bool ZgwStore::CheckRedis() {
   redisReply* reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "PING"));
-  if (reply &&
+  if (reply != NULL &&
       reply->type == REDIS_REPLY_STATUS &&
       std::string(reply->str) == "PONG") {
     return true;
+  }
+  if (reply == NULL) {
+    LOG(WARNING) << "CheckRedis reply is null";
+  } else {
+    LOG(WARNING) << "CheckRedis reply error: " << reply->type << ", " << reply->str;
   }
   redis_error_ = true;
   return MaybeHandleRedisError();
