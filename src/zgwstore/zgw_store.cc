@@ -125,6 +125,27 @@ Status ZgwStore::BlockMGet(const std::vector<std::string>& block_ids,
   return zp_cli_->Mget(zp_table_, ids, block_contents);
 }
 
+Status ZgwStore::BlockRef(const std::string& block_id) {
+  // Lock outside
+  std::string block_ref_s;
+  int ref;
+  Status s = zp_cli_->Get(zp_table_, kZpRefPrefix + block_id, &block_ref_s);
+  if (!s.ok()) {
+    if (s.IsNotFound()) {
+      ref = 0;
+    } else {
+      return s;
+    }
+  } else {
+    ref = std::atoi(block_ref_s.c_str());
+  }
+
+  ref++;
+
+  block_ref_s.assign(std::to_string(ref));
+  return zp_cli_->Set(zp_table_, kZpRefPrefix + block_id, block_ref_s);
+}
+
 Status ZgwStore::Lock() {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");

@@ -9,7 +9,7 @@ static const std::string kZgwTableName = "__zgw20_data_table";
 
 ZgwConfig::ZgwConfig(std::string path)
       : redis_ip_port("127.0.0.1"),
-        redis_passwd(""),
+        redis_passwd("_"),
         server_ip("0.0.0.0"),
         zp_table_name(kZgwTableName),
         server_port(8099),

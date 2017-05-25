@@ -32,6 +32,7 @@ class ZgwStore {
   Status BlockDelete(const std::string& block_id);
   Status BlockMGet(const std::vector<std::string>& block_ids,
       std::map<std::string, std::string>* block_contents);
+  Status BlockRef(const std::string& block_id);
 
   Status Lock();
   Status UnLock();

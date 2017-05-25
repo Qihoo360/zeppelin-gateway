@@ -64,7 +64,7 @@ int UploadPartCopyPartialCmd::ParseRange(const std::string& range, uint64_t data
   if (res > 0 &&
       start <= end) {
     // Valid range
-    LOG(INFO) << "Get range: " << start << "-" << end;
+    LOG(INFO) << "Copy range: " << start << "-" << end;
     *range_start = start;
     *range_end = end;
     return 206;
@@ -279,7 +279,9 @@ void UploadPartCopyPartialCmd::DoAndResponse(pink::HTTPResponse* resp) {
       g_zgw_monitor->AddBucketTraffic(src_bucket_name_, size);
     }
     if (status_.ok()) {
-      // TODO (gaodq) zp reference src_data_block_
+      status_ = AddBlocksRef();
+    }
+    if (status_.ok()) {
       new_object_.etag = md5_ctx_.ToString();
       if (new_object_.etag.empty()) {
         new_object_.etag = "_";
@@ -324,4 +326,30 @@ int UploadPartCopyPartialCmd::DoResponseBody(char* buf, size_t max_size) {
   }
 
   return std::min(max_size, http_response_xml_.size());
+}
+
+Status UploadPartCopyPartialCmd::AddBlocksRef() {
+  Status s = store_->Lock();
+  if (!s.ok()) {
+    return s;
+  }
+  for (auto& blockg : src_data_block_) {
+    uint64_t start_block, end_block, start_byte, data_size;
+    int ret = sscanf(blockg.c_str(), "%lu-%lu(%lu,%lu)",
+                     &start_block, &end_block, &start_byte, &data_size);
+    for (uint64_t b = start_block; b <= end_block; b++) {
+      s = store_->BlockRef(std::to_string(b));
+      if (!s.ok()) {
+      LOG(ERROR) << request_id_ << " " <<
+        "UploadPartCopyPartial(DoAndResponse) - BlockRef Error: " << b;
+        return s;
+      }
+    }
+  }
+  s = store_->UnLock();
+  if (!s.ok()) {
+    return s;
+  }
+
+  return Status::OK();
 }
