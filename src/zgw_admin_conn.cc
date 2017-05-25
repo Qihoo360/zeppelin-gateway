@@ -239,7 +239,7 @@ static const char* S3CommandsToString(S3Commands cmd_type) {
     case kListObjects:
       return "ListObjects: ";
     case kGetBucketLocation:
-      return "GetBucketLocation"
+      return "GetBucketLocation";
     case kHeadBucket:
       return "HeadBucket: ";
     case kListMultiPartUpload:

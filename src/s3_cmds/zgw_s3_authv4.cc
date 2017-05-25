@@ -249,7 +249,7 @@ bool S3AuthV4::Rep::ParseHeaderAuthStr(const std::map<std::string, std::string>&
 
 std::string HMAC_SHA256(const std::string key, const std::string value, bool raw) {
   static unsigned int digest_len = 32;
-  unsigned char* digest = new unsigned char[digest_len];
+  unsigned char digest[digest_len];
 
   HMAC_CTX ctx;
   HMAC_CTX_init(&ctx);
@@ -272,7 +272,6 @@ std::string HMAC_SHA256(const std::string key, const std::string value, bool raw
   for (unsigned int i = 0; i < digest_len; ++i) {
     sprintf(buf + i * 2, "%02x", (unsigned int)digest[i]);
   }
-  delete[] digest;
   return std::string(buf);
 }
 
