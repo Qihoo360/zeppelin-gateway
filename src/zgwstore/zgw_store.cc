@@ -129,6 +129,9 @@ Status ZgwStore::Lock() {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
+  }
 
   redisReply *reply;
   while (true) {
@@ -150,6 +153,9 @@ Status ZgwStore::Lock() {
 Status ZgwStore::UnLock() {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
+  }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
   }
 
   std::string del_cmd = "if redis.call(\"get\", \"zgw_lock\") == \"" + lock_name_ + "\" "
@@ -180,6 +186,9 @@ Status ZgwStore::UnLock() {
 Status ZgwStore::AddUser(const User& user, const bool override) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
+  }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
   }
   
 /*
@@ -262,6 +271,9 @@ Status ZgwStore::ListUsers(std::vector<User>* users) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
+  }
   users->clear();
 /*
  *  1. Get user list 
@@ -277,6 +289,7 @@ Status ZgwStore::ListUsers(std::vector<User>* users) {
   }
   assert(reply->type == REDIS_REPLY_ARRAY);
   if (reply->elements == 0) {
+    freeReplyObject(reply);
     return Status::OK();
   }
 /*
@@ -313,6 +326,9 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool need_lock,
     const bool override) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
+  }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
   }
 /*
  *  1. Lock
@@ -422,6 +438,9 @@ Status ZgwStore::GetBucket(const std::string& user_name, const std::string& buck
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
+  }
 /*
  *  1. SISMEMBER 
  */
@@ -469,6 +488,9 @@ Status ZgwStore::DeleteBucket(const std::string& user_name, const std::string& b
     const bool need_lock) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
+  }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
   }
 /*
  *  1. Lock
@@ -566,6 +588,9 @@ Status ZgwStore::ListBuckets(const std::string& user_name, std::vector<Bucket>* 
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
+  }
   buckets->clear();
 /*
  *  1. Get bucket list 
@@ -582,6 +607,7 @@ Status ZgwStore::ListBuckets(const std::string& user_name, std::vector<Bucket>* 
   }
   assert(reply->type == REDIS_REPLY_ARRAY);
   if (reply->elements == 0) {
+    freeReplyObject(reply);
     return Status::OK();
   }
 /*
@@ -618,6 +644,9 @@ Status ZgwStore::AllocateId(const std::string& user_name, const std::string& buc
     const std::string& object_name, const int32_t block_nums, uint64_t* tail_id) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
+  }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
   }
 /*
  *  1. Lock
@@ -699,6 +728,9 @@ Status ZgwStore::AllocateId(const std::string& user_name, const std::string& buc
 Status ZgwStore::AddObject(const Object& object, const bool need_lock) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
+  }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
   }
 /*
  *  1. Lock
@@ -832,6 +864,9 @@ Status ZgwStore::GetObject(const std::string& user_name, const std::string& buck
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
+  }
 /*
  *  1. SISMEMBER 
  */
@@ -879,6 +914,9 @@ Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& b
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
+  }
 /*
  *  1. Lock
  */
@@ -911,9 +949,11 @@ Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& b
                 "LPUSH %s %s", kZgwDeletedList.c_str(), std::string(t_object.data_block +
                 "/" + std::to_string(slash::NowMicros())).c_str()));
     if (t_reply == NULL) {
+      freeReplyObject(reply);
       return HandleIOError("DeleteObject::LPUSH");
     }
     if (t_reply->type == REDIS_REPLY_ERROR) {
+      freeReplyObject(reply);
       return HandleLogicError("DeleteObject::LPUSH ret: " + std::string(reply->str), reply, need_lock);
     }
     assert(t_reply->type == REDIS_REPLY_INTEGER);
@@ -971,6 +1011,9 @@ Status ZgwStore::ListObjects(const std::string& user_name, const std::string& bu
     std::vector<Object>* objects) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
+  }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
   }
 /*
  *  1. SISMEMBER 
@@ -1042,6 +1085,9 @@ Status ZgwStore::AddMultiBlockSet(const std::string& bucket_name, const std::str
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
+  }
 /*
  *  1. SADD 
  */
@@ -1068,6 +1114,9 @@ Status ZgwStore::GetMultiBlockSet(const std::string& bucket_name, const std::str
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
+  }
   block_indexs->clear();
 /*
  *  1. Get Block indexs 
@@ -1085,6 +1134,7 @@ Status ZgwStore::GetMultiBlockSet(const std::string& bucket_name, const std::str
   }
   assert(reply->type == REDIS_REPLY_ARRAY);
   if (reply->elements == 0) {
+    freeReplyObject(reply);
     return Status::OK();
   }
 /*
@@ -1102,6 +1152,9 @@ Status ZgwStore::DeleteMultiBlockSet(const std::string& bucket_name, const std::
     const std::string& upload_id) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
+  }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
   }
 /*
  *  1. DEL 
@@ -1164,6 +1217,17 @@ Status ZgwStore::HandleLogicError(const std::string& str_err, redisReply* reply,
     return Status::Corruption(str_err + ", UnLock ret: " + s.ToString());
   }
   return Status::Corruption(str_err);
+}
+
+bool ZgwStore::CheckRedis() {
+  redisReply* reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "PING"));
+  if (reply->type == REDIS_REPLY_STATUS &&
+      std::string(reply->str) == "PONG") {
+    return true;
+  }
+  redis_error_ = true;
+  return MaybeHandleRedisError();
 }
 
 User ZgwStore::GenUserFromReply(redisReply* reply) {

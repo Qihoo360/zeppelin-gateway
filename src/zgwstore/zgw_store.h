@@ -68,6 +68,7 @@ class ZgwStore {
   Status HandleIOError(const std::string& func_name);
   Status HandleLogicError(const std::string& str_err, redisReply* reply,
       const bool should_unlock);
+  bool CheckRedis();
 
   User GenUserFromReply(redisReply* reply);
   Bucket GenBucketFromReply(redisReply* reply);
