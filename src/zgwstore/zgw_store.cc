@@ -1243,7 +1243,8 @@ Status ZgwStore::HandleLogicError(const std::string& str_err, redisReply* reply,
 bool ZgwStore::CheckRedis() {
   redisReply* reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "PING"));
-  if (reply->type == REDIS_REPLY_STATUS &&
+  if (reply &&
+      reply->type == REDIS_REPLY_STATUS &&
       std::string(reply->str) == "PONG") {
     return true;
   }
