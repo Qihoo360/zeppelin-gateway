@@ -231,6 +231,6 @@ void S3Cmd::GenerateErrorXml(S3ErrorType type, const std::string& message) {
       break;
   }
   doc.AppendToRoot("RequestId", request_id_);
-  doc.AppendToRoot("HostId", hostname());
+  doc.AppendToRoot("HostId", md5(hostname()));
   doc.ToString(&http_response_xml_);
 }
