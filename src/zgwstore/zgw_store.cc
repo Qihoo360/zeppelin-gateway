@@ -1204,7 +1204,23 @@ Status ZgwStore::ListObjectsName(const std::string& user_name, const std::string
   }
   freeReplyObject(reply);
 /*
- *  2. Iterate through objects to push_back 
+ *  2. Get object list 
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SMEMBERS %s%s", kZgwObjectListPrefix.c_str(),
+              bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("ListObjects::SEMBMBERS");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("ListObjects::SMEMBERS ret: " + std::string(reply->str), reply, false);
+  }
+  assert(reply->type == REDIS_REPLY_ARRAY);
+  if (reply->elements == 0) {
+    return Status::OK();
+  }
+/*
+ *  3. Iterate through objects to push_back 
  */
   for (unsigned int i = 0; i < reply->elements; i++) {
     objects_name->push_back(reply->element[i]->str);

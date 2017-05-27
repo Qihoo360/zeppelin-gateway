@@ -165,6 +165,11 @@ void ListObjectsCmd::GenerateRespXml() {
       bucket_name_ << " " << s.ToString();
     return;
   }
+  if (candidate_obj_names.size() != candidate_objects.size()) {
+    LOG(ERROR) << request_id_ << " " <<
+      "ListObjects(DoAndResponse) - MGetObjects some object doestn't exist: " <<
+      bucket_name_ << " " << s.ToString();
+  }
 
   // Build response XML
   S3XmlDoc doc("ListBucketResult");
