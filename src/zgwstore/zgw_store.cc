@@ -663,6 +663,79 @@ Status ZgwStore::ListBuckets(const std::string& user_name, std::vector<Bucket>* 
   return Status::OK();
 }
 
+Status ZgwStore::ListBucketsName(const std::string& user_name, std::vector<std::string>* buckets_name) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
+  }
+
+  buckets_name->clear();
+/*
+ *  1. Get bucket list 
+ */
+  redisReply *reply;
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SMEMBERS %s%s", kZgwBucketListPrefix.c_str(),
+              user_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("ListBucketsName::SEMBMBERS");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("ListBucketsName::SMEMBERS ret: " + std::string(reply->str), reply, false);
+  }
+  assert(reply->type == REDIS_REPLY_ARRAY);
+  if (reply->elements == 0) {
+    freeReplyObject(reply);
+    return Status::OK();
+  }
+/*
+ *  2. Iterate through buckets to push_back 
+ */
+  for (unsigned int i = 0; i < reply->elements; i++) {
+    buckets_name->push_back(reply->element[i]->str);
+  }
+
+  freeReplyObject(reply);
+  return Status::OK();
+}
+
+Status ZgwStore::MGetBuckets(const std::string& user_name, const std::vector<std::string> buckets_name,
+    std::vector<Bucket>* buckets) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
+  }
+  buckets->clear();
+/*
+ *  1. Iterate through buckets to HGETALL 
+ */
+  redisReply* t_reply;
+  for (auto& bucket_name : buckets_name) {
+    t_reply = static_cast<redisReply*>(redisCommand(redis_cli_, "HGETALL %s%s",
+          kZgwBucketPrefix.c_str(), bucket_name.c_str()));
+    if (t_reply == NULL) {
+      return HandleIOError("MGetBuckets::HGETALL");
+    }
+    if (t_reply->type == REDIS_REPLY_ERROR) {
+      return HandleLogicError("MGetBuckets::HGETALL ret: " + std::string(t_reply->str), t_reply, false);
+    }
+    assert(t_reply->type == REDIS_REPLY_ARRAY);
+    if (t_reply->elements == 0) {
+      continue;
+    } else if (t_reply->elements % 2 != 0) {
+      return HandleLogicError("MGetBuckets::HGETALL: elements % 2 != 0", t_reply, false);
+    }
+    buckets->push_back(GenBucketFromReply(t_reply));
+    freeReplyObject(t_reply);
+  }
+
+  return Status::OK();
+}
+
 Status ZgwStore::AllocateId(const std::string& user_name, const std::string& bucket_name,
     const std::string& object_name, const int32_t block_nums, uint64_t* tail_id) {
   if (!MaybeHandleRedisError()) {
@@ -1099,6 +1172,80 @@ Status ZgwStore::ListObjects(const std::string& user_name, const std::string& bu
     freeReplyObject(t_reply);
   }
   freeReplyObject(reply);
+
+  return Status::OK();
+}
+
+Status ZgwStore::ListObjectsName(const std::string& user_name, const std::string& bucket_name,
+    std::vector<std::string>* objects_name) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
+  }
+  objects_name->clear();
+/*
+ *  1. SISMEMBER 
+ */
+  redisReply *reply;
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SISMEMBER %s%s %s", kZgwBucketListPrefix.c_str(), user_name.c_str(),
+              bucket_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("ListObjectsName::SISMEMBER");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("ListObjectsName::SISMEMBER ret: " + std::string(reply->str), reply, false);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer == 0) {
+    return HandleLogicError("Bucket Doesn't Belong To This User", reply, false);
+  }
+  freeReplyObject(reply);
+/*
+ *  2. Iterate through objects to push_back 
+ */
+  for (unsigned int i = 0; i < reply->elements; i++) {
+    objects_name->push_back(reply->element[i]->str);
+  }
+  freeReplyObject(reply);
+
+  return Status::OK();
+}
+
+Status ZgwStore::MGetObjects(const std::string& user_name, const std::string& bucket_name,
+    const std::vector<std::string> objects_name, std::vector<Object>* objects) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
+  }
+  objects->clear();
+/*
+ *  1. Iterate through objects to HGETALL 
+ */
+  redisReply* t_reply;
+  for (auto& object_name : objects_name) {
+    t_reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+                "HGETALL %s%s_%s", kZgwObjectPrefix.c_str(), bucket_name.c_str(),
+               object_name.c_str()));
+    if (t_reply == NULL) {
+      return HandleIOError("MGetObjects::HGETALL");
+    }
+    if (t_reply->type == REDIS_REPLY_ERROR) {
+      return HandleLogicError("MGetObjects::HGETALL ret: " + std::string(t_reply->str), t_reply, false);
+    }
+    assert(t_reply->type == REDIS_REPLY_ARRAY);
+    if (t_reply->elements == 0) {
+      continue;
+    } else if (t_reply->elements % 2 != 0) {
+      return HandleLogicError("MGetObjects::HGETALL: elements % 2 != 0", t_reply, false);
+    }
+    objects->push_back(GenObjectFromReply(t_reply));
+    freeReplyObject(t_reply);
+  }
 
   return Status::OK();
 }

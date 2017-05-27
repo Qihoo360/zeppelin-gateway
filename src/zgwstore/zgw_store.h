@@ -47,6 +47,9 @@ class ZgwStore {
   Status DeleteBucket(const std::string& user_name, const std::string& bucket_name,
       const bool need_lock = true);
   Status ListBuckets(const std::string& user_name, std::vector<Bucket>* buckets);
+  Status ListBucketsName(const std::string& user_name, std::vector<std::string>* buckets_name);
+  Status MGetBuckets(const std::string& user_name, const std::vector<std::string> buckets_name,
+      std::vector<Bucket>* buckets);
 
   Status AllocateId(const std::string& user_name, const std::string& bucket_name,
       const std::string& object_name, const int32_t block_nums, uint64_t* tail_id);
@@ -57,6 +60,10 @@ class ZgwStore {
       const std::string& object_name, const bool need_lock = true);
   Status ListObjects(const std::string& user_name, const std::string& bucket_name,
       std::vector<Object>* objects);
+  Status ListObjectsName(const std::string& user_name, const std::string& bucket_name,
+      std::vector<std::string>* objects_name);
+  Status MGetObjects(const std::string& user_name, const std::string& bucket_name,
+      const std::vector<std::string> objects_name, std::vector<Object>* objects);
 
   Status AddMultiBlockSet(const std::string& bucket_name, const std::string& object_name,
       const std::string& upload_id, const std::string& block_index);
