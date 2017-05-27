@@ -6,7 +6,7 @@
 #include "src/zgw_utils.h"
 
 bool ListObjectsCmd::DoInitial() {
-  all_objects_.clear();
+  all_objects_name_.clear();
   http_response_xml_.clear();
 
   if (!TryAuth()) {
@@ -37,13 +37,8 @@ bool ListObjectsCmd::DoInitial() {
 
 void ListObjectsCmd::DoAndResponse(pink::HTTPResponse* resp) {
   if (http_ret_code_ == 200) {
-    std::vector<zgwstore::Object> all_objects;
-    Status s = store_->ListObjects(user_name_, bucket_name_, &all_objects);
+    Status s = store_->ListObjectsName(user_name_, bucket_name_, &all_objects_name_);
     if (s.ok()) {
-      // Build response XML using all_objects_
-      for (auto& b : all_objects) {
-        all_objects_.insert(b);
-      }
       GenerateRespXml();
     } else if (s.ToString().find("Bucket Doesn't Belong To This User") !=
                std::string::npos) {
@@ -77,10 +72,15 @@ void ListObjectsCmd::GenerateRespXml() {
   // Select objects according to request params
 
   std::vector<zgwstore::Object> candidate_objects;
+  std::vector<std::string> candidate_obj_names;
   std::set<std::string> commonprefixes;
 
-  for (auto& object : all_objects_) {
-    std::string name = object.object_name;
+  std::sort(all_objects_name_.begin(), all_objects_name_.end(),
+            [](const std::string& a, const std::string& b) {
+              return a < b;
+            });
+
+  for (auto& name : all_objects_name_) {
     if (!prefix_.empty() &&
         name.substr(0, prefix_.size()) != prefix_) {
       // Skip prefix
@@ -110,10 +110,10 @@ void ListObjectsCmd::GenerateRespXml() {
       }
     }
 
-    candidate_objects.push_back(object);
+    candidate_obj_names.push_back(name);
   }
 
-  int diff = candidate_objects.size() + commonprefixes.size() - max_keys_;
+  int diff = candidate_obj_names.size() + commonprefixes.size() - max_keys_;
   bool is_trucated = diff > 0;
 
   std::string next_token;
@@ -129,12 +129,12 @@ void ListObjectsCmd::GenerateRespXml() {
       // extra_num > commonprefixes.size()
       extra_num -= commonprefixes.size();
       commonprefixes.clear();
-      if (candidate_objects.size() <= extra_num) {
-        candidate_objects.clear();
+      if (candidate_obj_names.size() <= extra_num) {
+        candidate_obj_names.clear();
       } else {
         while (extra_num--) {
-          next_token = candidate_objects.back().object_name;
-          candidate_objects.pop_back();
+          next_token = candidate_obj_names.back();
+          candidate_obj_names.pop_back();
         }
       }
     }
@@ -146,15 +146,25 @@ void ListObjectsCmd::GenerateRespXml() {
       !delimiter_.empty()) {
     if (!commonprefixes.empty()) {
       next_marker = *commonprefixes.rbegin();
-    } else if (!candidate_objects.empty()) {
-      next_marker = candidate_objects.back().object_name;
+    } else if (!candidate_obj_names.empty()) {
+      next_marker = candidate_obj_names.back();
     }
   }
 
   if (!is_trucated) {
     next_token.clear();
   }
-  size_t key_count = candidate_objects.size() + commonprefixes.size();
+  size_t key_count = candidate_obj_names.size() + commonprefixes.size();
+
+  Status s = store_->MGetObjects(user_name_, bucket_name_,
+                         candidate_obj_names, &candidate_objects);
+  if (s.IsIOError()) {
+    http_ret_code_ = 500;
+    LOG(ERROR) << request_id_ << " " <<
+      "ListObjects(DoAndResponse) - MGetObjects failed: " <<
+      bucket_name_ << " " << s.ToString();
+    return;
+  }
 
   // Build response XML
   S3XmlDoc doc("ListBucketResult");

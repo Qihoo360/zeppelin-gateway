@@ -64,6 +64,9 @@ void S3AuthV4::Initialize(const pink::HTTPRequest* req, zgwstore::ZgwStore* stor
   // Get secret key
   assert(!rep_->access_key_.empty());
 
+  if (slash::NowMicros() - latest_update_time > kFiveMinutesUs) {
+    key_map.clear();
+  }
   std::string secret_key;
   int retry = 2;
   while (retry--) {
@@ -120,6 +123,7 @@ void S3AuthV4::Rep::UpdateKeyMap(zgwstore::ZgwStore* store) {
                        std::make_pair(user.display_name, key_pair.second)));
       }
     }
+    latest_update_time = slash::NowMicros();
   }
 }
 

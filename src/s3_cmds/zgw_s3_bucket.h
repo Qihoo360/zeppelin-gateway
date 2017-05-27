@@ -49,13 +49,7 @@ class ListObjectsCmd : public S3Cmd {
   // list version1
   std::string marker_;
 
-  struct ObjectsComparator {
-    bool operator()(const zgwstore::Object& a, const zgwstore::Object& b) {
-      return a.object_name < b.object_name;
-    }
-  };
-
-  std::set<zgwstore::Object, ObjectsComparator> all_objects_;
+  std::vector<std::string> all_objects_name_;
 };
 
 class ListMultiPartUploadCmd : public S3Cmd {
