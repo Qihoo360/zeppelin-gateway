@@ -13,7 +13,7 @@ bool ListPartsCmd::DoInitial() {
   part_num_marker_ = "0";
 
   if (!TryAuth()) {
-    DLOG(ERROR) <<
+    DLOG(INFO) <<
       "ListParts(DoInitial) - Auth failed: " << client_ip_port_;
     g_zgw_monitor->AddAuthFailed();
     return false;

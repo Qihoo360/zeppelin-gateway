@@ -20,7 +20,7 @@ bool PutObjectCmd::DoInitial() {
   block_count_ = data_size / zgwstore::kZgwBlockSize + (m > 0 ? 1 : 0);
 
   if (!TryAuth()) {
-    DLOG(ERROR) << request_id_ << " " <<
+    DLOG(INFO) << request_id_ << " " <<
       "PutObject(DoInitial) - Auth failed: " << client_ip_port_;
     g_zgw_monitor->AddAuthFailed();
     return false;

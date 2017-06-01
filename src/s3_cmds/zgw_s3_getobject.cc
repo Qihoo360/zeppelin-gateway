@@ -17,7 +17,7 @@ bool GetObjectCmd::DoInitial() {
                     object_name_ +
                     std::to_string(slash::NowMicros()));
   if (!TryAuth()) {
-    DLOG(ERROR) << request_id_ << " " <<
+    DLOG(INFO) << request_id_ << " " <<
       "GetObject(DoInitial) - Auth failed: " << client_ip_port_;
     g_zgw_monitor->AddAuthFailed();
     return false;

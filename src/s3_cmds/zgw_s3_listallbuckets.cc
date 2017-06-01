@@ -10,7 +10,7 @@ bool ListAllBucketsCmd::DoInitial() {
   http_response_xml_.clear();
   request_id_ = md5(std::to_string(slash::NowMicros()));
   if (!TryAuth()) {
-    DLOG(ERROR) << request_id_ << " " <<
+    DLOG(INFO) << request_id_ << " " <<
       "ListAllBuckets(DoInitial) - Auth failed: " << client_ip_port_;
     g_zgw_monitor->AddAuthFailed();
     return false;

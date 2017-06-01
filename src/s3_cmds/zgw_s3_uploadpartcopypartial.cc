@@ -16,7 +16,7 @@ bool UploadPartCopyPartialCmd::DoInitial() {
   md5_ctx_.Init();
 
   if (!TryAuth()) {
-    DLOG(ERROR) <<
+    DLOG(INFO) <<
       "UploadPartCopyPartial(DoInitial) - Auth failed: " << client_ip_port_;
     g_zgw_monitor->AddAuthFailed();
     return false;

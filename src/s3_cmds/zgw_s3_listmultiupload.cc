@@ -10,7 +10,7 @@ bool ListMultiPartUploadCmd::DoInitial() {
   http_response_xml_.clear();
 
   if (!TryAuth()) {
-    DLOG(ERROR) << "ListMultiPartUpload(DoInitial) - Auth failed: " <<
+    DLOG(INFO) << "ListMultiPartUpload(DoInitial) - Auth failed: " <<
       client_ip_port_;
     g_zgw_monitor->AddAuthFailed();
     return false;

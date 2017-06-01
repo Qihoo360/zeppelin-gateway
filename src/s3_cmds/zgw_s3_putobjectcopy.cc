@@ -10,7 +10,7 @@ bool PutObjectCopyCmd::DoInitial() {
   std::string source_path = req_headers_.at("x-amz-copy-source");
 
   if (!TryAuth()) {
-    DLOG(ERROR) <<
+    DLOG(INFO) <<
       "PutObjectCopy(DoInitial) - Auth failed: " << client_ip_port_;
     g_zgw_monitor->AddAuthFailed();
     return false;
