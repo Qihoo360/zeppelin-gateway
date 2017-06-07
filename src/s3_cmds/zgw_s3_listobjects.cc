@@ -208,7 +208,7 @@ void ListObjectsCmd::GenerateRespXml() {
     contents->AppendNode(doc.AllocateNode("ETag", "\"" + o.etag + "\""));
     contents->AppendNode(doc.AllocateNode("Size", std::to_string(o.size)));
     contents->AppendNode(doc.AllocateNode("StorageClass", "STANDARD"));
-    if (!list_typeV2_ || (list_typeV2_ && fetch_owner_)) {
+    if (!list_typeV2_ || fetch_owner_) {
       S3XmlNode* owner = doc.AllocateNode("Owner");
       owner->AppendNode(doc.AllocateNode("ID", slash::sha256(o.owner)));
       owner->AppendNode(doc.AllocateNode("DisplayName", o.owner));
