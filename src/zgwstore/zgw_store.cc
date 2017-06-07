@@ -90,6 +90,7 @@ Status ZgwStore::Open(const std::vector<std::string>& zp_addrs,
     }
     if (std::string(reply->str) != "OK") {
       freeReplyObject(reply);
+      delete zp_cli;
       return Status::Corruption("Failed to auth to redis");
     }
     freeReplyObject(reply);
