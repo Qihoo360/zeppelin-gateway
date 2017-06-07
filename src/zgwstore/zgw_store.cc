@@ -85,6 +85,7 @@ Status ZgwStore::Open(const std::vector<std::string>& zp_addrs,
     redisReply* reply = static_cast<redisReply*>(redisCommand(redis_cli,
                 "AUTH %s", redis_passwd.c_str()));
     if (reply == NULL) {
+      delete zp_cli;
       return Status::IOError("Failed to auth to redis");
     }
     if (std::string(reply->str) != "OK") {
