@@ -114,8 +114,8 @@ std::string UrlEncode(const std::string& s, bool encode_slash) {
       v.push_back('%');
       unsigned char d1, d2;
       char2hex(c, d1, d2);
-      v.push_back(d1);
-      v.push_back(d2);
+      v.push_back(std::toupper(d1));
+      v.push_back(std::toupper(d2));
     }
   }
 
