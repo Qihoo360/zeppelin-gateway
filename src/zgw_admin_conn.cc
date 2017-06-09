@@ -9,6 +9,7 @@
 #include "src/s3_cmds/zgw_s3_command.h"
 #include "src/zgw_monitor.h"
 #include "src/zgw_utils.h"
+#include "src/zgw_const.h"
 
 extern ZgwMonitor* g_zgw_monitor;
 static const char* S3CommandsToString(S3Commands cmd_type);
@@ -52,6 +53,11 @@ bool ZgwAdminHandles::HandleRequest(const pink::HTTPRequest* req) {
     http_ret_code_ = 200;
     bool force = req->query_params().count("force");
     result_ = GetZgwStatus(force);
+  } else if (req->method() == "GET" &&
+             command_ == kGetVersion) {
+    http_ret_code_ = 200;
+    result_ = "Version: " + kZgwVersion + "\r\n";
+    result_ += "ComplileDate: " + kZgwCompileDate + "\r\n";
   } else {
     http_ret_code_ = 501;
     result_ = ":(";
