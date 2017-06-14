@@ -1208,19 +1208,6 @@ Status ZgwStore::ListObjectsName(const std::string& user_name, const std::string
 /*
  *  2. Get object list (SSCAN) 
  */
-  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
-              "SMEMBERS %s%s", kZgwObjectListPrefix.c_str(),
-              bucket_name.c_str()));
-  if (reply == NULL) {
-    return HandleIOError("ListObjects::SEMBMBERS");
-  }
-  if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("ListObjects::SMEMBERS ret: " + std::string(reply->str), reply, false);
-  }
-  assert(reply->type == REDIS_REPLY_ARRAY);
-  if (reply->elements == 0) {
-    return Status::OK();
-  }
 
   std::string cursor = "0";
   do {
