@@ -1206,7 +1206,7 @@ Status ZgwStore::ListObjectsName(const std::string& user_name, const std::string
   }
   freeReplyObject(reply);
 /*
- *  2. Get object list 
+ *  2. Get object list (SSCAN) 
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "SMEMBERS %s%s", kZgwObjectListPrefix.c_str(),
@@ -1221,13 +1221,29 @@ Status ZgwStore::ListObjectsName(const std::string& user_name, const std::string
   if (reply->elements == 0) {
     return Status::OK();
   }
-/*
- *  3. Iterate through objects to push_back 
- */
-  for (unsigned int i = 0; i < reply->elements; i++) {
-    objects_name->push_back(reply->element[i]->str);
-  }
-  freeReplyObject(reply);
+
+  std::string cursor = "0";
+  do {
+    reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+                "SSCAN %s%s %s", kZgwObjectListPrefix.c_str(),
+                bucket_name.c_str(), cursor.c_str()));
+    if (reply == NULL) {
+      return HandleIOError("ListObjects::SSCAN");
+    }
+    if (reply->type == REDIS_REPLY_ERROR) {
+      return HandleLogicError("ListObjects::SSCAN ret: " + std::string(reply->str), reply, false);
+    }
+    assert(reply->type == REDIS_REPLY_ARRAY);
+    assert(reply->elements == 2);
+    assert(reply->element[0]->type == REDIS_REPLY_STRING);
+    assert(reply->element[1]->type == REDIS_REPLY_ARRAY);
+    cursor = reply->element[0]->str;
+    for (unsigned int i = 0; i < reply->element[1]->elements; i++) {
+      objects_name->push_back(reply->element[1]->element[i]->str);
+    }
+    freeReplyObject(reply);
+
+  } while (cursor != "0");
 
   return Status::OK();
 }
