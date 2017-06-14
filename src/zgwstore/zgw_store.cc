@@ -1212,7 +1212,7 @@ Status ZgwStore::ListObjectsName(const std::string& user_name, const std::string
   std::string cursor = "0";
   do {
     reply = static_cast<redisReply*>(redisCommand(redis_cli_,
-                "SSCAN %s%s %s", kZgwObjectListPrefix.c_str(),
+                "SSCAN %s%s %s COUNT 1000", kZgwObjectListPrefix.c_str(),
                 bucket_name.c_str(), cursor.c_str()));
     if (reply == NULL) {
       return HandleIOError("ListObjects::SSCAN");
