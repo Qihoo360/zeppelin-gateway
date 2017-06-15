@@ -1,5 +1,7 @@
 #include "src/s3_cmds/zgw_s3_bucket.h"
 
+#include <algorithm>
+
 #include "slash/include/env.h"
 #include "slash/include/slash_hash.h"
 #include "src/s3_cmds/zgw_s3_xml.h"

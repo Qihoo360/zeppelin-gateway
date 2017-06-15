@@ -1,5 +1,7 @@
 #include "src/s3_cmds/zgw_s3_object.h"
 
+#include <algorithm>
+
 #include "slash/include/env.h"
 #include "slash/include/slash_string.h"
 #include "src/zgwstore/zgw_define.h"

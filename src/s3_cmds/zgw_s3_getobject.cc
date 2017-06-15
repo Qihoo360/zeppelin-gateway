@@ -1,6 +1,7 @@
 #include "src/s3_cmds/zgw_s3_object.h"
 
 #include <vector>
+#include <algorithm>
 
 #include <glog/logging.h>
 #include "slash/include/env.h"
