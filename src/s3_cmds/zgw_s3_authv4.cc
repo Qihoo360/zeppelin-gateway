@@ -173,12 +173,43 @@ bool S3AuthV4::Rep::ParseCredential(const std::string& credential_str) {
   return true;
 }
 
-bool S3AuthV4::Rep::ParseQueryAuthStr(const std::map<std::string, std::string>& query_params) {
+static int to_timestamp(std::string& iso_date) {
+  // e.g. 20170328T093456Z iso_date
+  int Y, m, d, H, M, S, ret;
+  ret = sscanf(iso_date.c_str(), "%4d%2d%2dT%2d%2d%2dZ",
+         &Y, &m, &d, &H, &M, &S);
+  if (ret != 6) {
+    return 0;
+  }
+  char buf[100];
+  sprintf(buf, "%d/%d/%d/%d/%d/%d", Y, m, d, H, M, S);
+  struct tm _t;
+  strptime(buf, "%Y/%m/%d/%H/%M/%S", &_t);
+  return mktime(&_t);
+}
+
+static int now_timestamp() {
+  time_t t = time(nullptr);
+  return mktime(gmtime(&t));
+}
+
+bool S3AuthV4::Rep::ParseQueryAuthStr(const std::map<std::string,
+                                      std::string>& query_params) {
   if (!query_params.count("X-Amz-Algorithm") ||
       !query_params.count("X-Amz-Credential") ||
       !query_params.count("X-Amz-Date") ||
+      !query_params.count("X-Amz-Expires") ||
       !query_params.count("X-Amz-Signature") ||
       !query_params.count("X-Amz-SignedHeaders")) {
+    return false;
+  }
+
+  // Check Expires
+  iso_date_ = UrlDecode(query_params.at("X-Amz-Date"));
+  int expires = std::atoi(query_params.at("X-Amz-Expires").c_str());
+  int elapse = now_timestamp() - to_timestamp(iso_date_);
+  if (expires < 1 || expires > 604800 /* maximum 7 days */ ||
+      elapse >= expires /* Expire */) {
     return false;
   }
 
@@ -194,7 +225,6 @@ bool S3AuthV4::Rep::ParseQueryAuthStr(const std::map<std::string, std::string>& 
   slash::StringSplit(signed_headers_str_, ';', signed_headers_);
 
   signature_received_ = UrlDecode(query_params.at("X-Amz-Signature"));
-  iso_date_ = UrlDecode(query_params.at("X-Amz-Date"));
 
   is_presign_url_ = true;
   return true;
