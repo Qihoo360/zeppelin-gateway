@@ -46,9 +46,11 @@ class ZgwAdminConnFactory : public pink::ConnFactory {
  public:
   virtual pink::PinkConn* NewPinkConn(int connfd,
                                       const std::string& ip_port,
-                                      pink::Thread* thread) const {
+                                      pink::ServerThread* server_thread,
+                                      void* worker_specific_data) const {
     auto handles = std::make_shared<ZgwAdminHandles>();
-    return new pink::HTTPConn(connfd, ip_port, thread, handles);
+    return new pink::HTTPConn(connfd, ip_port, server_thread,
+                              handles, worker_specific_data);
   }
 };
 

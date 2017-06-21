@@ -119,7 +119,7 @@ void ZgwAdminHandles::Initialize() {
   params_.clear();
   result_.clear();
   http_ret_code_ = 200;
-  store_ = static_cast<zgwstore::ZgwStore*>(thread_ptr_->get_private());
+  store_ = reinterpret_cast<zgwstore::ZgwStore*>(worker_specific_data_);
 }
 
 static std::string GenRandomStr(int width) {

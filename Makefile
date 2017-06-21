@@ -30,6 +30,7 @@ LIBS = -lzp \
 			 -lslash \
 			 -lprotobuf \
 			 -lcrypto \
+			 -lssl \
 			 -lglog \
 			 -lpthread
 

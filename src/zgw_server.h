@@ -21,15 +21,10 @@
 
 using slash::Status;
 
-class ZgwThreadEnvHandle : public pink::ThreadEnvHandle {
+class ZgwServerHandle : public pink::ServerHandle {
  public:
-  ZgwThreadEnvHandle() = default;
-  virtual ~ZgwThreadEnvHandle();
-
-  virtual int SetEnv(void** env) const;
-
- private:
-  mutable std::vector<zgwstore::ZgwStore*> stores_;
+  virtual int CreateWorkerSpecificData(void** data) const override;
+  virtual int DeleteWorkerSpecificData(void* data) const override;
 };
 
 class ZgwServer {
@@ -51,10 +46,12 @@ class ZgwServer {
   std::atomic<bool> should_exit_;
 
   int worker_num_;
-  ZgwConnFactory* conn_factory_;
 
-  ZgwAdminConnFactory* admin_conn_factory_;
+  ZgwServerHandle server_handle_;
+  ZgwConnFactory conn_factory_;
   pink::ServerThread* zgw_dispatch_thread_;
+
+  ZgwAdminConnFactory admin_conn_factory_;
   pink::ServerThread* zgw_admin_thread_;
 };
 

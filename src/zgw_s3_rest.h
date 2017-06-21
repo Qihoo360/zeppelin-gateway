@@ -36,9 +36,11 @@ class ZgwConnFactory : public pink::ConnFactory {
   // Deleted in HTTPConn deconstructor
   virtual pink::PinkConn* NewPinkConn(int connfd,
                                       const std::string& ip_port,
-                                      pink::Thread* thread) const {
+                                      pink::ServerThread* server_thread,
+                                      void* worker_specific_data) const {
     auto zgw_handles = std::make_shared<ZgwHTTPHandles>();
-    return new pink::HTTPConn(connfd, ip_port, thread, zgw_handles);
+    return new pink::HTTPConn(connfd, ip_port, server_thread,
+                              zgw_handles, worker_specific_data);
   }
 };
 

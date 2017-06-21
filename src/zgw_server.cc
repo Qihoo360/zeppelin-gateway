@@ -11,9 +11,9 @@
 extern ZgwConfig* g_zgw_conf;
 extern ZgwMonitor* g_zgw_monitor;
 
-static std::atomic<int> zgw_thread_id(0);
+int ZgwServerHandle::CreateWorkerSpecificData(void** data) const {
+  static std::atomic<int> zgw_thread_id(0);
 
-int ZgwThreadEnvHandle::SetEnv(void** env) const {
   zgwstore::ZgwStore* store;
   std::string lock_name = hostname() + std::to_string(g_zgw_conf->server_port)
     + std::to_string(zgw_thread_id++);
@@ -27,19 +27,14 @@ int ZgwThreadEnvHandle::SetEnv(void** env) const {
     LOG(FATAL) << "Can not open ZgwStore: " << s.ToString();
     return -1;
   }
-  *env = store;
-  stores_.push_back(store);
+  *data = reinterpret_cast<void*>(store);
 
   return 0;
 }
 
-ZgwThreadEnvHandle::~ZgwThreadEnvHandle() {
-  for (auto s : stores_) {
-    delete s;
-  }
+int ZgwServerHandle::DeleteWorkerSpecificData(void* data) const {
+  delete reinterpret_cast<zgwstore::ZgwStore*>(data);
 }
-
-static ZgwThreadEnvHandle env_handle;
 
 ZgwServer::ZgwServer()
     : should_exit_(false),
@@ -49,33 +44,43 @@ ZgwServer::ZgwServer()
     worker_num_ = kMaxWorkerThread;
   }
 
-  conn_factory_ = new ZgwConnFactory();
-  std::set<std::string> ips;
-  ips.insert(g_zgw_conf->server_ip);
-  zgw_dispatch_thread_ = pink::NewDispatchThread(ips, g_zgw_conf->server_port,
-                                                 worker_num_, conn_factory_,
-                                                 0, nullptr, &env_handle);
+  zgw_dispatch_thread_ = pink::NewDispatchThread(g_zgw_conf->server_ip,
+                                                 g_zgw_conf->server_port,
+                                                 worker_num_, &conn_factory_,
+                                                 0, 1000, &server_handle_);
   zgw_dispatch_thread_->set_thread_name("DispatchThread");
+  if (g_zgw_conf->enable_security) {
+    zgw_dispatch_thread_->EnableSecurity(g_zgw_conf->cert_file,
+                                         g_zgw_conf->key_file);
+  }
 
-  admin_conn_factory_ = new ZgwAdminConnFactory();
-  zgw_admin_thread_ = pink::NewHolyThread(g_zgw_conf->admin_port,
-                                          admin_conn_factory_,
-                                          0, nullptr, &env_handle);
+  zgw_admin_thread_ = pink::NewHolyThread(g_zgw_conf->server_ip,
+                                          g_zgw_conf->admin_port,
+                                          &admin_conn_factory_, 0,
+                                          &server_handle_);
   zgw_admin_thread_->set_thread_name("AdminThread");
 }
 
 ZgwServer::~ZgwServer() {
   delete zgw_dispatch_thread_;
   delete zgw_admin_thread_;
-  delete conn_factory_;
-  delete admin_conn_factory_;
 
   LOG(INFO) << "ZgwServerThread exit!!!";
 }
 
 void ZgwServer::Exit() {
-  zgw_dispatch_thread_->StopThread();
-  zgw_admin_thread_->StopThread();
+  int ret = zgw_dispatch_thread_->StopThread();
+  if (ret != 0) {
+    LOG(WARNING) << "Stop dispath thread failed";
+  } else {
+    LOG(INFO) << "DispatchThread Exit";
+  }
+  ret = zgw_admin_thread_->StopThread();
+  if (ret != 0) {
+    LOG(WARNING) << "Stop admin thread failed";
+  } else {
+    LOG(INFO) << "AdminThread Exit";
+  }
   should_exit_.store(true);
 }
 

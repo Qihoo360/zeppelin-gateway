@@ -15,10 +15,11 @@ struct ZgwConfig {
   slash::BaseConf *b_conf;
 
   std::vector<std::string> zp_meta_ip_ports;
+  std::string zp_table_name;
   std::string redis_ip_port;
   std::string redis_passwd;
+
   std::string server_ip;
-  std::string zp_table_name;
   int server_port;
   int admin_port;
   bool daemonize;
@@ -28,6 +29,10 @@ struct ZgwConfig {
 
   std::string log_path;
   std::string pid_file;
+
+  bool enable_security;
+  std::string cert_file;
+  std::string key_file;
 };
 
 #endif

@@ -125,7 +125,7 @@ S3Cmd* ZgwHTTPHandles::SelectS3CmdBy(const pink::HTTPRequest* req) {
   }
 
   zgwstore::ZgwStore* store =
-    static_cast<zgwstore::ZgwStore*>(thread_ptr_->get_private());
+    reinterpret_cast<zgwstore::ZgwStore*>(worker_specific_data_);
 
   assert(cmd_table_->count(cmd) > 0);
   S3Cmd* cmd_ptr = cmd_table_->at(cmd);
