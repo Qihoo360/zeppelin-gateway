@@ -72,13 +72,13 @@ $(OBJECT): $(SLASH) $(PINK) $(LIBZP) $(GLOG) $(HIREDIS_STATIC) $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(INCLUDE_PATH) $(LIB_PATH) $(LIBS) $(HIREDIS_STATIC)
 
 $(OBJS): %.o : %.cc
-	$(CXX) $(CXXFLAGS) -c $< -o $@ $(INCLUDE_PATH) $(VERSION)
+	$(CXX) $(CXXFLAGS) -c $< -o $@ $(INCLUDE_PATH) $(VERSION) -D__ENABLE_SSL
 
 $(SLASH):
 	make -C $(SLASH_PATH)/slash __PERF=$(__PERF)
 
 $(PINK):
-	make -C $(PINK_PATH)/pink __PERF=$(__PERF) SLASH_PATH=$(SLASH_PATH)
+	make -C $(PINK_PATH)/pink __PERF=$(__PERF) SLASH_PATH=$(SLASH_PATH) __ENABLE_SSL=1
 
 $(LIBZP):
 	make -C $(ZP_PATH)/libzp __PERF=$(__PERF) SLASH_PATH=$(SLASH_PATH) PINK_PATH=$(PINK_PATH)

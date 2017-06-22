@@ -49,10 +49,6 @@ ZgwServer::ZgwServer()
                                                  worker_num_, &conn_factory_,
                                                  0, 1000, &server_handle_);
   zgw_dispatch_thread_->set_thread_name("DispatchThread");
-  if (g_zgw_conf->enable_security) {
-    zgw_dispatch_thread_->EnableSecurity(g_zgw_conf->cert_file,
-                                         g_zgw_conf->key_file);
-  }
 
   zgw_admin_thread_ = pink::NewHolyThread(g_zgw_conf->server_ip,
                                           g_zgw_conf->admin_port,
@@ -88,6 +84,12 @@ Status ZgwServer::Start() {
   Status s;
   LOG(INFO) << "Waiting for ZgwServerThread Init...";
 
+  if (g_zgw_conf->enable_security) {
+    if (zgw_dispatch_thread_->EnableSecurity(g_zgw_conf->cert_file,
+                                             g_zgw_conf->key_file) != 0) {
+      return Status::Corruption("Enable Security failed, maybe wrong cert or key");
+    }
+  }
   if (zgw_dispatch_thread_->StartThread() != 0) {
     return Status::Corruption("Launch DispatchThread failed");
   }
