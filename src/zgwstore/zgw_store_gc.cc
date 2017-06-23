@@ -7,8 +7,7 @@
 
 namespace zgwstore {
 
-// static const int kGCIntervalMiliSeconds = 50; // 50 miliseconds
-static const int kGCIntervalMiliSeconds = 5000; // 5 seconds
+static const int kGCIntervalSeconds = 1; // 1 second
 static const int kBlockReservedTime = 1 * 60 * 60 ; // 1 hour
 // static const int kBlockReservedTime = 1 * 60; // 1 minute
 
@@ -62,8 +61,8 @@ Status GCThread::ParseDeletedBlocks(const std::string& deleted_item,
 void* GCThread::ThreadMain() {
   while (!should_stop()) {
     uint64_t now = slash::NowMicros();
-    if (now - latest_action_time_ < kGCIntervalMiliSeconds * 1e3) {
-      usleep(kGCIntervalMiliSeconds);
+    if (now - latest_action_time_ < kGCIntervalSeconds * 1e6) {
+      sleep(kGCIntervalSeconds);
       continue;
     }
     latest_action_time_ = now;
