@@ -11,16 +11,19 @@
 extern ZgwConfig* g_zgw_conf;
 extern ZgwMonitor* g_zgw_monitor;
 
-int ZgwServerHandle::CreateWorkerSpecificData(void** data) const {
-  static std::atomic<int> zgw_thread_id(0);
+static std::string LockName() {
+  static std::atomic<int> thread_seq_;
+  return hostname() +
+    std::to_string(g_zgw_conf->server_port) +
+    std::to_string(thread_seq_++);
+}
 
+int ZgwServerHandle::CreateWorkerSpecificData(void** data) const {
   zgwstore::ZgwStore* store;
-  std::string lock_name = hostname() + std::to_string(g_zgw_conf->server_port)
-    + std::to_string(zgw_thread_id++);
   Status s = zgwstore::ZgwStore::Open(g_zgw_conf->zp_meta_ip_ports,
                                       g_zgw_conf->redis_ip_port,
                                       g_zgw_conf->zp_table_name,
-                                      lock_name, kZgwRedisLockTTL,
+                                      LockName(), kZgwRedisLockTTL,
                                       g_zgw_conf->redis_passwd,
                                       &store);
   if (!s.ok()) {
@@ -34,6 +37,7 @@ int ZgwServerHandle::CreateWorkerSpecificData(void** data) const {
 
 int ZgwServerHandle::DeleteWorkerSpecificData(void* data) const {
   delete reinterpret_cast<zgwstore::ZgwStore*>(data);
+  return 0;
 }
 
 ZgwServer::ZgwServer()
@@ -60,6 +64,7 @@ ZgwServer::ZgwServer()
 ZgwServer::~ZgwServer() {
   delete zgw_dispatch_thread_;
   delete zgw_admin_thread_;
+  delete store_for_gc_;
 
   LOG(INFO) << "ZgwServerThread exit!!!";
 }
@@ -76,6 +81,12 @@ void ZgwServer::Exit() {
     LOG(WARNING) << "Stop admin thread failed";
   } else {
     LOG(INFO) << "AdminThread Exit";
+  }
+  ret = store_gc_thread_.StopThread();
+  if (ret != 0) {
+    LOG(WARNING) << "Stop GCThread failed";
+  } else {
+    LOG(INFO) << "GCThread Exit";
   }
   should_exit_.store(true);
 }
@@ -96,6 +107,14 @@ Status ZgwServer::Start() {
   if (zgw_admin_thread_->StartThread() != 0) {
     return Status::Corruption("Launch AdminThread failed");
   }
+  // Open new store ptr for gc thread
+  s = zgwstore::ZgwStore::Open(g_zgw_conf->zp_meta_ip_ports,
+                               g_zgw_conf->redis_ip_port,
+                               g_zgw_conf->zp_table_name,
+                               LockName(), kZgwRedisLockTTL,
+                               g_zgw_conf->redis_passwd,
+                               &store_for_gc_);
+  store_gc_thread_.StartThread(store_for_gc_);
 
   LOG(INFO) << "ZgwServerThread Init Success!";
 

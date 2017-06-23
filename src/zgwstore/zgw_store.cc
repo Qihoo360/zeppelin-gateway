@@ -1,5 +1,3 @@
-#include "slash/include/slash_string.h"
-#include "slash/include/env.h"
 #include "zgw_store.h"
 
 #include <iostream>
@@ -7,15 +5,23 @@
 #include <thread>
 
 #include <glog/logging.h>
+#include "slash/include/slash_string.h"
+#include "slash/include/env.h"
 
 namespace zgwstore {
 
 ZgwStore::ZgwStore(const std::string& zp_table,const std::string& lock_name,
-    const int32_t lock_ttl, const std::string& redis_passwd) :
-  zp_table_(zp_table), zp_cli_(nullptr), redis_cli_(nullptr), redis_ip_(""),
-  redis_port_(-1), lock_name_(lock_name), lock_ttl_(lock_ttl),
-  redis_passwd_(redis_passwd), redis_error_(false) {
-  };
+                   const int32_t lock_ttl, const std::string& redis_passwd)
+      : zp_table_(zp_table),
+        zp_cli_(nullptr),
+        redis_cli_(nullptr),
+        redis_ip_(""),
+        redis_port_(-1),
+        lock_name_(lock_name),
+        lock_ttl_(lock_ttl),
+        redis_passwd_(redis_passwd),
+        redis_error_(false) {
+};
 
 ZgwStore::~ZgwStore() {
   if (zp_cli_ != nullptr) {
@@ -32,9 +38,9 @@ Status ZgwStore::Open(const std::vector<std::string>& zp_addrs,
     const std::string& redis_passwd, ZgwStore** store) {
 
   *store = nullptr;
-/*
- * Connect to zeppelin
- */
+  /*
+   * Connect to zeppelin
+   */
   if (zp_addrs.empty()) {
     return Status::InvalidArgument("Invalid zeppelin addresses");
   }
@@ -61,9 +67,9 @@ Status ZgwStore::Open(const std::vector<std::string>& zp_addrs,
     delete zp_cli;
     return s;
   }
-/*
- *  Connect to redis
- */
+  /*
+   *  Connect to redis
+   */
   if (!slash::ParseIpPortString(redis_addr, t_ip, t_port)) {
     delete zp_cli;
     return Status::InvalidArgument("Invalid zeppelin address");
@@ -116,10 +122,6 @@ Status ZgwStore::BlockGet(const std::string& block_id, std::string* block_conten
   return zp_cli_->Get(zp_table_, kZpBlockPrefix + block_id, block_content);
 }
 
-Status ZgwStore::BlockDelete(const std::string& block_id) {
-  return zp_cli_->Delete(zp_table_, kZpBlockPrefix + block_id);
-}
-
 Status ZgwStore::BlockMGet(const std::vector<std::string>& block_ids,
     std::map<std::string, std::string>* block_contents) {
   std::vector<std::string> ids;
@@ -148,6 +150,34 @@ Status ZgwStore::BlockRef(const std::string& block_id) {
 
   block_ref_s.assign(std::to_string(ref));
   return zp_cli_->Set(zp_table_, kZpRefPrefix + block_id, block_ref_s);
+}
+
+Status ZgwStore::BlockUnref(uint64_t block_id) {
+  // Assert lock held
+  std::string block_ref_s;
+  bool should_delete = false;
+  int ref;
+  Status s = zp_cli_->Get(zp_table_, kZpRefPrefix + std::to_string(block_id),
+                          &block_ref_s);
+  if (s.ok()) {
+    ref = std::atoi(block_ref_s.c_str());
+    ref -= 1;
+  } else if (s.IsNotFound()) {
+    ref = -1;
+  } else {
+    return s;
+  }
+
+  if (ref < 0) {
+    s = zp_cli_->Delete(zp_table_, kZpRefPrefix + std::to_string(block_id));
+    if (!s.ok()) {
+      return s;
+    }
+    return zp_cli_->Delete(zp_table_, kZpBlockPrefix + std::to_string(block_id));
+  }
+
+  return zp_cli_->Set(zp_table_, kZpRefPrefix + std::to_string(block_id),
+                      std::to_string(ref));
 }
 
 Status ZgwStore::Lock() {
@@ -1368,10 +1398,8 @@ bool ZgwStore::MaybeHandleRedisError() {
   }
 
   struct timeval timeout = { 1, 500000 }; // 1.5 seconds
-  LOG(WARNING) << "reconnect: " << redis_ip_ << ":" << redis_port_ << "," << redis_passwd_;
   redis_cli_ = redisConnectWithTimeout(redis_ip_.c_str(), redis_port_, timeout);
   if (redis_cli_ == NULL || redis_cli_->err) {
-    LOG(WARNING) << "redis_cli is null, error: " << (redis_cli_ != NULL) ? std::to_string(redis_cli_->err) : "";
     if (redis_cli_) {
       redisFree(redis_cli_);
     }
@@ -1382,11 +1410,9 @@ bool ZgwStore::MaybeHandleRedisError() {
     redisReply* reply = static_cast<redisReply*>(redisCommand(redis_cli_,
                 "AUTH %s", redis_passwd_.c_str()));
     if (reply == NULL) {
-      LOG(WARNING) << "reply is null";
       return false;
     }
     if (std::string(reply->str) != "OK") {
-      LOG(WARNING) << "reply is not ok, type: " << reply->type << " str: " << reply->str;
       freeReplyObject(reply);
       return false;
     }
@@ -1421,11 +1447,6 @@ bool ZgwStore::CheckRedis() {
       reply->type == REDIS_REPLY_STATUS &&
       std::string(reply->str) == "PONG") {
     return true;
-  }
-  if (reply == NULL) {
-    LOG(WARNING) << "CheckRedis reply is null";
-  } else {
-    LOG(WARNING) << "CheckRedis reply error: " << reply->type << ", " << reply->str;
   }
   redis_error_ = true;
   return MaybeHandleRedisError();
@@ -1521,4 +1542,61 @@ Object ZgwStore::GenObjectFromReply(redisReply* reply) {
   }
   return object;
 }
+
+Status ZgwStore::GetDeletedItem(std::string* item) {
+  Status s;
+  s = Lock();
+  if (!s.ok()) {
+    return s;
+  }
+
+  redisReply* reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "LPOP %s", kZgwDeletedList.c_str()));
+  if (reply == NULL) {
+    freeReplyObject(reply);
+    return HandleIOError("GetDeteledItem::LPOP");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    freeReplyObject(reply);
+    return HandleLogicError("PutDeletedItem::LPOP ret: " +
+                            std::string(reply->str), reply, true);
+  }
+  bool empty = !(reply->type == REDIS_REPLY_STRING);
+  if (!empty) {
+    item->assign(reply->str);
+  }
+
+  freeReplyObject(reply);
+
+  s = UnLock();
+  if (!s.ok()) {
+    return s;
+  }
+
+  return empty ? Status::NotFound("") : Status::OK();
 }
+
+Status ZgwStore::PutDeletedItem(const std::string& item, uint64_t deleted_time) {
+  Status s = Lock();
+  if (!s.ok()) {
+    return s;
+  }
+
+  redisReply* reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "LPUSH %s %s", kZgwDeletedList.c_str(),
+              std::string(item + "/" + std::to_string(deleted_time)).c_str()));
+  if (reply == NULL) {
+    return HandleIOError("PutDeletedItem::LPUSH");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    freeReplyObject(reply);
+    return HandleLogicError("PutDeletedItem::LPUSH ret: " +
+                            std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  freeReplyObject(reply);
+
+  return UnLock();
+}
+
+}  // namespace zgwstore

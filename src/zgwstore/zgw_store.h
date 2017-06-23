@@ -1,6 +1,7 @@
 #ifndef ZGW_STORE_H_
 #define ZGW_STORE_H_
 
+#include "pink/include/pink_thread.h"
 #include "slash/include/slash_status.h"
 #include "libzp/include/zp_cluster.h"
 #include "hiredis.h"
@@ -29,7 +30,6 @@ class ZgwStore {
 
   Status BlockSet(const std::string& block_id, const std::string& block_content);
   Status BlockGet(const std::string& block_id, std::string* block_content);
-  Status BlockDelete(const std::string& block_id);
   Status BlockMGet(const std::vector<std::string>& block_ids,
       std::map<std::string, std::string>* block_contents);
   Status BlockRef(const std::string& block_id);
@@ -71,7 +71,10 @@ class ZgwStore {
       const std::string& upload_id, std::vector<std::string>* block_indexs);
   Status DeleteMultiBlockSet(const std::string& bucket_name, const std::string& object_name,
       const std::string& upload_id);
+
  private:
+  friend class GCThread;
+
   bool MaybeHandleRedisError();
   Status HandleIOError(const std::string& func_name);
   Status HandleLogicError(const std::string& str_err, redisReply* reply,
@@ -81,6 +84,10 @@ class ZgwStore {
   User GenUserFromReply(redisReply* reply);
   Bucket GenBucketFromReply(redisReply* reply);
   Object GenObjectFromReply(redisReply* reply);
+
+  Status GetDeletedItem(std::string* item);
+  Status PutDeletedItem(const std::string& item, uint64_t deleted_time);
+  Status BlockUnref(uint64_t block_id);
 
   std::string zp_table_;
   libzp::Cluster* zp_cli_;
@@ -93,6 +100,6 @@ class ZgwStore {
   bool redis_error_;
 };
 
-}
+}  // namespace zgwstore
 #endif
 

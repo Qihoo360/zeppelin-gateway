@@ -12,6 +12,7 @@
 #include "slash/include/slash_mutex.h"
 
 #include "src/zgwstore/zgw_store.h"
+#include "src/zgwstore/zgw_store_gc.h"
 #include "src/s3_cmds/zgw_s3_command.h"
 #include "src/zgw_s3_rest.h"
 #include "src/zgw_const.h"
@@ -53,6 +54,9 @@ class ZgwServer {
 
   ZgwAdminConnFactory admin_conn_factory_;
   pink::ServerThread* zgw_admin_thread_;
+
+  zgwstore::GCThread store_gc_thread_;
+  zgwstore::ZgwStore* store_for_gc_;
 };
 
 #endif

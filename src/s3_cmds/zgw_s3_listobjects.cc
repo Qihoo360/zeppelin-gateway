@@ -168,7 +168,7 @@ void ListObjectsCmd::GenerateRespXml() {
     return;
   }
   if (candidate_obj_names.size() != candidate_objects.size()) {
-    LOG(ERROR) << request_id_ << " " <<
+    LOG(WARNING) << request_id_ << " " <<
       "ListObjects(DoAndResponse) - MGetObjects some object doestn't exist: " <<
       bucket_name_ << " " << s.ToString();
   }
