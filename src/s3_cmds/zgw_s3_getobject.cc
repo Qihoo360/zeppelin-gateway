@@ -116,7 +116,7 @@ void GetObjectCmd::ParseBlocksFrom(const std::vector<std::string>& block_indexes
         continue;
       }
 
-      uint64_t remain = std::min(needed_size,
+      uint64_t remain = std::min(std::min(needed_size, cur_bsize),
                                  zgwstore::kZgwBlockSize - range_start);
 
       // First block choosed, start_byte maybe not zero
