@@ -180,7 +180,7 @@ void CompleteMultiUploadCmd::DoAndResponse(pink::HTTPResponse* resp) {
             "CompleteMultiUpload(DoAndResponse) - AddObject " << bucket_name_ <<
             "/" << object_name_ << "success, cleaning...";
           for (auto& p : stored_parts) {
-            s = store_->DeleteObject(user_name_, virtual_bucket, p.object_name, false);
+            s = store_->DeleteObject(user_name_, virtual_bucket, p.object_name, false, false);
             if (s.IsIOError()) {
               http_ret_code_ = 500;
               LOG(ERROR) << request_id_ << " " <<

@@ -1038,7 +1038,7 @@ Status ZgwStore::GetObject(const std::string& user_name, const std::string& buck
 }
 
 Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& bucket_name,
-    const std::string& object_name, const bool need_lock) {
+    const std::string& object_name, const bool need_lock, const bool delete_block) {
   if (!MaybeHandleRedisError()) {
     return Status::IOError("Reconnect");
   }
@@ -1070,7 +1070,7 @@ Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& b
     return HandleLogicError("DeleteObject::HGETALL ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_ARRAY);
-  if (reply->elements != 0) {
+  if (reply->elements != 0 && delete_block) {
     Object t_object = GenObjectFromReply(reply);
     delta_size = t_object.size;
     redisReply* t_reply = static_cast<redisReply*>(redisCommand(redis_cli_,

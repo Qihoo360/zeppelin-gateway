@@ -39,6 +39,12 @@ Status GCThread::ParseDeletedBlocks(const std::string& deleted_item,
         block_indexs->push_back(i);
       }
     }
+    s = store_->DeleteMultiBlockSet(bkname, obname, upload_id);
+    if (!s.ok()) {
+      LOG(ERROR) << "DeleteMultiBlockSet " << bkname << "/" << obname << "_" <<
+        upload_id << " error: " << s.ToString();
+      return s;
+    }
   }
   // deleted_item: 
   //    1235-1235(0,258)

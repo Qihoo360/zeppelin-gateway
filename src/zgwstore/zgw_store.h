@@ -57,7 +57,7 @@ class ZgwStore {
   Status GetObject(const std::string& user_name, const std::string& bucket_name,
       const std::string& object_name, Object* object);
   Status DeleteObject(const std::string& user_name, const std::string& bucket_name,
-      const std::string& object_name, const bool need_lock = true);
+      const std::string& object_name, const bool need_lock = true, const bool delete_block = true);
   Status ListObjects(const std::string& user_name, const std::string& bucket_name,
       std::vector<Object>* objects);
   Status ListObjectsName(const std::string& user_name, const std::string& bucket_name,
