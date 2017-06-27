@@ -15,4 +15,4 @@ This is a sample that demonstrates how to make basic requests to Zeppelin S3 gat
 
 **NOTE:** sample目录下的build.xml是ant的配置文件，注意修改`third-party/lib`和`lib`的目录位置
 
-详细的API用法可见[Java S3 API Documentation](http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/index.html)，目前Zeppelin gateway支持的API见首页README
+详细的API用法可见[Java S3 API Documentation](http://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/AmazonS3Client.html)，目前Zeppelin gateway支持的API见首页README
