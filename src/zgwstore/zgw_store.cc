@@ -1070,22 +1070,25 @@ Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& b
     return HandleLogicError("DeleteObject::HGETALL ret: " + std::string(reply->str), reply, need_lock);
   }
   assert(reply->type == REDIS_REPLY_ARRAY);
-  if (reply->elements != 0 && delete_block) {
+  if (reply->elements != 0) {
     Object t_object = GenObjectFromReply(reply);
     delta_size = t_object.size;
-    redisReply* t_reply = static_cast<redisReply*>(redisCommand(redis_cli_,
-                "LPUSH %s %s", kZgwDeletedList.c_str(), std::string(t_object.data_block +
-                "/" + std::to_string(slash::NowMicros())).c_str()));
-    if (t_reply == NULL) {
-      freeReplyObject(reply);
-      return HandleIOError("DeleteObject::LPUSH");
+    if (delete_block) {
+      redisReply* t_reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+          "LPUSH %s %s", kZgwDeletedList.c_str(), std::string(t_object.data_block +
+          "/" + std::to_string(slash::NowMicros())).c_str()));
+      if (t_reply == NULL) {
+        freeReplyObject(reply);
+        return HandleIOError("DeleteObject::LPUSH");
+      }
+      if (t_reply->type == REDIS_REPLY_ERROR) {
+        freeReplyObject(reply);
+        return HandleLogicError("DeleteObject::LPUSH ret: " + std::string(reply->str),
+                                reply, need_lock);
+      }
+      assert(t_reply->type == REDIS_REPLY_INTEGER);
+      freeReplyObject(t_reply);
     }
-    if (t_reply->type == REDIS_REPLY_ERROR) {
-      freeReplyObject(reply);
-      return HandleLogicError("DeleteObject::LPUSH ret: " + std::string(reply->str), reply, need_lock);
-    }
-    assert(t_reply->type == REDIS_REPLY_INTEGER);
-    freeReplyObject(t_reply);
   }
   freeReplyObject(reply);
 /*
