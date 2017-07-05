@@ -167,6 +167,7 @@ int main(int argc, char** argv) {
 
   delete g_zgw_server;
   delete g_zgw_conf;
+  delete g_zgw_monitor;
   ::google::ShutdownGoogleLogging();
   return 0;
 }

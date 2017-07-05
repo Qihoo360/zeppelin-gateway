@@ -64,7 +64,9 @@ ZgwServer::ZgwServer()
 ZgwServer::~ZgwServer() {
   delete zgw_dispatch_thread_;
   delete zgw_admin_thread_;
-  delete store_for_gc_;
+  if (g_zgw_conf->enable_gc) {
+    delete store_for_gc_;
+  }
 
   LOG(INFO) << "ZgwServerThread exit!!!";
 }
@@ -82,11 +84,13 @@ void ZgwServer::Exit() {
   } else {
     LOG(INFO) << "AdminThread Exit";
   }
-  ret = store_gc_thread_.StopThread();
-  if (ret != 0) {
-    LOG(WARNING) << "Stop GCThread failed";
-  } else {
-    LOG(INFO) << "GCThread Exit";
+  if (g_zgw_conf->enable_gc) {
+    ret = store_gc_thread_.StopThread();
+    if (ret != 0) {
+      LOG(WARNING) << "Stop GCThread failed";
+    } else {
+      LOG(INFO) << "GCThread Exit";
+    }
   }
   should_exit_.store(true);
 }
@@ -108,13 +112,20 @@ Status ZgwServer::Start() {
     return Status::Corruption("Launch AdminThread failed");
   }
   // Open new store ptr for gc thread
-  s = zgwstore::ZgwStore::Open(g_zgw_conf->zp_meta_ip_ports,
-                               g_zgw_conf->redis_ip_port,
-                               g_zgw_conf->zp_table_name,
-                               LockName(), kZgwRedisLockTTL,
-                               g_zgw_conf->redis_passwd,
-                               &store_for_gc_);
-  store_gc_thread_.StartThread(store_for_gc_);
+  if (g_zgw_conf->enable_gc) {
+    s = zgwstore::ZgwStore::Open(g_zgw_conf->zp_meta_ip_ports,
+                                 g_zgw_conf->redis_ip_port,
+                                 g_zgw_conf->zp_table_name,
+                                 LockName(), kZgwRedisLockTTL,
+                                 g_zgw_conf->redis_passwd,
+                                 &store_for_gc_);
+    if (!s.ok()) {
+      return s;
+    }
+    if (store_gc_thread_.StartThread(store_for_gc_) != 0) {
+      return Status::Corruption("Launch GCThread failed");
+    }
+  }
 
   LOG(INFO) << "ZgwServerThread Init Success!";
 

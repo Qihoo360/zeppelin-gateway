@@ -17,6 +17,7 @@ ZgwConfig::ZgwConfig(std::string path)
         daemonize(false),
         minloglevel(0),
         worker_num(2),
+        enable_gc(false),
         log_path("./log"),
         pid_file(kZgwPidFile),
         enable_security(false),
@@ -48,6 +49,7 @@ int ZgwConfig::LoadConf() {
   b_conf->GetConfBool("daemonize", &daemonize);
   b_conf->GetConfInt("minloglevel", &minloglevel);
   b_conf->GetConfInt("worker_num", &worker_num);
+  b_conf->GetConfBool("enable_gc", &enable_gc);
 
   b_conf->GetConfStr("log_path", &log_path);
   b_conf->GetConfStr("pid_file", &pid_file);
