@@ -15,8 +15,8 @@ struct ZgwConfig {
   slash::BaseConf *b_conf;
 
   std::vector<std::string> zp_meta_ip_ports;
-  std::string zp_table_name;
   std::string redis_ip_port;
+  std::string zp_table_name;
   std::string redis_passwd;
 
   std::string server_ip;
@@ -26,6 +26,7 @@ struct ZgwConfig {
   int minloglevel;
   int cron_interval;
   int worker_num;
+  int max_clients;
   bool enable_gc;
 
   std::string log_path;

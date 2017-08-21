@@ -22,12 +22,6 @@
 
 using slash::Status;
 
-class ZgwServerHandle : public pink::ServerHandle {
- public:
-  virtual int CreateWorkerSpecificData(void** data) const override;
-  virtual int DeleteWorkerSpecificData(void* data) const override;
-};
-
 class ZgwServer {
  public:
   explicit ZgwServer();
@@ -47,6 +41,18 @@ class ZgwServer {
   std::atomic<bool> should_exit_;
 
   int worker_num_;
+
+  class ZgwServerHandle : public pink::ServerHandle {
+   public:
+    ZgwServerHandle(ZgwServer* server) : zgw_server_(server) {}
+
+    virtual bool AccessHandle(std::string& ip) const override;
+    virtual int CreateWorkerSpecificData(void** data) const override;
+    virtual int DeleteWorkerSpecificData(void* data) const override;
+
+   private:
+    ZgwServer* zgw_server_;
+  };
 
   ZgwServerHandle server_handle_;
   ZgwConnFactory conn_factory_;

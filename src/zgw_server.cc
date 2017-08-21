@@ -18,7 +18,14 @@ static std::string LockName() {
     std::to_string(thread_seq_++);
 }
 
-int ZgwServerHandle::CreateWorkerSpecificData(void** data) const {
+bool ZgwServer::ZgwServerHandle::AccessHandle(std::string& ip) const {
+  if (zgw_server_->zgw_dispatch_thread_->conn_num() > g_zgw_conf->max_clients) {
+    return false;
+  }
+  return true;
+}
+
+int ZgwServer::ZgwServerHandle::CreateWorkerSpecificData(void** data) const {
   zgwstore::ZgwStore* store;
   Status s = zgwstore::ZgwStore::Open(g_zgw_conf->zp_meta_ip_ports,
                                       g_zgw_conf->redis_ip_port,
@@ -35,14 +42,15 @@ int ZgwServerHandle::CreateWorkerSpecificData(void** data) const {
   return 0;
 }
 
-int ZgwServerHandle::DeleteWorkerSpecificData(void* data) const {
+int ZgwServer::ZgwServerHandle::DeleteWorkerSpecificData(void* data) const {
   delete reinterpret_cast<zgwstore::ZgwStore*>(data);
   return 0;
 }
 
 ZgwServer::ZgwServer()
     : should_exit_(false),
-      worker_num_(g_zgw_conf->worker_num) {
+      worker_num_(g_zgw_conf->worker_num),
+      server_handle_(this) {
   if (worker_num_ > kMaxWorkerThread) {
     LOG(WARNING) << "Exceed max worker thread num: " << kMaxWorkerThread;
     worker_num_ = kMaxWorkerThread;
