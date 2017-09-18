@@ -28,8 +28,9 @@ bool ZgwServer::ZgwServerHandle::AccessHandle(std::string& ip) const {
 int ZgwServer::ZgwServerHandle::CreateWorkerSpecificData(void** data) const {
   zgwstore::ZgwStore* store;
   Status s = zgwstore::ZgwStore::Open(g_zgw_conf->zp_meta_ip_ports,
-                                      g_zgw_conf->redis_ip_port,
                                       g_zgw_conf->zp_table_name,
+                                      g_zgw_conf->zp_optimeout_ms,
+                                      g_zgw_conf->redis_ip_port,
                                       LockName(), kZgwRedisLockTTL,
                                       g_zgw_conf->redis_passwd,
                                       &store);
@@ -59,8 +60,9 @@ ZgwServer::ZgwServer()
   zgw_dispatch_thread_ = pink::NewDispatchThread(g_zgw_conf->server_ip,
                                                  g_zgw_conf->server_port,
                                                  worker_num_, &conn_factory_,
-                                                 0, 1000, &server_handle_);
+                                                 2000, 1000, &server_handle_);
   zgw_dispatch_thread_->set_thread_name("DispatchThread");
+  zgw_dispatch_thread_->set_keepalive_timeout(g_zgw_conf->keepalive_timeout);
 
   zgw_admin_thread_ = pink::NewHolyThread(g_zgw_conf->server_ip,
                                           g_zgw_conf->admin_port,
@@ -122,8 +124,9 @@ Status ZgwServer::Start() {
   // Open new store ptr for gc thread
   if (g_zgw_conf->enable_gc) {
     s = zgwstore::ZgwStore::Open(g_zgw_conf->zp_meta_ip_ports,
-                                 g_zgw_conf->redis_ip_port,
                                  g_zgw_conf->zp_table_name,
+                                 g_zgw_conf->zp_optimeout_ms,
+                                 g_zgw_conf->redis_ip_port,
                                  LockName(), kZgwRedisLockTTL,
                                  g_zgw_conf->redis_passwd,
                                  &store_for_gc_);

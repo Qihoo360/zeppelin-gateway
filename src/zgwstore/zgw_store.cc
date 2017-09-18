@@ -32,8 +32,9 @@ ZgwStore::~ZgwStore() {
   }
 }
 
-Status ZgwStore::Open(const std::vector<std::string>& zp_addrs,
-    const std::string& redis_addr, const std::string& zp_table,
+Status ZgwStore::Open(
+    const std::vector<std::string>& zp_addrs, const std::string& zp_table,
+    int zp_op_timeout_ms, const std::string& redis_addr,
     const std::string& lock_name, const int32_t lock_ttl,
     const std::string& redis_passwd, ZgwStore** store) {
 
@@ -55,6 +56,7 @@ Status ZgwStore::Open(const std::vector<std::string>& zp_addrs,
     }
     zp_option.meta_addr.push_back(libzp::Node(t_ip, t_port));
   }
+  zp_option.op_timeout = zp_op_timeout_ms;
   libzp::Cluster* zp_cli = new libzp::Cluster(zp_option);
   s = zp_cli->Connect();
   if (!s.ok()) {

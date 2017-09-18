@@ -8,11 +8,13 @@
 static const std::string kZgwTableName = "__zgw20_data_table";
 
 ZgwConfig::ZgwConfig(std::string path)
-      : redis_ip_port("127.0.0.1"),
-        zp_table_name(kZgwTableName),
+      : zp_table_name(kZgwTableName),
+        zp_optimeout_ms(5000),  // 5 seconds
+        redis_ip_port("127.0.0.1"),
         redis_passwd("_"),
         server_ip("0.0.0.0"),
         server_port(8099),
+        keepalive_timeout(30),
         admin_port(8199),
         daemonize(false),
         minloglevel(0),
@@ -39,6 +41,7 @@ int ZgwConfig::LoadConf() {
   std::string zp_meta_addr;
   b_conf->GetConfStr("zp_meta_addr", &zp_meta_addr);
   slash::StringSplit(zp_meta_addr, '/', zp_meta_ip_ports);
+  b_conf->GetConfInt("zp_optimeout_ms", &zp_optimeout_ms);
   b_conf->GetConfStr("redis_ip_port", &redis_ip_port);
   b_conf->GetConfStr("redis_passwd", &redis_passwd);
   // b_conf->GetConfStr("zp_table_name", &zp_table_name);
@@ -46,6 +49,7 @@ int ZgwConfig::LoadConf() {
   // Server info
   b_conf->GetConfStr("server_ip", &server_ip);
   b_conf->GetConfInt("server_port", &server_port);
+  b_conf->GetConfInt("keepalive_timeout", &keepalive_timeout);
   b_conf->GetConfInt("admin_port", &admin_port);
   b_conf->GetConfBool("daemonize", &daemonize);
   b_conf->GetConfInt("minloglevel", &minloglevel);

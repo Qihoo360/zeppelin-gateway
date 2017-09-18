@@ -15,12 +15,14 @@ struct ZgwConfig {
   slash::BaseConf *b_conf;
 
   std::vector<std::string> zp_meta_ip_ports;
-  std::string redis_ip_port;
   std::string zp_table_name;
+  int zp_optimeout_ms;
+  std::string redis_ip_port;
   std::string redis_passwd;
 
   std::string server_ip;
   int server_port;
+  int keepalive_timeout;
   int admin_port;
   bool daemonize;
   int minloglevel;

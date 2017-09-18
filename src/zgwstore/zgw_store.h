@@ -16,8 +16,9 @@ class ZgwStore {
   ZgwStore(const std::string& zp_table, const std::string& lock_name,
       const int32_t lock_ttl, const std::string& redis_passwd);
   ~ZgwStore();
-  static Status Open(const std::vector<std::string>& zp_addrs,
-      const std::string& redis_addr, const std::string& zp_table,
+  static Status Open(
+      const std::vector<std::string>& zp_addrs, const std::string& zp_table,
+      int zp_op_timeout_ms, const std::string& redis_addr,
       const std::string& lock_name, const int32_t lock_ttl,
       const std::string& redis_passwd, ZgwStore** store);
   void set_redis_ip(const std::string& redis_ip) {
