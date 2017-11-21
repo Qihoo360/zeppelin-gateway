@@ -997,24 +997,26 @@ Status ZgwStore::GetObject(const std::string& user_name, const std::string& buck
   if (!CheckRedis()) {
     return Status::IOError("CheckRedis Failed");
   }
+  redisReply *reply;
 /*
  *  1. SISMEMBER 
  */
-  redisReply *reply;
-  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
-              "SISMEMBER %s%s %s", kZgwBucketListPrefix.c_str(), user_name.c_str(),
-              bucket_name.c_str()));
-  if (reply == NULL) {
-    return HandleIOError("GetObject::SISMEMBER");
+  if (!user_name.empty()) {
+    reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+                                                  "SISMEMBER %s%s %s", kZgwBucketListPrefix.c_str(), user_name.c_str(),
+                                                  bucket_name.c_str()));
+    if (reply == NULL) {
+      return HandleIOError("GetObject::SISMEMBER");
+    }
+    if (reply->type == REDIS_REPLY_ERROR) {
+      return HandleLogicError("GetObject::SISMEMBER ret: " + std::string(reply->str), reply, false);
+    }
+    assert(reply->type == REDIS_REPLY_INTEGER);
+    if (reply->integer == 0) {
+      return HandleLogicError("Bucket Doesn't Belong To This User", reply, false);
+    }
+    freeReplyObject(reply);
   }
-  if (reply->type == REDIS_REPLY_ERROR) {
-    return HandleLogicError("GetObject::SISMEMBER ret: " + std::string(reply->str), reply, false);
-  }
-  assert(reply->type == REDIS_REPLY_INTEGER);
-  if (reply->integer == 0) {
-    return HandleLogicError("Bucket Doesn't Belong To This User", reply, false);
-  }
-  freeReplyObject(reply);
 /*
  *  2. HGETALL 
  */

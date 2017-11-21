@@ -12,6 +12,8 @@ static const int kBlockReservedTime = 1 * 60 * 60 ; // 1 hour
 // static const int kBlockReservedTime = 1 * 60; // 1 minute
 
 std::string GCThread::GCStatus() {
+  // TODO gdq
+  return "";
 }
 
 Status GCThread::ParseDeletedBlocks(const std::string& deleted_item,
@@ -138,6 +140,7 @@ void* GCThread::ThreadMain() {
       }
     }
   }
+  return nullptr;
 }
 
 }  // namespace zgwstore

@@ -17,15 +17,16 @@ bool GetObjectCmd::DoInitial() {
   request_id_ = md5(bucket_name_ +
                     object_name_ +
                     std::to_string(slash::NowMicros()));
-  if (!TryAuth()) {
-    DLOG(INFO) << request_id_ << " " <<
-      "GetObject(DoInitial) - Auth failed: " << client_ip_port_;
-    g_zgw_monitor->AddAuthFailed();
-    return false;
-  }
+  user_name_.clear();
+  // if (!TryAuth()) {
+  //   DLOG(INFO) << request_id_ << " " <<
+  //     "GetObject(DoInitial) - Auth failed: " << client_ip_port_;
+  //   g_zgw_monitor->AddAuthFailed();
+  //   return false;
+  // }
 
-  DLOG(INFO) << request_id_ << " " <<
-    "GetObject(DoInitial) - " << bucket_name_ << "/" << object_name_;
+  // DLOG(INFO) << request_id_ << " " <<
+  //   "GetObject(DoInitial) - " << bucket_name_ << "/" << object_name_;
   return true;
 }
 
@@ -49,9 +50,9 @@ int GetObjectCmd::ParseRange(const std::string& range, uint64_t data_size,
   if (res > 0 &&
       start <= end) {
     // Valid range
-    DLOG(INFO) << request_id_ << " " <<
-      "Get " << bucket_name_ << "/" << object_name_  <<
-      "range: " << start << "-" << end;
+    // DLOG(INFO) << request_id_ << " " <<
+    //   "Get " << bucket_name_ << "/" << object_name_  <<
+    //   "range: " << start << "-" << end;
     *range_start = start;
     *range_end = end;
     return 206;
@@ -208,9 +209,9 @@ void GetObjectCmd::DoAndResponse(pink::HTTPResponse* resp) {
       resp->SetHeaders("Last-Modified", http_nowtime(object_.last_modified));
       resp->SetContentLength(data_size_);
 
-      DLOG(INFO) << request_id_ << " " <<
-        "GetObject(DoAndResponse) - " << bucket_name_ <<
-        "/" << object_name_ << " Size: " << data_size_;
+      // DLOG(INFO) << request_id_ << " " <<
+      //   "GetObject(DoAndResponse) - " << bucket_name_ <<
+      //   "/" << object_name_ << " Size: " << data_size_;
     }
   }
   if (http_ret_code_ != 206 &&
@@ -259,10 +260,10 @@ int GetObjectCmd::DoResponseBody(char* buf, size_t max_size) {
   memcpy(buf, block_buffer_.data() + start_byte, block_size);
   g_zgw_monitor->AddBucketTraffic(bucket_name_, block_size);
   data_size_ -= block_size; // Has written
-  if (data_size_ == 0) {
-    DLOG(INFO) << request_id_ << " " <<
-      "GetObject(DoResponseBody) - Complete " << bucket_name_ << "/"
-      << object_name_ << " Size: " << object_.size;
-  }
+  // if (data_size_ == 0) {
+  //   DLOG(INFO) << request_id_ << " " <<
+  //     "GetObject(DoResponseBody) - Complete " << bucket_name_ << "/"
+  //     << object_name_ << " Size: " << object_.size;
+  // }
   return block_size;
 }
