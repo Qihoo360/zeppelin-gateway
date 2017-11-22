@@ -4,8 +4,11 @@
 #include <algorithm>
 
 #include <glog/logging.h>
+#include "src/zgw_config.h"
 #include "slash/include/env.h"
 #include "slash/include/slash_string.h"
+
+extern ZgwConfig* g_zgw_conf;
 
 bool GetObjectCmd::DoInitial() {
   block_buffer_.clear();
@@ -18,12 +21,13 @@ bool GetObjectCmd::DoInitial() {
                     object_name_ +
                     std::to_string(slash::NowMicros()));
   user_name_.clear();
-  // if (!TryAuth()) {
-  //   DLOG(INFO) << request_id_ << " " <<
-  //     "GetObject(DoInitial) - Auth failed: " << client_ip_port_;
-  //   g_zgw_monitor->AddAuthFailed();
-  //   return false;
-  // }
+  // TODO(replace server's public read with authority management)
+  if (!g_zgw_conf->public_read && !TryAuth()) {
+    DLOG(INFO) << request_id_ << " " <<
+      "GetObject(DoInitial) - Auth failed: " << client_ip_port_;
+    g_zgw_monitor->AddAuthFailed();
+    return false;
+  }
 
   // DLOG(INFO) << request_id_ << " " <<
   //   "GetObject(DoInitial) - " << bucket_name_ << "/" << object_name_;

@@ -21,6 +21,7 @@ ZgwConfig::ZgwConfig(std::string path)
         worker_num(2),
         max_clients(5000),
         enable_gc(false),
+        public_read(false),
         log_path("./log"),
         pid_file(kZgwPidFile),
         enable_security(false),
@@ -56,6 +57,7 @@ int ZgwConfig::LoadConf() {
   b_conf->GetConfInt("worker_num", &worker_num);
   b_conf->GetConfInt("max_clients", &max_clients);
   b_conf->GetConfBool("enable_gc", &enable_gc);
+  b_conf->GetConfBool("public_read", &public_read);
 
   b_conf->GetConfStr("log_path", &log_path);
   b_conf->GetConfStr("pid_file", &pid_file);

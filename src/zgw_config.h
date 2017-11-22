@@ -30,6 +30,7 @@ struct ZgwConfig {
   int worker_num;
   int max_clients;
   bool enable_gc;
+  bool public_read;
 
   std::string log_path;
   std::string pid_file;
