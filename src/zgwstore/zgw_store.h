@@ -39,6 +39,11 @@ class ZgwStore {
   Status UnLock();
 
   Status AddUser(const User& user, const bool override = false);
+  Status AddUserToken(const std::string& user_name,
+                      const std::string& access_key,
+                      const std::string& secret_key);
+  Status DelUserToken(const std::string& user_name,
+                      const std::string& access_key);
   Status ListUsers(std::vector<User>* users);
 
   Status AddBucket(const Bucket& bucket, const bool need_lock = true,

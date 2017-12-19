@@ -8,6 +8,8 @@
 #include "src/zgwstore/zgw_store.h"
 
 static const std::string kAddUser = "admin_put_user";
+static const std::string kAddToken = "admin_add_token";
+static const std::string kDelToken = "admin_del_token";
 static const std::string kListUsers = "admin_list_users";
 static const std::string kGetStatus = "status";
 static const std::string kGetVersion = "version";

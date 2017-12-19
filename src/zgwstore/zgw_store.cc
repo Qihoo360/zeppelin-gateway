@@ -103,7 +103,7 @@ Status ZgwStore::Open(
     }
     freeReplyObject(reply);
   }
-  
+
   *store = new ZgwStore(zp_table, lock_name, lock_ttl, redis_passwd);
   (*store)->InstallClients(zp_cli, redis_cli);
   (*store)->set_redis_ip(t_ip);
@@ -247,9 +247,9 @@ Status ZgwStore::AddUser(const User& user, const bool override) {
   if (!CheckRedis()) {
     return Status::IOError("CheckRedis Failed");
   }
-  
+
 /*
- *  1. Lock 
+ *  1. Lock
  */
   Status s;
   s = Lock();
@@ -257,7 +257,7 @@ Status ZgwStore::AddUser(const User& user, const bool override) {
     return s;
   }
 /*
- *  2. SISMEMBER 
+ *  2. SISMEMBER
  */
   redisReply *reply;
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
@@ -274,7 +274,7 @@ Status ZgwStore::AddUser(const User& user, const bool override) {
   }
   freeReplyObject(reply);
 /*
- *  3. DEL 
+ *  3. DEL
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_, "DEL %s%s",
               kZgwUserPrefix.c_str(), user.display_name.c_str()));
@@ -284,7 +284,7 @@ Status ZgwStore::AddUser(const User& user, const bool override) {
   assert(reply->type == REDIS_REPLY_INTEGER);
   freeReplyObject(reply);
 /*
- *  4. HMSET 
+ *  4. HMSET
  */
   std::string hmset_cmd = "HMSET " + kZgwUserPrefix + user.display_name;
   hmset_cmd += (" uid " + user.user_id);
@@ -302,7 +302,7 @@ Status ZgwStore::AddUser(const User& user, const bool override) {
   assert(reply->type == REDIS_REPLY_STATUS);
   freeReplyObject(reply);
 /*
- *  4. SADD 
+ *  4. SADD
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "SADD %s %s", kZgwUserList.c_str(), user.display_name.c_str()));
@@ -318,7 +318,122 @@ Status ZgwStore::AddUser(const User& user, const bool override) {
   }
   freeReplyObject(reply);
 /*
- *  5. UnLock 
+ *  5. UnLock
+ */
+  s = UnLock();
+  return s;
+}
+
+Status ZgwStore::AddUserToken(const std::string& user_name,
+                              const std::string& access_key,
+                              const std::string& secret_key) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
+  }
+
+/*
+ *  1. Lock
+ */
+  Status s;
+  s = Lock();
+  if (!s.ok()) {
+    return s;
+  }
+/*
+ *  2. SISMEMBER
+ */
+  redisReply *reply;
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SISMEMBER %s %s", kZgwUserList.c_str(), user_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("AddUserToken::SISMEMBER");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AddUserToken::SISMEMBER ret: " + std::string(reply->str),
+                            reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer == 0) {
+    return HandleLogicError("User NOT Exist", reply, true);
+  }
+  freeReplyObject(reply);
+/*
+ *  3. HSET
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "HSET %s%s %s %s",
+              kZgwUserPrefix.c_str(), user_name.c_str(),
+              access_key.c_str(), secret_key.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("AddUserToken::HSET");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("AddUserToken::HSET ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+
+/*
+ *  4. UnLock
+ */
+  s = UnLock();
+  return s;
+}
+
+Status ZgwStore::DelUserToken(const std::string& user_name,
+                              const std::string& access_key) {
+  if (!MaybeHandleRedisError()) {
+    return Status::IOError("Reconnect");
+  }
+  if (!CheckRedis()) {
+    return Status::IOError("CheckRedis Failed");
+  }
+
+/*
+ *  1. Lock
+ */
+  Status s;
+  s = Lock();
+  if (!s.ok()) {
+    return s;
+  }
+/*
+ *  2. SISMEMBER
+ */
+  redisReply *reply;
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "SISMEMBER %s %s", kZgwUserList.c_str(), user_name.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("DelUserToken::SISMEMBER");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("DelUserToken::SISMEMBER ret: " + std::string(reply->str),
+                            reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+  if (reply->integer == 0) {
+    return HandleLogicError("User NOT Exist", reply, true);
+  }
+  freeReplyObject(reply);
+
+/*
+ *  3. HDEL
+ */
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_,
+              "HDEL %s%s %s", kZgwUserPrefix.c_str(), user_name.c_str(),
+              access_key.c_str()));
+  if (reply == NULL) {
+    return HandleIOError("DelUserToken::HDEL");
+  }
+  if (reply->type == REDIS_REPLY_ERROR) {
+    return HandleLogicError("DelUserToken::HDEL ret: " + std::string(reply->str), reply, true);
+  }
+  assert(reply->type == REDIS_REPLY_INTEGER);
+
+/*
+ *  4. UnLock
  */
   s = UnLock();
   return s;
@@ -333,7 +448,7 @@ Status ZgwStore::ListUsers(std::vector<User>* users) {
   }
   users->clear();
 /*
- *  1. Get user list 
+ *  1. Get user list
  */
   redisReply *reply;
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
@@ -350,7 +465,7 @@ Status ZgwStore::ListUsers(std::vector<User>* users) {
     return Status::OK();
   }
 /*
- *  2. Iterate through users to HGETALL 
+ *  2. Iterate through users to HGETALL
  */
   redisReply* t_reply;
   for (unsigned int i = 0; i < reply->elements; i++) {
@@ -398,7 +513,7 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool need_lock,
     }
   }
 /*
- *  2. SISMEMBER 
+ *  2. SISMEMBER
  */
   redisReply *reply;
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
@@ -434,7 +549,7 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool need_lock,
   freeReplyObject(reply);
 
 /*
- *  4. DEL 
+ *  4. DEL
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_, "DEL %s%s",
               kZgwBucketPrefix.c_str(), bucket.bucket_name.c_str()));
@@ -444,7 +559,7 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool need_lock,
   assert(reply->type == REDIS_REPLY_INTEGER);
   freeReplyObject(reply);
 /*
- *  5. HMSET 
+ *  5. HMSET
  */
   std::string hmset_cmd = "HMSET " + kZgwBucketPrefix + bucket.bucket_name;
   hmset_cmd += (" name " + bucket.bucket_name);
@@ -465,7 +580,7 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool need_lock,
   assert(reply->type == REDIS_REPLY_STATUS);
   freeReplyObject(reply);
 /*
- *  6. SADD 
+ *  6. SADD
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "SADD %s%s %s", kZgwBucketListPrefix.c_str(), bucket.owner.c_str(),
@@ -482,7 +597,7 @@ Status ZgwStore::AddBucket(const Bucket& bucket, const bool need_lock,
   }
   freeReplyObject(reply);
 /*
- *  7. UnLock 
+ *  7. UnLock
  */
   if (need_lock) {
     s = UnLock();
@@ -499,7 +614,7 @@ Status ZgwStore::GetBucket(const std::string& user_name, const std::string& buck
     return Status::IOError("CheckRedis Failed");
   }
 /*
- *  1. SISMEMBER 
+ *  1. SISMEMBER
  */
   redisReply *reply;
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
@@ -560,7 +675,7 @@ Status ZgwStore::DeleteBucket(const std::string& user_name, const std::string& b
     }
   }
 /*
- *  2. SISMEMBER 
+ *  2. SISMEMBER
  */
   redisReply *reply;
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
@@ -596,7 +711,7 @@ Status ZgwStore::DeleteBucket(const std::string& user_name, const std::string& b
   assert(reply->integer == 0);
   freeReplyObject(reply);
 /*
- *  4. SCARD 
+ *  4. SCARD
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "SCARD %s%s", kZgwObjectListPrefix.c_str(), bucket_name.c_str()));
@@ -623,7 +738,7 @@ Status ZgwStore::DeleteBucket(const std::string& user_name, const std::string& b
   assert(reply->type == REDIS_REPLY_INTEGER);
   freeReplyObject(reply);
 /*
- *  6. DEL 
+ *  6. DEL
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_, "DEL %s%s",
               kZgwBucketPrefix.c_str(), bucket_name.c_str()));
@@ -633,7 +748,7 @@ Status ZgwStore::DeleteBucket(const std::string& user_name, const std::string& b
   assert(reply->type == REDIS_REPLY_INTEGER);
   freeReplyObject(reply);
 /*
- *  7. UnLock 
+ *  7. UnLock
  */
   if (need_lock) {
     s = UnLock();
@@ -650,7 +765,7 @@ Status ZgwStore::ListBuckets(const std::string& user_name, std::vector<Bucket>* 
   }
   buckets->clear();
 /*
- *  1. Get bucket list 
+ *  1. Get bucket list
  */
   redisReply *reply;
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
@@ -668,7 +783,7 @@ Status ZgwStore::ListBuckets(const std::string& user_name, std::vector<Bucket>* 
     return Status::OK();
   }
 /*
- *  2. Iterate through buckets to HGETALL 
+ *  2. Iterate through buckets to HGETALL
  */
   redisReply* t_reply;
   for (unsigned int i = 0; i < reply->elements; i++) {
@@ -707,7 +822,7 @@ Status ZgwStore::ListBucketsName(const std::string& user_name, std::vector<std::
 
   buckets_name->clear();
 /*
- *  1. Get bucket list 
+ *  1. Get bucket list
  */
   redisReply *reply;
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
@@ -725,7 +840,7 @@ Status ZgwStore::ListBucketsName(const std::string& user_name, std::vector<std::
     return Status::OK();
   }
 /*
- *  2. Iterate through buckets to push_back 
+ *  2. Iterate through buckets to push_back
  */
   for (unsigned int i = 0; i < reply->elements; i++) {
     buckets_name->push_back(reply->element[i]->str);
@@ -745,7 +860,7 @@ Status ZgwStore::MGetBuckets(const std::string& user_name, const std::vector<std
   }
   buckets->clear();
 /*
- *  1. Iterate through buckets to HGETALL 
+ *  1. Iterate through buckets to HGETALL
  */
   redisReply* t_reply;
   for (auto& bucket_name : buckets_name) {
@@ -787,7 +902,7 @@ Status ZgwStore::AllocateId(const std::string& user_name, const std::string& buc
     return s;
   }
 /*
- *  2. SISMEMBER 
+ *  2. SISMEMBER
  */
   redisReply *reply;
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
@@ -805,7 +920,7 @@ Status ZgwStore::AllocateId(const std::string& user_name, const std::string& buc
   }
   freeReplyObject(reply);
 /*
- *  3. EXISTS 
+ *  3. EXISTS
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_, "EXISTS %s%s",
               kZgwBucketPrefix.c_str(), bucket_name.c_str()));
@@ -821,7 +936,7 @@ Status ZgwStore::AllocateId(const std::string& user_name, const std::string& buc
   }
   assert(reply->integer == 1);
 /*
- *  4. SADD 
+ *  4. SADD
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "SADD %s%s %s%s", kZgwObjectListPrefix.c_str(), bucket_name.c_str(),
@@ -835,7 +950,7 @@ Status ZgwStore::AllocateId(const std::string& user_name, const std::string& buc
   assert(reply->type == REDIS_REPLY_INTEGER);
   freeReplyObject(reply);
 /*
- *  5. INCRBY 
+ *  5. INCRBY
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "INCRBY %s %d", kZgwIdGen.c_str(), block_nums));
@@ -849,7 +964,7 @@ Status ZgwStore::AllocateId(const std::string& user_name, const std::string& buc
   *tail_id = reply->integer;
   freeReplyObject(reply);
 /*
- *  6. UnLock 
+ *  6. UnLock
  */
   s = UnLock();
   return s;
@@ -873,7 +988,7 @@ Status ZgwStore::AddObject(const Object& object, const bool need_lock) {
     }
   }
 /*
- *  2. HGETALL 
+ *  2. HGETALL
  */
   redisReply *reply;
   int64_t old_size = 0;
@@ -904,7 +1019,7 @@ Status ZgwStore::AddObject(const Object& object, const bool need_lock) {
   }
   freeReplyObject(reply);
 /*
- *  3. DEL 
+ *  3. DEL
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "DEL %s%s_%s", kZgwObjectPrefix.c_str(), object.bucket_name.c_str(),
@@ -915,7 +1030,7 @@ Status ZgwStore::AddObject(const Object& object, const bool need_lock) {
   assert(reply->type == REDIS_REPLY_INTEGER);
   freeReplyObject(reply);
 /*
- *  4. HMSET 
+ *  4. HMSET
  */
   std::string hmset_cmd = "HMSET " + kZgwObjectPrefix + object.bucket_name +
     "_" + object.object_name;
@@ -940,7 +1055,7 @@ Status ZgwStore::AddObject(const Object& object, const bool need_lock) {
   assert(reply->type == REDIS_REPLY_STATUS);
   freeReplyObject(reply);
 /*
- *  5. SADD 
+ *  5. SADD
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "SADD %s%s %s", kZgwObjectListPrefix.c_str(), object.bucket_name.c_str(),
@@ -957,7 +1072,7 @@ Status ZgwStore::AddObject(const Object& object, const bool need_lock) {
   }
   freeReplyObject(reply);
 /*
- *  6. HINCRBY 
+ *  6. HINCRBY
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "HINCRBY %s%s vol %lld", kZgwBucketPrefix.c_str(), object.bucket_name.c_str(),
@@ -981,7 +1096,7 @@ Status ZgwStore::AddObject(const Object& object, const bool need_lock) {
   assert(reply->type == REDIS_REPLY_INTEGER);
   freeReplyObject(reply);
 /*
- *  8. UnLock 
+ *  8. UnLock
  */
   if (need_lock) {
     s = UnLock();
@@ -999,7 +1114,7 @@ Status ZgwStore::GetObject(const std::string& user_name, const std::string& buck
   }
   redisReply *reply;
 /*
- *  1. SISMEMBER 
+ *  1. SISMEMBER
  */
   if (!user_name.empty()) {
     reply = static_cast<redisReply*>(redisCommand(redis_cli_,
@@ -1018,7 +1133,7 @@ Status ZgwStore::GetObject(const std::string& user_name, const std::string& buck
     freeReplyObject(reply);
   }
 /*
- *  2. HGETALL 
+ *  2. HGETALL
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "HGETALL %s%s_%s", kZgwObjectPrefix.c_str(), bucket_name.c_str(),
@@ -1060,7 +1175,7 @@ Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& b
     }
   }
 /*
- *  2. HGETALL 
+ *  2. HGETALL
  */
   redisReply *reply;
   int64_t delta_size = 0;
@@ -1096,7 +1211,7 @@ Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& b
   }
   freeReplyObject(reply);
 /*
- *  3. DEL 
+ *  3. DEL
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "DEL %s%s_%s", kZgwObjectPrefix.c_str(), bucket_name.c_str(),
@@ -1107,7 +1222,7 @@ Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& b
   assert(reply->type == REDIS_REPLY_INTEGER);
   freeReplyObject(reply);
 /*
- *  4. SREM 
+ *  4. SREM
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "SREM %s%s %s", kZgwObjectListPrefix.c_str(), bucket_name.c_str(),
@@ -1121,7 +1236,7 @@ Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& b
   assert(reply->type == REDIS_REPLY_INTEGER);
   freeReplyObject(reply);
 /*
- *  5. HINCRBY 
+ *  5. HINCRBY
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "HINCRBY %s%s vol %lld", kZgwBucketPrefix.c_str(), bucket_name.c_str(),
@@ -1134,7 +1249,7 @@ Status ZgwStore::DeleteObject(const std::string& user_name, const std::string& b
   }
   assert(reply->type == REDIS_REPLY_INTEGER);
 /*
- *  6. UnLock 
+ *  6. UnLock
  */
   if (need_lock) {
     s = UnLock();
@@ -1151,7 +1266,7 @@ Status ZgwStore::ListObjects(const std::string& user_name, const std::string& bu
     return Status::IOError("CheckRedis Failed");
   }
 /*
- *  1. SISMEMBER 
+ *  1. SISMEMBER
  */
   redisReply *reply;
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
@@ -1169,7 +1284,7 @@ Status ZgwStore::ListObjects(const std::string& user_name, const std::string& bu
   }
   freeReplyObject(reply);
 /*
- *  2. Get object list 
+ *  2. Get object list
  */
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "SMEMBERS %s%s", kZgwObjectListPrefix.c_str(),
@@ -1185,7 +1300,7 @@ Status ZgwStore::ListObjects(const std::string& user_name, const std::string& bu
     return Status::OK();
   }
 /*
- *  3. Iterate through objects to HGETALL 
+ *  3. Iterate through objects to HGETALL
  */
   redisReply* t_reply;
   for (unsigned int i = 0; i < reply->elements; i++) {
@@ -1225,7 +1340,7 @@ Status ZgwStore::ListObjectsName(const std::string& user_name, const std::string
   }
   objects_name->clear();
 /*
- *  1. SISMEMBER 
+ *  1. SISMEMBER
  */
   redisReply *reply;
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
@@ -1243,7 +1358,7 @@ Status ZgwStore::ListObjectsName(const std::string& user_name, const std::string
   }
   freeReplyObject(reply);
 /*
- *  2. Get object list (SSCAN) 
+ *  2. Get object list (SSCAN)
  */
 
   std::string cursor = "0";
@@ -1282,7 +1397,7 @@ Status ZgwStore::MGetObjects(const std::string& user_name, const std::string& bu
   }
   objects->clear();
 /*
- *  1. Iterate through objects to HGETALL 
+ *  1. Iterate through objects to HGETALL
  */
   redisReply* t_reply;
   for (auto& object_name : objects_name) {
@@ -1317,9 +1432,9 @@ Status ZgwStore::AddMultiBlockSet(const std::string& bucket_name, const std::str
     return Status::IOError("CheckRedis Failed");
   }
 /*
- *  1. SADD 
+ *  1. SADD
  */
-  std::string redis_key = kZgwMultiBlockSetPrefix + bucket_name + "_" + 
+  std::string redis_key = kZgwMultiBlockSetPrefix + bucket_name + "_" +
     object_name + "_" + upload_id;
   redisReply* reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "SADD %s %s", redis_key.c_str(), block_index.c_str()));
@@ -1347,9 +1462,9 @@ Status ZgwStore::GetMultiBlockSet(const std::string& bucket_name, const std::str
   }
   block_indexs->clear();
 /*
- *  1. Get Block indexs 
+ *  1. Get Block indexs
  */
-  std::string redis_key = kZgwMultiBlockSetPrefix + bucket_name + "_" + 
+  std::string redis_key = kZgwMultiBlockSetPrefix + bucket_name + "_" +
     object_name + "_" + upload_id;
   redisReply *reply;
   reply = static_cast<redisReply*>(redisCommand(redis_cli_,
@@ -1366,7 +1481,7 @@ Status ZgwStore::GetMultiBlockSet(const std::string& bucket_name, const std::str
     return Status::OK();
   }
 /*
- *  2. Iterate through indexs to push_back 
+ *  2. Iterate through indexs to push_back
  */
   for (unsigned int i = 0; i < reply->elements; i++) {
     block_indexs->push_back(reply->element[i]->str);
@@ -1385,9 +1500,9 @@ Status ZgwStore::DeleteMultiBlockSet(const std::string& bucket_name, const std::
     return Status::IOError("CheckRedis Failed");
   }
 /*
- *  1. DEL 
+ *  1. DEL
  */
-  std::string redis_key = kZgwMultiBlockSetPrefix + bucket_name + "_" + 
+  std::string redis_key = kZgwMultiBlockSetPrefix + bucket_name + "_" +
     object_name + "_" + upload_id;
   redisReply* reply = static_cast<redisReply*>(redisCommand(redis_cli_,
               "DEL %s", redis_key.c_str()));
@@ -1425,7 +1540,7 @@ bool ZgwStore::MaybeHandleRedisError() {
     }
     freeReplyObject(reply);
   }
-  
+
   redis_error_ = false;
   return true;
 }

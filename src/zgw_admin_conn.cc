@@ -14,6 +14,9 @@
 extern ZgwMonitor* g_zgw_monitor;
 static const char* S3CommandsToString(S3Commands cmd_type);
 
+static const std::string kAccessKey = "access_key";
+static const std::string kSecretKey = "secret_key";
+
 bool ZgwAdminHandles::HandleRequest(const pink::HTTPRequest* req) {
   Initialize();
 
@@ -33,6 +36,40 @@ bool ZgwAdminHandles::HandleRequest(const pink::HTTPRequest* req) {
     } else {
       http_ret_code_ = 200;
       result_.assign(key_pair.first + "\r\n" + key_pair.second + "\r\n");
+    }
+  } else if (req->method() == "PUT" &&
+             command_ == kAddToken) {
+    const std::string& user_name = params_;
+    const std::map<std::string, std::string>& query_params = req->query_params();
+    if (query_params.find(kAccessKey) == query_params.end() ||
+        query_params.find(kSecretKey) == query_params.end()) {
+      http_ret_code_ = 400;
+      result_.assign("InvalidArgument");
+    }
+    Status s = store_->AddUserToken(
+        user_name, query_params.at(kAccessKey), query_params.at(kSecretKey));
+    if (!s.ok()) {
+      http_ret_code_ = 500;
+      result_.assign("Server error:" + s.ToString() + "\r\n");
+    } else {
+      http_ret_code_ = 200;
+      result_.assign("OK\r\n");
+    }
+  } else if (req->method() == "DELETE" &&
+             command_ == kDelToken) {
+    const std::string& user_name = params_;
+    const std::map<std::string, std::string>& query_params = req->query_params();
+    if (query_params.find(kAccessKey) == query_params.end()) {
+      http_ret_code_ = 400;
+      result_.assign("InvalidArgument");
+    }
+    Status s = store_->DelUserToken(user_name, query_params.at(kAccessKey));
+    if (!s.ok()) {
+      http_ret_code_ = 500;
+      result_.assign("Server error:" + s.ToString() + "\r\n");
+    } else {
+      http_ret_code_ = 200;
+      result_.assign("OK\r\n");
     }
   } else if (req->method() == "GET" &&
              command_ == kListUsers) {
