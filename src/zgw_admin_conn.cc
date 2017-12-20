@@ -10,8 +10,11 @@
 #include "src/zgw_monitor.h"
 #include "src/zgw_utils.h"
 #include "src/zgw_const.h"
+#include "src/zgw_config.h"
 
 extern ZgwMonitor* g_zgw_monitor;
+extern ZgwConfig* g_zgw_conf;
+
 static const char* S3CommandsToString(S3Commands cmd_type);
 
 static const std::string kAccessKey = "access_key";
@@ -22,6 +25,26 @@ bool ZgwAdminHandles::HandleRequest(const pink::HTTPRequest* req) {
 
   SplitBySecondSlash(req->path(), &command_, &params_);
 
+  const int BUFSIZE = 2048;
+  char buf[BUFSIZE];
+
+  const std::map<std::string, std::string>& query_params = req->query_params();
+  if (query_params.find("auth") == query_params.end()) {
+    http_ret_code_ = 400;
+    snprintf(buf, BUFSIZE,
+             "{\"errno\": \"400\", \"errmsg\": \"InvalidArgument: auth\"}");
+    result_.assign(buf);
+    return false;  // Meaning needn't reply
+  }
+  if (query_params.at("auth") != g_zgw_conf->admin_auth) {
+    http_ret_code_ = 403;
+    snprintf(buf, BUFSIZE,
+             "{\"errno\": \"403\", \"errmsg\": \"Administrator authorization failed!\"}");
+    result_.assign(buf);
+    return false;  // Meaning needn't reply
+  }
+
+
   if (req->method() == "PUT" &&
       command_ == kAddUser) {
     zgwstore::User new_user;
@@ -29,7 +52,6 @@ bool ZgwAdminHandles::HandleRequest(const pink::HTTPRequest* req) {
     new_user.user_id = slash::sha256(params_);
     std::pair<std::string, std::string> key_pair;
 
-    const std::map<std::string, std::string>& query_params = req->query_params();
     if (query_params.find(kAccessKey) != query_params.end() &&
         query_params.find(kSecretKey) != query_params.end()) {
       key_pair = std::make_pair(query_params.at(kAccessKey),
@@ -42,59 +64,99 @@ bool ZgwAdminHandles::HandleRequest(const pink::HTTPRequest* req) {
     Status s = store_->AddUser(new_user);
     if (!s.ok()) {
       http_ret_code_ = 409; // Confict ?
-      result_.assign(s.ToString());
+      snprintf(buf, BUFSIZE, "{\"errno\": \"%d\", \"errmsg\": \"%s\"}",
+               http_ret_code_, s.ToString().c_str());
+      result_.assign(buf);
     } else {
       http_ret_code_ = 200;
-      result_.assign(key_pair.first + "\r\n" + key_pair.second + "\r\n");
+      snprintf(buf, BUFSIZE, "{\"errno\": \"%d\", \"errmsg\": \"\", "
+               "\"access_key\": \"%s\", \"secret_key\": \"%s\"}",
+               0, key_pair.first.c_str(), key_pair.second.c_str());
+      result_.assign(buf);
     }
   } else if (req->method() == "PUT" &&
              command_ == kAddToken) {
     const std::string& user_name = params_;
-    const std::map<std::string, std::string>& query_params = req->query_params();
-    if (query_params.find(kAccessKey) == query_params.end() ||
-        query_params.find(kSecretKey) == query_params.end()) {
-      http_ret_code_ = 400;
-      result_.assign("InvalidArgument");
+    std::pair<std::string, std::string> key_pair;
+    if (query_params.find(kAccessKey) != query_params.end() &&
+        query_params.find(kSecretKey) != query_params.end()) {
+      key_pair = std::make_pair(query_params.at(kAccessKey),
+                                query_params.at(kSecretKey));
+    } else {
+      key_pair = GenerateKeyPair();
     }
-    Status s = store_->AddUserToken(
-        user_name, query_params.at(kAccessKey), query_params.at(kSecretKey));
+    Status s = store_->AddUserToken(user_name, key_pair.first, key_pair.second);
     if (!s.ok()) {
       http_ret_code_ = 500;
-      result_.assign("Server error:" + s.ToString() + "\r\n");
+      snprintf(buf, BUFSIZE, "{\"errno\": \"%d\", \"errmsg\": \"%s\"}",
+               http_ret_code_, s.ToString().c_str());
+      result_.assign(buf);
     } else {
       http_ret_code_ = 200;
-      result_.assign("OK\r\n");
+      snprintf(buf, BUFSIZE, "{\"errno\": \"%d\", \"errmsg\": \"\","
+               "\"access_key\": \"%s\", \"secret_key\": \"%s\"}",
+               0, key_pair.first.c_str(), key_pair.second.c_str());
+      result_.assign(buf);
     }
   } else if (req->method() == "DELETE" &&
              command_ == kDelToken) {
     const std::string& user_name = params_;
-    const std::map<std::string, std::string>& query_params = req->query_params();
     if (query_params.find(kAccessKey) == query_params.end()) {
       http_ret_code_ = 400;
-      result_.assign("InvalidArgument");
-    }
-    Status s = store_->DelUserToken(user_name, query_params.at(kAccessKey));
-    if (!s.ok()) {
-      http_ret_code_ = 500;
-      result_.assign("Server error:" + s.ToString() + "\r\n");
+      snprintf(buf, BUFSIZE,
+               "{\"errno\": \"400\", \"errmsg\": \"InvalidArgument: access_key\"}");
+      result_.assign(buf);
     } else {
-      http_ret_code_ = 200;
-      result_.assign("OK\r\n");
+      Status s = store_->DelUserToken(user_name, query_params.at(kAccessKey));
+      if (!s.ok()) {
+        http_ret_code_ = 500;
+        snprintf(buf, BUFSIZE, "{\"errno\": \"500\", \"errmsg\": \"%s\"}",
+                 s.ToString().c_str());
+        result_.assign(buf);
+      } else {
+        http_ret_code_ = 200;
+        snprintf(buf, BUFSIZE, "{\"errno\": \"0\", \"errmsg\": \"\"}");
+        result_.assign(buf);
+      }
     }
   } else if (req->method() == "GET" &&
              command_ == kListUsers) {
     std::vector<zgwstore::User> all_users;
-    store_->ListUsers(&all_users);
-    http_ret_code_ = 200;
-    for (auto& user : all_users) {
-      result_ += user.display_name + "\r\n";
-      for (auto& key_pair : user.key_pairs) {
-        result_ += key_pair.first + "\r\n";
-        result_ += key_pair.second + "\r\n";
+    Status s = store_->ListUsers(&all_users);
+    if (!s.ok()) {
+      snprintf(buf, BUFSIZE, "{\"errno\": \"500\", \"errmsg\": \"%s\"}",
+               s.ToString().c_str());
+      http_ret_code_ = 500;
+    } else {
+      std::string users_str;
+      for (auto& user : all_users) {
+        std::string key_pairs_str;
+        for (auto& key_pair : user.key_pairs) {
+          char kbuf[128];
+          snprintf(kbuf, 128, "{\"access_key\": \"%s\", \"secret_key\": \"%s\"}",
+                   key_pair.first.c_str(), key_pair.second.c_str());
+          key_pairs_str.append(kbuf);
+          key_pairs_str.push_back(',');
+        }
+        if (!key_pairs_str.empty()) {
+          key_pairs_str.pop_back();
+        }
+
+        char user_buf[1024];
+        snprintf(user_buf, 1024, "{\"username\": \"%s\", \"key_pairs\": [%s]}",
+                 user.display_name.c_str(), key_pairs_str.c_str());
+        users_str.append(user_buf);
+        users_str.push_back(',');
       }
-      result_ += "\r\n";
+      if (!users_str.empty()) {
+        users_str.pop_back();
+      }
+      snprintf(buf, BUFSIZE, "{\"errno\": \"0\", \"errmsg\": \"\", \"users\": [%s]}",
+               users_str.c_str());
+
+      result_.assign(buf);
+      http_ret_code_ = 200;
     }
-    http_ret_code_ = 200;
   } else if (req->method() == "GET" &&
              command_ == kGetStatus) {
     http_ret_code_ = 200;
@@ -103,11 +165,14 @@ bool ZgwAdminHandles::HandleRequest(const pink::HTTPRequest* req) {
   } else if (req->method() == "GET" &&
              command_ == kGetVersion) {
     http_ret_code_ = 200;
-    result_ = "Version: " + kZgwVersion + "\r\n";
-    result_ += "ComplileDate: " + kZgwCompileDate + "\r\n";
+    snprintf(buf, BUFSIZE, "{\"errno\": \"0\", \"errmsg\": \"\", "
+             "\"version\": \"%s\", \"compiledate\": \"%s\"}",
+             kZgwVersion.c_str(), kZgwCompileDate.c_str());
+    result_.assign(buf);
   } else {
     http_ret_code_ = 501;
-    result_ = ":(";
+    snprintf(buf, BUFSIZE, "{\"errno\": \"501\", \"errmsg\": \"Unimplement\"}");
+    result_.assign(buf);
   }
 
   // Needn't reply
