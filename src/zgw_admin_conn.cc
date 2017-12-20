@@ -27,7 +27,17 @@ bool ZgwAdminHandles::HandleRequest(const pink::HTTPRequest* req) {
     zgwstore::User new_user;
     new_user.display_name = params_;
     new_user.user_id = slash::sha256(params_);
-    auto key_pair = GenerateKeyPair();
+    std::pair<std::string, std::string> key_pair;
+
+    const std::map<std::string, std::string>& query_params = req->query_params();
+    if (query_params.find(kAccessKey) != query_params.end() &&
+        query_params.find(kSecretKey) != query_params.end()) {
+      key_pair = std::make_pair(query_params.at(kAccessKey),
+                                query_params.at(kSecretKey));
+    } else {
+      key_pair = GenerateKeyPair();
+    }
+
     new_user.key_pairs.insert(key_pair);
     Status s = store_->AddUser(new_user);
     if (!s.ok()) {
