@@ -63,12 +63,6 @@ Status ZgwStore::Open(
     delete zp_cli;
     return Status::IOError("Failed to connect to zeppelin");
   }
-  s = zp_cli->CreateTable(zp_table, 64);
-  if (!s.ok() && s.IsCorruption() &&
-        s.ToString() != "Corruption: Corruption: Already Exist") {
-    delete zp_cli;
-    return s;
-  }
   /*
    *  Connect to redis
    */

@@ -78,7 +78,7 @@ $(SLASH):
 	make -C $(SLASH_PATH)/slash __PERF=$(__PERF)
 
 $(PINK):
-	make -C $(PINK_PATH)/pink __PERF=$(__PERF) SLASH_PATH=$(SLASH_PATH) __ENABLE_SSL=1
+	make -C $(PINK_PATH)/pink __PERF=$(__PERF) SLASH_PATH=$(SLASH_PATH) ENABLE_SSL=1
 
 $(LIBZP):
 	make -C $(ZP_PATH)/libzp __PERF=$(__PERF) SLASH_PATH=$(SLASH_PATH) PINK_PATH=$(PINK_PATH)

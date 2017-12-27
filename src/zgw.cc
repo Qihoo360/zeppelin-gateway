@@ -6,7 +6,11 @@
 #include <iostream>
 #include <fstream>
 #include <getopt.h>
+#include <signal.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <glog/logging.h>
 
 #include "slash/include/env.h"
