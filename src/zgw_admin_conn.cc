@@ -142,19 +142,20 @@ bool ZgwAdminHandles::HandleRequest(const pink::HTTPRequest* req) {
           key_pairs_str.pop_back();
         }
 
-        char user_buf[1024];
-        snprintf(user_buf, 1024, "{\"username\": \"%s\", \"key_pairs\": [%s]}",
-                 user.display_name.c_str(), key_pairs_str.c_str());
+        char user_buf[128];
+        snprintf(user_buf, 128, "{\"username\": \"%s\", \"key_pairs\": [",
+                 user.display_name.c_str());
         users_str.append(user_buf);
-        users_str.push_back(',');
+        users_str.append(key_pairs_str);
+        users_str.append("]},");
       }
       if (!users_str.empty()) {
-        users_str.pop_back();
+        users_str.pop_back();  // remove last ','
       }
-      snprintf(buf, BUFSIZE, "{\"errno\": \"0\", \"errmsg\": \"\", \"users\": [%s]}",
-               users_str.c_str());
 
-      result_.assign(buf);
+      result_.assign("{\"errno\": \"0\", \"errmsg\": \"\", \"users\": [");
+      result_.append(users_str);
+      result_.append("]}");
       http_ret_code_ = 200;
     }
   } else if (req->method() == "GET" &&
@@ -206,13 +207,7 @@ std::string ZgwAdminHandles::GetZgwStatus(bool force) {
       \"failed_request\": \"%lu\",\
       \"avg_upload_part_time\": \"%lu\",\
       \"auth_failed\": \"%lu\",\
-      \"buckets_info\": [\
-      %s \
-      ],\
-      \"commands_info\": [\
-      %s \
-      ]\
-  }";
+      \"buckets_info\": [";
 
   snprintf(buf, buf_size, format,
            g_zgw_monitor->UpdateAndGetQPS(),
@@ -220,10 +215,15 @@ std::string ZgwAdminHandles::GetZgwStatus(bool force) {
            g_zgw_monitor->request_count(),
            g_zgw_monitor->failed_request(),
            g_zgw_monitor->avg_upload_part_time(),
-           g_zgw_monitor->auth_failed_count(),
-           GenBucketInfo(force).c_str(),
-           GenCommandsInfo().c_str());
-  return std::string(buf);
+           g_zgw_monitor->auth_failed_count());
+
+  std::string result(buf);
+  result.append(GenBucketInfo(force));
+  result.append("], \"commands_info\": [");
+  result.append(GenCommandsInfo());
+  result.append("]}");
+
+  return result;
 }
 
 void ZgwAdminHandles::Initialize() {
