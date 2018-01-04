@@ -1026,20 +1026,22 @@ Status ZgwStore::AddObject(const Object& object, const bool need_lock) {
 /*
  *  4. HMSET
  */
-  std::string hmset_cmd = "HMSET " + kZgwObjectPrefix + object.bucket_name +
-    "_" + object.object_name;
-  hmset_cmd += (" bname " + object.bucket_name);
-  hmset_cmd += (" oname " + object.object_name);
-  hmset_cmd += (" etag " + object.etag);
-  hmset_cmd += " size %lld";
-  hmset_cmd += (" owner " + object.owner);
-  hmset_cmd += " lm %llu";
-  hmset_cmd += " class %d";
-  hmset_cmd += (" acl " + object.acl);
-  hmset_cmd += (" id " + object.upload_id);
-  hmset_cmd += (" block " + object.data_block);
-  reply = static_cast<redisReply*>(redisCommand(redis_cli_, hmset_cmd.c_str(), object.size,
-        object.last_modified, object.storage_class));
+  const char* hmset_cmd_fmt = "HMSET %s%s_%s bname %s oname %s etag %s "
+    "size %lld owner %s lm %llu class %d acl %s id %s block %s";
+  reply = static_cast<redisReply*>(redisCommand(redis_cli_, hmset_cmd_fmt,
+        kZgwObjectPrefix.c_str(),
+        object.bucket_name.c_str(),
+        object.object_name.c_str(),
+        object.bucket_name.c_str(),
+        object.object_name.c_str(),
+        object.etag.c_str(),
+        object.size,
+        object.owner.c_str(),
+        object.last_modified,
+        object.storage_class,
+        object.acl.c_str(),
+        object.upload_id.c_str(),
+        object.data_block.c_str()));
   if (reply == NULL) {
     return HandleIOError("AddObject::HMSET");
   }

@@ -98,7 +98,8 @@ void PutObjectCmd::DoReceiveBody(const char* data, size_t data_size) {
     } else {
       http_ret_code_ = 500;
       LOG(ERROR) << request_id_ << " " <<
-        "PutObject(DoReceiveBody) - BlockSet: " << block_start_ - 1 << " error";
+        "PutObject(DoReceiveBody) - BlockSet: " << block_start_ - 1 << " :" <<
+        status_.ToString();
     }
 
     remain_size -= nwritten;
