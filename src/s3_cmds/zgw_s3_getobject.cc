@@ -260,6 +260,7 @@ int GetObjectCmd::DoResponseBody(char* buf, size_t max_size) {
     LOG(ERROR) << request_id_ << " " <<
       "GetObject(DoResponseBody) - BlockGet: " << block_index << " :" <<
       s.ToString();
+    http_ret_code_ = 500;
     return -1;
   }
   memcpy(buf, block_buffer_.data() + start_byte, block_size);
