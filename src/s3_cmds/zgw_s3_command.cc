@@ -4,8 +4,14 @@
 #include "src/s3_cmds/zgw_s3_object.h"
 #include "src/s3_cmds/zgw_s3_bucket.h"
 #include "src/s3_cmds/zgw_s3_xml.h"
+#include "src/zgwstore/zgw_define.h"
 
 class ZgwTestCmd : public S3Cmd {
+ public:
+  ZgwTestCmd(int flags)
+      : S3Cmd(flags) {
+  }
+
   virtual bool DoInitial() {
     http_response_xml_.clear();
     return true;
@@ -27,6 +33,11 @@ class ZgwTestCmd : public S3Cmd {
 };
 
 class UnImplementCmd : public S3Cmd {
+ public:
+  UnImplementCmd (int flags)
+      : S3Cmd(flags) {
+  }
+
   virtual bool DoInitial() {
     return false;
   }
@@ -47,29 +58,52 @@ class UnImplementCmd : public S3Cmd {
 };
 
 void InitCmdTable(S3CmdTable* cmd_table) {
-  cmd_table->insert(std::make_pair(kListAllBuckets, new ListAllBucketsCmd()));
-  cmd_table->insert(std::make_pair(kDeleteBucket, new DeleteBucketCmd()));
-  cmd_table->insert(std::make_pair(kListObjects, new ListObjectsCmd()));
-  cmd_table->insert(std::make_pair(kGetBucketLocation, new GetBucketLocationCmd()));
-  cmd_table->insert(std::make_pair(kHeadBucket, new HeadBucketCmd()));
-  cmd_table->insert(std::make_pair(kListMultiPartUpload, new ListMultiPartUploadCmd()));
-  cmd_table->insert(std::make_pair(kPutBucket, new PutBucketCmd()));
-  cmd_table->insert(std::make_pair(kDeleteObject, new DeleteObjectCmd()));
-  cmd_table->insert(std::make_pair(kDeleteMultiObjects, new DeleteMultiObjectsCmd()));
-  cmd_table->insert(std::make_pair(kGetObject, new GetObjectCmd()));
-  cmd_table->insert(std::make_pair(kHeadObject, new HeadObjectCmd()));
-  cmd_table->insert(std::make_pair(kPostObject, new PostObjectCmd()));
-  cmd_table->insert(std::make_pair(kPutObject, new PutObjectCmd()));
-  cmd_table->insert(std::make_pair(kPutObjectCopy, new PutObjectCopyCmd()));
-  cmd_table->insert(std::make_pair(kInitMultipartUpload, new InitMultipartUploadCmd()));
-  cmd_table->insert(std::make_pair(kUploadPart, new UploadPartCmd()));
-  cmd_table->insert(std::make_pair(kUploadPartCopy, new UploadPartCopyCmd()));
-  cmd_table->insert(std::make_pair(kUploadPartCopyPartial, new UploadPartCopyPartialCmd()));
-  cmd_table->insert(std::make_pair(kCompleteMultiUpload, new CompleteMultiUploadCmd()));
-  cmd_table->insert(std::make_pair(kAbortMultiUpload, new AbortMultiUploadCmd()));
-  cmd_table->insert(std::make_pair(kListParts, new ListPartsCmd()));
-  cmd_table->insert(std::make_pair(kUnImplement, new UnImplementCmd()));
-  cmd_table->insert(std::make_pair(kZgwTest, new ZgwTestCmd()));
+  cmd_table->insert(
+    std::make_pair(kListAllBuckets, new ListAllBucketsCmd(kFlagsRead)));
+  cmd_table->insert(
+    std::make_pair(kDeleteBucket, new DeleteBucketCmd(kFlagsWrite)));
+  cmd_table->insert(
+    std::make_pair(kListObjects, new ListObjectsCmd(kFlagsRead)));
+  cmd_table->insert(
+    std::make_pair(kGetBucketLocation, new GetBucketLocationCmd(kFlagsRead)));
+  cmd_table->insert(
+    std::make_pair(kHeadBucket, new HeadBucketCmd(kFlagsRead)));
+  cmd_table->insert(
+    std::make_pair(kListMultiPartUpload, new ListMultiPartUploadCmd(kFlagsRead)));
+  cmd_table->insert(
+    std::make_pair(kPutBucket, new PutBucketCmd(kFlagsWrite)));
+  cmd_table->insert(
+    std::make_pair(kDeleteObject, new DeleteObjectCmd(kFlagsWrite)));
+  cmd_table->insert(
+    std::make_pair(kDeleteMultiObjects, new DeleteMultiObjectsCmd(kFlagsWrite)));
+  cmd_table->insert(
+    std::make_pair(kGetObject, new GetObjectCmd(kFlagsRead)));
+  cmd_table->insert(
+    std::make_pair(kHeadObject, new HeadObjectCmd(kFlagsRead)));
+  cmd_table->insert(
+    std::make_pair(kPostObject, new PostObjectCmd(kFlagsWrite)));
+  cmd_table->insert(
+    std::make_pair(kPutObject, new PutObjectCmd(kFlagsWrite)));
+  cmd_table->insert(
+    std::make_pair(kPutObjectCopy, new PutObjectCopyCmd(kFlagsWrite)));
+  cmd_table->insert(
+    std::make_pair(kInitMultipartUpload, new InitMultipartUploadCmd(kFlagsWrite)));
+  cmd_table->insert(
+    std::make_pair(kUploadPart, new UploadPartCmd(kFlagsWrite)));
+  cmd_table->insert(
+    std::make_pair(kUploadPartCopy, new UploadPartCopyCmd(kFlagsWrite)));
+  cmd_table->insert(
+    std::make_pair(kUploadPartCopyPartial, new UploadPartCopyPartialCmd(kFlagsWrite)));
+  cmd_table->insert(
+    std::make_pair(kCompleteMultiUpload, new CompleteMultiUploadCmd(kFlagsWrite)));
+  cmd_table->insert(
+    std::make_pair(kAbortMultiUpload, new AbortMultiUploadCmd(kFlagsWrite)));
+  cmd_table->insert(
+    std::make_pair(kListParts, new ListPartsCmd(kFlagsRead)));
+  cmd_table->insert(
+    std::make_pair(kUnImplement, new UnImplementCmd(kFlagsRead)));
+  cmd_table->insert(
+    std::make_pair(kZgwTest, new ZgwTestCmd(kFlagsRead | kFlagsWrite)));
 }
 
 void DestroyCmdTable(S3CmdTable* cmd_table) {
@@ -79,6 +113,22 @@ void DestroyCmdTable(S3CmdTable* cmd_table) {
 }
 
 bool S3Cmd::TryAuth() {
+  if (!bucket_name_.empty()) {
+    zgwstore::Bucket bkt;
+    std::string unuseful_name;
+    bool anonymous = true;
+    Status s = store_->GetBucket(unuseful_name, bucket_name_, &bkt, anonymous);
+    if (!s.ok()) {
+      GenerateErrorXml(kInvalidAccessKeyId);
+      return false;
+    }
+    if (bkt.acl == "FULL_CONTROL" ||
+        (bkt.acl == "READ" && flags() & kFlagsRead) ||
+        (bkt.acl == "WRITE" && flags() & kFlagsWrite)) {
+      user_name_.assign(bkt.owner);
+      return true;
+    }
+  }
   switch(s3_auth_.TryAuth()) {
     case kAuthSuccess:
       http_ret_code_ = 200;

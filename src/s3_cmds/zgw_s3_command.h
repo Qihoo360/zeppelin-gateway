@@ -34,6 +34,11 @@ enum S3Commands {
   kZgwTest,
 };
 
+enum S3CmdFlags {
+  kFlagsRead = 1,
+  kFlagsWrite = 2,
+};
+
 enum S3ErrorType {
   kInvalidAccessKeyId,
   kSignatureDoesNotMatch,
@@ -63,9 +68,10 @@ extern void DestroyCmdTable(S3CmdTable* cmd_table);
 
 class S3Cmd {
  public:
-  S3Cmd()
+  S3Cmd(int flags)
     : store_(nullptr),
-      http_ret_code_(200) {
+      http_ret_code_(200),
+      s3_cmd_flags_(flags) {
   }
   virtual ~S3Cmd() {}
 
@@ -112,6 +118,8 @@ class S3Cmd {
     return request_id_;
   }
 
+  int flags() const { return s3_cmd_flags_; }
+
  protected:
   bool TryAuth();
   void GenerateErrorXml(S3ErrorType type, const std::string& message = "");
@@ -135,6 +143,8 @@ class S3Cmd {
   }
   std::string http_request_xml_;
   std::string http_response_xml_;
+
+  int s3_cmd_flags_;
 
  private:
   // No copying allowed

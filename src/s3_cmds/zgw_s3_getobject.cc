@@ -22,7 +22,7 @@ bool GetObjectCmd::DoInitial() {
                     std::to_string(slash::NowMicros()));
   user_name_.clear();
   // TODO(replace server's public read with authority management)
-  if (!g_zgw_conf->public_read && !TryAuth()) {
+  if (!TryAuth()) {
     DLOG(INFO) << request_id_ << " " <<
       "GetObject(DoInitial) - Auth failed: " << client_ip_port_;
     g_zgw_monitor->AddAuthFailed();

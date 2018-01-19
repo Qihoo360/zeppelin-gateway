@@ -13,7 +13,9 @@ using slash::Status;
 
 class ListAllBucketsCmd : public S3Cmd {
  public:
-  ListAllBucketsCmd() {}
+  ListAllBucketsCmd(int flags)
+      : S3Cmd(flags) {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
@@ -27,7 +29,9 @@ class ListAllBucketsCmd : public S3Cmd {
 
 class ListObjectsCmd : public S3Cmd {
  public:
-  ListObjectsCmd() {}
+  ListObjectsCmd(int flags)
+      : S3Cmd(flags) {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
@@ -54,7 +58,9 @@ class ListObjectsCmd : public S3Cmd {
 
 class ListMultiPartUploadCmd : public S3Cmd {
  public:
-  ListMultiPartUploadCmd() {}
+  ListMultiPartUploadCmd(int flags)
+      : S3Cmd(flags) {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
@@ -80,9 +86,10 @@ class ListMultiPartUploadCmd : public S3Cmd {
 };
 
 class PutBucketCmd : public S3Cmd {
-
  public:
-  PutBucketCmd() {}
+  PutBucketCmd(int flags)
+      : S3Cmd(flags) {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoReceiveBody(const char* data, size_t data_size) override;
@@ -94,9 +101,10 @@ class PutBucketCmd : public S3Cmd {
 };
 
 class DeleteBucketCmd : public S3Cmd {
-
  public:
-  DeleteBucketCmd() {}
+  DeleteBucketCmd(int flags)
+      : S3Cmd(flags) {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
@@ -104,9 +112,10 @@ class DeleteBucketCmd : public S3Cmd {
 };
 
 class DeleteMultiObjectsCmd : public S3Cmd {
-
  public:
-  DeleteMultiObjectsCmd() {}
+  DeleteMultiObjectsCmd(int flags)
+      : S3Cmd(flags) {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoReceiveBody(const char* data, size_t data_size) override;
@@ -117,9 +126,10 @@ class DeleteMultiObjectsCmd : public S3Cmd {
 };
 
 class HeadBucketCmd : public S3Cmd {
-
  public:
-  HeadBucketCmd() {}
+  HeadBucketCmd(int flags)
+      : S3Cmd(flags) {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
@@ -129,9 +139,10 @@ class HeadBucketCmd : public S3Cmd {
 };
 
 class GetBucketLocationCmd : public S3Cmd {
-
  public:
-  GetBucketLocationCmd() {}
+  GetBucketLocationCmd(int flags)
+      : S3Cmd(flags) {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;

@@ -37,7 +37,7 @@ bool PutObjectCmd::DoInitial() {
   new_object_.owner = user_name_;
   new_object_.last_modified = 0; // Postpone
   new_object_.storage_class = 0; // Unused
-  new_object_.acl = "FULL_CONTROL";
+  new_object_.acl = "_";
   new_object_.upload_id = "_"; // Doesn't need
   new_object_.data_block = ""; // Postpone
 

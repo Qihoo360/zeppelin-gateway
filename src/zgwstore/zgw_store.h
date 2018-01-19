@@ -49,7 +49,7 @@ class ZgwStore {
   Status AddBucket(const Bucket& bucket, const bool need_lock = true,
       const bool override = false);
   Status GetBucket(const std::string& user_name, const std::string& bucket_name,
-      Bucket* bucket);
+      Bucket* bucket, bool anonymous = false);
   Status DeleteBucket(const std::string& user_name, const std::string& bucket_name,
       const bool need_lock = true);
   Status ListBuckets(const std::string& user_name, std::vector<Bucket>* buckets);

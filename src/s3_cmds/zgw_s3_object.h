@@ -16,8 +16,9 @@ using slash::Status;
 
 class GetObjectCmd : public S3Cmd {
  public:
-  GetObjectCmd()
-      : need_partial_(false) {
+  GetObjectCmd(int flags)
+      : S3Cmd(flags),
+        need_partial_(false) {
     block_buffer_.resize(zgwstore::kZgwBlockSize);
   }
 
@@ -42,9 +43,9 @@ class GetObjectCmd : public S3Cmd {
 };
 
 class HeadObjectCmd : public S3Cmd {
-
  public:
-  HeadObjectCmd() {
+  HeadObjectCmd(int flags)
+      : S3Cmd(flags) {
   }
 
   virtual bool DoInitial() override;
@@ -55,10 +56,10 @@ class HeadObjectCmd : public S3Cmd {
 };
 
 class PostObjectCmd : public S3Cmd {
-
  public:
-  PostObjectCmd()
-    : block_count_(0),
+  PostObjectCmd(int flags)
+    : S3Cmd(flags),
+      block_count_(0),
       block_start_(0),
       block_end_(0) {
   }
@@ -80,9 +81,9 @@ class PostObjectCmd : public S3Cmd {
 };
 
 class PutObjectCopyCmd : public S3Cmd {
-
  public:
-  PutObjectCopyCmd() {
+  PutObjectCopyCmd(int flags)
+      : S3Cmd(flags) {
   }
 
   virtual bool DoInitial() override;
@@ -101,10 +102,10 @@ class PutObjectCopyCmd : public S3Cmd {
 };
 
 class PutObjectCmd : public S3Cmd {
-
  public:
-  PutObjectCmd()
-    : block_count_(0),
+  PutObjectCmd(int flags)
+    : S3Cmd(flags),
+      block_count_(0),
       block_start_(0),
       block_end_(0) {
   }
@@ -126,9 +127,10 @@ class PutObjectCmd : public S3Cmd {
 };
 
 class DeleteObjectCmd : public S3Cmd {
-
  public:
-  DeleteObjectCmd() {}
+  DeleteObjectCmd(int flags)
+      : S3Cmd(flags) {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
@@ -138,9 +140,10 @@ class DeleteObjectCmd : public S3Cmd {
 };
 
 class InitMultipartUploadCmd: public S3Cmd {
-
  public:
-  InitMultipartUploadCmd() {}
+  InitMultipartUploadCmd(int flags)
+      : S3Cmd(flags) {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
@@ -153,9 +156,10 @@ class InitMultipartUploadCmd: public S3Cmd {
 };
 
 class AbortMultiUploadCmd : public S3Cmd {
-
  public:
-  AbortMultiUploadCmd() {}
+  AbortMultiUploadCmd(int flags)
+      : S3Cmd(flags) {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
@@ -166,10 +170,10 @@ class AbortMultiUploadCmd : public S3Cmd {
 };
 
 class UploadPartCmd : public S3Cmd {
-
  public:
-  UploadPartCmd()
-    : block_count_(0),
+  UploadPartCmd(int flags)
+    : S3Cmd(flags),
+      block_count_(0),
       block_start_(0),
       block_end_(0) {
   }
@@ -191,9 +195,10 @@ class UploadPartCmd : public S3Cmd {
 };
 
 class UploadPartCopyCmd : public S3Cmd {
-
  public:
-  UploadPartCopyCmd() {}
+  UploadPartCopyCmd(int flags)
+      : S3Cmd(flags) {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
@@ -213,9 +218,10 @@ class UploadPartCopyCmd : public S3Cmd {
 };
 
 class UploadPartCopyPartialCmd : public S3Cmd {
-
  public:
-  UploadPartCopyPartialCmd() {}
+  UploadPartCopyPartialCmd(int flags)
+      : S3Cmd(flags) {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
@@ -246,9 +252,10 @@ class UploadPartCopyPartialCmd : public S3Cmd {
 };
 
 class ListPartsCmd: public S3Cmd {
-
  public:
-  ListPartsCmd() {}
+  ListPartsCmd(int flags)
+      : S3Cmd(flags) {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoAndResponse(pink::HTTPResponse* resp) override;
@@ -271,9 +278,10 @@ class ListPartsCmd: public S3Cmd {
 };
 
 class CompleteMultiUploadCmd : public S3Cmd {
-
  public:
-  CompleteMultiUploadCmd() {}
+  CompleteMultiUploadCmd(int flags)
+      : S3Cmd(flags) {
+  }
 
   virtual bool DoInitial() override;
   virtual void DoReceiveBody(const char* data, size_t data_size) override;

@@ -40,7 +40,7 @@ void PutBucketCmd::DoAndResponse(pink::HTTPResponse* resp) {
       new_bucket_.bucket_name = bucket_name_;
       new_bucket_.create_time = slash::NowMicros();
       new_bucket_.owner = user_name_;
-      new_bucket_.acl = "FULL_CONTROL"; // TODO (gaodq) acl
+      new_bucket_.acl = "_";
       new_bucket_.location = loc.value().empty() ? "CN" : loc.value();
       new_bucket_.volumn = 0;
       new_bucket_.uploading_volumn = 0;
