@@ -42,7 +42,7 @@ int ZgwConfig::LoadConf() {
   // Meta server
   std::string zp_meta_addr;
   b_conf->GetConfStr("zp_meta_addr", &zp_meta_addr);
-  slash::StringSplit(zp_meta_addr, '/', zp_meta_ip_ports);
+  slash::StringSplit(zp_meta_addr, ',', zp_meta_ip_ports);
   b_conf->GetConfInt("zp_optimeout_ms", &zp_optimeout_ms);
   b_conf->GetConfStr("redis_ip_port", &redis_ip_port);
   b_conf->GetConfStr("redis_passwd", &redis_passwd);
