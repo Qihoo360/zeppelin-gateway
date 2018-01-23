@@ -2,9 +2,9 @@ import boto3
 from botocore.client import Config
     
 s3_cli = boto3.client('s3', 'sh-bt-1',
-    config=Config(signature_version='s3v4'), use_ssl=True,
-    verify='/path-to/cacert.pem, or delete me and set use_ssl=False',
-    endpoint_url='https://zeppelin-gateway-host',
+    config=Config(signature_version='s3v4'), use_ssl=False,
+    # verify='/path-to/cacert.pem, or delete me and set use_ssl=False',
+    endpoint_url='http://zeppelin-gateway-host',
     aws_secret_access_key='XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
     aws_access_key_id='XXXXXXXXXXXXXXXXXXXX')
 

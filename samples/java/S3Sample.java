@@ -99,9 +99,10 @@ public class S3Sample {
 
         S3ClientOptions clientOptions = new S3ClientOptions();
         clientOptions.setPathStyleAccess(true);
+        clientOptions.disableChunkedEncoding();
 
         AmazonS3 s3 = new AmazonS3Client(customProvider);
-        s3.setEndpoint("https://zeppelin-gateway-host");
+        s3.setEndpoint("http://zeppelin-gateway-host");
         s3.setS3ClientOptions(clientOptions);
 
         String bucketName = "my-first-s3-bucket-" + UUID.randomUUID();

@@ -113,18 +113,17 @@ void DestroyCmdTable(S3CmdTable* cmd_table) {
 }
 
 bool S3Cmd::TryAuth() {
-  if (!bucket_name_.empty()) {
+  if ((flags() & kFlagsRead) && !bucket_name_.empty()) {
     zgwstore::Bucket bkt;
     std::string unuseful_name;
     bool anonymous = true;
     Status s = store_->GetBucket(unuseful_name, bucket_name_, &bkt, anonymous);
     if (!s.ok()) {
+      http_ret_code_ = 403;
       GenerateErrorXml(kInvalidAccessKeyId);
       return false;
     }
-    if (bkt.acl == "FULL_CONTROL" ||
-        (bkt.acl == "READ" && flags() & kFlagsRead) ||
-        (bkt.acl == "WRITE" && flags() & kFlagsWrite)) {
+    if (bkt.acl == "FULL_CONTROL" || bkt.acl == "READ") {
       user_name_.assign(bkt.owner);
       return true;
     }
