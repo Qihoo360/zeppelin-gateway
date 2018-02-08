@@ -17,6 +17,8 @@ bool PutObjectCopyCmd::DoInitial() {
   }
 
   SplitBySecondSlash(source_path, &src_bucket_name_, &src_object_name_);
+  src_bucket_name_ = UrlDecode(src_bucket_name_);
+  src_object_name_ = UrlDecode(src_object_name_);
   if (src_bucket_name_.empty() || src_object_name_.empty()) {
     http_ret_code_ = 400;
     GenerateErrorXml(kInvalidArgument, "x-amz-copy-source");
